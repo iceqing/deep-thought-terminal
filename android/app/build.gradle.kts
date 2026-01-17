@@ -24,10 +24,19 @@ android {
         applicationId = "com.deepthought.termux_flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        // IMPORTANT: targetSdk must be 28 or lower to allow executing binaries
+        // from /data/data directory. Android 10+ (API 29+) enforces SELinux
+        // policies that block execution from app_data_file contexts.
+        // See: https://github.com/termux/termux-app/issues/1072
+        targetSdk = 28
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Enable native library extraction for flutter_pty
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     buildTypes {

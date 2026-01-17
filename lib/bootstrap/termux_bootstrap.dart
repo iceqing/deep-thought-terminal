@@ -160,6 +160,7 @@ class TermuxBootstrap {
       final totalFiles = archive.files.length;
       var extractedFiles = 0;
       final symlinks = <String, String>{};
+      final executableFiles = <String>[];
 
       for (final file in archive.files) {
         final filename = file.name;
@@ -179,9 +180,9 @@ class TermuxBootstrap {
           await outFile.create(recursive: true);
           await outFile.writeAsBytes(file.content as List<int>);
 
-          // 设置可执行权限
+          // 记录需要设置可执行权限的文件
           if (_shouldBeExecutable(filename)) {
-            await Process.run('chmod', ['700', targetPath]);
+            executableFiles.add(targetPath);
           }
         } else {
           await Directory(targetPath).create(recursive: true);
@@ -198,6 +199,15 @@ class TermuxBootstrap {
         }
       }
 
+      // 批量设置可执行权限
+      onProgress?.call(
+        BootstrapStatus.configuring,
+        0.9,
+        'Setting permissions for ${executableFiles.length} files...',
+      );
+
+      await _setExecutablePermissions(executableFiles);
+
       // 创建符号链接
       await _createSymlinks(symlinks);
     } catch (e) {
@@ -206,14 +216,43 @@ class TermuxBootstrap {
     }
   }
 
+  /// 批量设置可执行权限
+  static Future<void> _setExecutablePermissions(List<String> files) async {
+    for (final filePath in files) {
+      try {
+        // 使用chmod设置rwx权限 (0700 = owner can read, write, execute)
+        final result = await Process.run('chmod', ['700', filePath]);
+        if (result.exitCode != 0) {
+          debugPrint('chmod failed for $filePath: ${result.stderr}');
+        }
+      } catch (e) {
+        debugPrint('Failed to set permission for $filePath: $e');
+      }
+    }
+
+    // 验证关键文件的权限
+    final bashPath = TermuxConstants.bashPath;
+    try {
+      final stat = await Process.run('ls', ['-la', bashPath]);
+      debugPrint('Bash permissions: ${stat.stdout}');
+    } catch (e) {
+      debugPrint('Could not verify bash permissions: $e');
+    }
+  }
+
   /// 解析SYMLINKS.txt
+  /// 格式: target←link_path
+  /// 例如: libreadline.so.8.3←./lib/libreadline.so.8
+  /// 表示创建符号链接 ./lib/libreadline.so.8 -> libreadline.so.8.3
   static void _parseSymlinks(String content, Map<String, String> symlinks) {
     final lines = content.split('\n');
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
       final parts = line.split('←');
       if (parts.length == 2) {
-        symlinks[parts[0].trim()] = parts[1].trim();
+        final target = parts[0].trim();    // 符号链接指向的目标
+        final linkPath = parts[1].trim();  // 符号链接的路径
+        symlinks[linkPath] = target;
       }
     }
   }
@@ -227,9 +266,21 @@ class TermuxBootstrap {
 
   /// 创建符号链接
   static Future<void> _createSymlinks(Map<String, String> symlinks) async {
+    int created = 0;
+    int failed = 0;
+
     for (final entry in symlinks.entries) {
-      final linkPath = path.join(TermuxConstants.prefixDir, entry.key);
-      final targetPath = entry.value;
+      // entry.key = 符号链接路径 (如 ./lib/libreadline.so.8)
+      // entry.value = 目标 (如 libreadline.so.8.3)
+      String linkPathRaw = entry.key;
+      final target = entry.value;
+
+      // 移除开头的 "./"
+      if (linkPathRaw.startsWith('./')) {
+        linkPathRaw = linkPathRaw.substring(2);
+      }
+
+      final linkPath = path.join(TermuxConstants.prefixDir, linkPathRaw);
 
       try {
         final link = Link(linkPath);
@@ -240,10 +291,35 @@ class TermuxBootstrap {
         if (await link.exists()) {
           await link.delete();
         }
-        await link.create(targetPath);
+        // 创建相对符号链接
+        await link.create(target);
+        created++;
+
+        // 调试: 验证关键库链接
+        if (linkPathRaw.contains('libreadline')) {
+          debugPrint('Created readline symlink: $linkPath -> $target');
+          // 验证链接是否有效
+          final exists = await link.exists();
+          final resolvedTarget = await link.target();
+          debugPrint('Symlink exists: $exists, resolves to: $resolvedTarget');
+        }
       } catch (e) {
-        debugPrint('Failed to create symlink: $linkPath -> $targetPath: $e');
+        debugPrint('Failed to create symlink: $linkPath -> $target: $e');
+        failed++;
       }
+    }
+
+    debugPrint('Symlinks created: $created, failed: $failed');
+
+    // 验证lib目录内容
+    try {
+      final libDir = Directory(TermuxConstants.libDir);
+      if (await libDir.exists()) {
+        final result = await Process.run('ls', ['-la', '${TermuxConstants.libDir}/libreadline*']);
+        debugPrint('Readline libs: ${result.stdout}');
+      }
+    } catch (e) {
+      debugPrint('Could not list lib dir: $e');
     }
   }
 
@@ -258,6 +334,85 @@ class TermuxBootstrap {
     } catch (e) {
       debugPrint('Failed to set tmp permissions: $e');
     }
+
+    // 确保关键库文件有正确的链接
+    // Android的动态链接器可能不支持某些类型的符号链接
+    await _ensureCriticalLibraries();
+  }
+
+  /// 确保关键库文件存在
+  /// 如果符号链接不工作，直接复制文件
+  static Future<void> _ensureCriticalLibraries() async {
+    final libDir = TermuxConstants.libDir;
+
+    // 关键库映射: 链接名 -> 实际文件名
+    final criticalLibs = {
+      'libreadline.so.8': 'libreadline.so.8.3',
+      'libreadline.so': 'libreadline.so.8.3',
+      'libhistory.so.8': 'libhistory.so.8.3',
+      'libhistory.so': 'libhistory.so.8.3',
+      'libncursesw.so.6': 'libncursesw.so.6.5',
+      'libncursesw.so': 'libncursesw.so.6.5',
+      'libiconv.so': 'libiconv.so',
+      'libandroid-support.so': 'libandroid-support.so',
+    };
+
+    for (final entry in criticalLibs.entries) {
+      final linkPath = '$libDir/${entry.key}';
+      final targetPath = '$libDir/${entry.value}';
+
+      try {
+        final linkFile = File(linkPath);
+        final targetFile = File(targetPath);
+
+        // 检查目标文件是否存在
+        if (!await targetFile.exists()) {
+          debugPrint('Target library not found: $targetPath');
+          continue;
+        }
+
+        // 检查链接是否有效
+        if (await linkFile.exists()) {
+          debugPrint('Library link OK: $linkPath');
+          continue;
+        }
+
+        // 链接无效，尝试重新创建
+        debugPrint('Library link invalid, recreating: $linkPath -> ${entry.value}');
+
+        // 删除可能存在的损坏链接
+        try {
+          final link = Link(linkPath);
+          if (await link.exists()) {
+            await link.delete();
+          }
+        } catch (e) {
+          // 忽略
+        }
+
+        // 如果是同一个文件，跳过
+        if (entry.key == entry.value) {
+          continue;
+        }
+
+        // 尝试创建符号链接
+        try {
+          await Link(linkPath).create(entry.value);
+          debugPrint('Created symlink: $linkPath -> ${entry.value}');
+        } catch (e) {
+          // 符号链接失败，复制文件作为备份方案
+          debugPrint('Symlink failed, copying file: $e');
+          await targetFile.copy(linkPath);
+          debugPrint('Copied library: $targetPath -> $linkPath');
+        }
+      } catch (e) {
+        debugPrint('Error ensuring library $linkPath: $e');
+      }
+    }
+
+    // 最终验证
+    final readlineLib = File('$libDir/libreadline.so.8');
+    debugPrint('Final check - libreadline.so.8 exists: ${await readlineLib.exists()}');
   }
 
   /// 获取 Shell 路径
@@ -283,6 +438,11 @@ class TermuxEnvironment {
       'COLORTERM': 'truecolor',
       'LANG': 'en_US.UTF-8',
       'SHELL': TermuxConstants.bashPath,
+      // LD_LIBRARY_PATH for dynamically linked binaries
+      'LD_LIBRARY_PATH': TermuxConstants.libDir,
+      // LD_PRELOAD to help with library loading
+      'ANDROID_ROOT': '/system',
+      'ANDROID_DATA': '/data',
     };
   }
 
