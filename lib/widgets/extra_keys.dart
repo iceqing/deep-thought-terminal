@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:xterm/xterm.dart';
 
 /// 额外按键组件
 /// 参考 termux-app: ExtraKeysView.java, ExtraKeyButton.java
@@ -8,14 +9,16 @@ import 'package:flutter/services.dart';
 class ExtraKey {
   final String label;
   final String? displayLabel;
-  final String? key;
+  final String? text;  // 普通文本字符
+  final TerminalKey? terminalKey;  // xterm特殊按键
   final bool isModifier;
   final IconData? icon;
 
   const ExtraKey({
     required this.label,
     this.displayLabel,
-    this.key,
+    this.text,
+    this.terminalKey,
     this.isModifier = false,
     this.icon,
   });
@@ -25,27 +28,52 @@ class ExtraKey {
 
 /// 预定义的额外按键
 class ExtraKeys {
-  static const esc = ExtraKey(label: 'ESC', key: '\x1b');
-  static const tab = ExtraKey(label: 'TAB', key: '\t');
+  // ESC键
+  static const esc = ExtraKey(label: 'ESC', terminalKey: TerminalKey.escape);
+
+  // TAB键
+  static const tab = ExtraKey(label: 'TAB', terminalKey: TerminalKey.tab);
+
+  // CTRL修饰键
   static const ctrl = ExtraKey(label: 'CTRL', isModifier: true);
+
+  // ALT修饰键
   static const alt = ExtraKey(label: 'ALT', isModifier: true);
-  static const home = ExtraKey(label: 'HOME', key: '\x1b[H');
-  static const end = ExtraKey(label: 'END', key: '\x1b[F');
-  static const pgup = ExtraKey(label: 'PGUP', displayLabel: '↑PG', key: '\x1b[5~');
-  static const pgdn = ExtraKey(label: 'PGDN', displayLabel: '↓PG', key: '\x1b[6~');
 
-  static const up = ExtraKey(label: 'UP', key: '\x1b[A', icon: Icons.keyboard_arrow_up);
-  static const down = ExtraKey(label: 'DOWN', key: '\x1b[B', icon: Icons.keyboard_arrow_down);
-  static const left = ExtraKey(label: 'LEFT', key: '\x1b[D', icon: Icons.keyboard_arrow_left);
-  static const right = ExtraKey(label: 'RIGHT', key: '\x1b[C', icon: Icons.keyboard_arrow_right);
+  // HOME键
+  static const home = ExtraKey(label: 'HOME', terminalKey: TerminalKey.home);
 
-  static const dash = ExtraKey(label: '-', key: '-');
-  static const slash = ExtraKey(label: '/', key: '/');
-  static const pipe = ExtraKey(label: '|', key: '|');
-  static const backslash = ExtraKey(label: '\\', key: '\\');
-  static const underscore = ExtraKey(label: '_', key: '_');
+  // END键
+  static const end = ExtraKey(label: 'END', terminalKey: TerminalKey.end);
 
-  /// 默认按键行布局
+  // PAGE UP键
+  static const pgup = ExtraKey(label: 'PGUP', displayLabel: '↑PG', terminalKey: TerminalKey.pageUp);
+
+  // PAGE DOWN键
+  static const pgdn = ExtraKey(label: 'PGDN', displayLabel: '↓PG', terminalKey: TerminalKey.pageDown);
+
+  // 方向键
+  static const up = ExtraKey(label: 'UP', terminalKey: TerminalKey.arrowUp, icon: Icons.keyboard_arrow_up);
+  static const down = ExtraKey(label: 'DOWN', terminalKey: TerminalKey.arrowDown, icon: Icons.keyboard_arrow_down);
+  static const left = ExtraKey(label: 'LEFT', terminalKey: TerminalKey.arrowLeft, icon: Icons.keyboard_arrow_left);
+  static const right = ExtraKey(label: 'RIGHT', terminalKey: TerminalKey.arrowRight, icon: Icons.keyboard_arrow_right);
+
+  // 回车键
+  static const enter = ExtraKey(label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
+
+  // 退格键
+  static const backspace = ExtraKey(label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
+
+  // 删除键 (向前删除)
+  static const deleteKey = ExtraKey(label: 'FORWARD_DEL', displayLabel: '⌦', terminalKey: TerminalKey.delete);
+
+  static const dash = ExtraKey(label: '-', text: '-');
+  static const slash = ExtraKey(label: '/', text: '/');
+  static const pipe = ExtraKey(label: '|', text: '|');
+  static const backslash = ExtraKey(label: '\\', text: '\\');
+  static const underscore = ExtraKey(label: '_', text: '_');
+
+  /// 默认按键行布局（两行）
   static const List<List<ExtraKey>> defaultLayout = [
     [esc, tab, ctrl, alt, dash, underscore, up, slash],
     [home, end, pgup, pgdn, left, down, right, pipe],
@@ -53,20 +81,31 @@ class ExtraKeys {
 
   /// 简单按键行布局（单行）
   static const List<ExtraKey> simpleLayout = [
-    esc, tab, ctrl, alt, left, up, down, right,
+    esc,
+    tab,
+    ctrl,
+    alt,
+    left,
+    backspace,
+    enter,
+    up,
+    down,
+    right,
   ];
 }
 
 /// 额外按键视图
 class ExtraKeysView extends StatefulWidget {
-  final Function(String) onKeyTap;
+  final Function(String) onTextKeyTap;  // 普通文本按键
+  final Function(TerminalKey) onTerminalKeyTap;  // xterm特殊按键
   final VoidCallback? onCtrlToggle;
   final VoidCallback? onAltToggle;
   final bool vibrationEnabled;
 
   const ExtraKeysView({
     super.key,
-    required this.onKeyTap,
+    required this.onTextKeyTap,
+    required this.onTerminalKeyTap,
     this.onCtrlToggle,
     this.onAltToggle,
     this.vibrationEnabled = true,
@@ -93,17 +132,23 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
         setState(() => _altPressed = !_altPressed);
         widget.onAltToggle?.call();
       }
-    } else if (key.key != null) {
-      String keyToSend = key.key!;
+    } else if (key.terminalKey != null) {
+      // 使用xterm的特殊按键处理
+      widget.onTerminalKeyTap(key.terminalKey!);
+      setState(() {
+        _ctrlPressed = false;
+        _altPressed = false;
+      });
+    } else if (key.text != null) {
+      // 普通文本按键
+      String keyToSend = key.text!;
 
       // 处理 Ctrl 组合键
-      if (_ctrlPressed && keyToSend.length == 1) {
+      if (_ctrlPressed) {
         final char = keyToSend.codeUnitAt(0);
         if (char >= 0x61 && char <= 0x7a) {
-          // a-z
           keyToSend = String.fromCharCode(char - 0x60);
         } else if (char >= 0x41 && char <= 0x5a) {
-          // A-Z
           keyToSend = String.fromCharCode(char - 0x40);
         }
         setState(() => _ctrlPressed = false);
@@ -115,7 +160,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
         setState(() => _altPressed = false);
       }
 
-      widget.onKeyTap(keyToSend);
+      widget.onTextKeyTap(keyToSend);
     }
   }
 
@@ -187,12 +232,14 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
 
 /// 完整的额外按键视图（两行）
 class FullExtraKeysView extends StatefulWidget {
-  final Function(String) onKeyTap;
+  final Function(String) onTextKeyTap;
+  final Function(TerminalKey) onTerminalKeyTap;
   final bool vibrationEnabled;
 
   const FullExtraKeysView({
     super.key,
-    required this.onKeyTap,
+    required this.onTextKeyTap,
+    required this.onTerminalKeyTap,
     this.vibrationEnabled = true,
   });
 
@@ -215,10 +262,16 @@ class _FullExtraKeysViewState extends State<FullExtraKeysView> {
       } else if (key.label == 'ALT') {
         setState(() => _altPressed = !_altPressed);
       }
-    } else if (key.key != null) {
-      String keyToSend = key.key!;
+    } else if (key.terminalKey != null) {
+      widget.onTerminalKeyTap(key.terminalKey!);
+      setState(() {
+        _ctrlPressed = false;
+        _altPressed = false;
+      });
+    } else if (key.text != null) {
+      String keyToSend = key.text!;
 
-      if (_ctrlPressed && keyToSend.length == 1) {
+      if (_ctrlPressed) {
         final char = keyToSend.codeUnitAt(0);
         if (char >= 0x61 && char <= 0x7a) {
           keyToSend = String.fromCharCode(char - 0x60);
@@ -233,7 +286,7 @@ class _FullExtraKeysViewState extends State<FullExtraKeysView> {
         setState(() => _altPressed = false);
       }
 
-      widget.onKeyTap(keyToSend);
+      widget.onTextKeyTap(keyToSend);
     }
   }
 

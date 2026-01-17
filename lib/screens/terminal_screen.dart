@@ -21,32 +21,30 @@ class TerminalScreen extends StatefulWidget {
 
 class _TerminalScreenState extends State<TerminalScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final FocusNode _terminalFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    // 监听焦点变化来显示/隐藏键盘
+    _terminalFocusNode.addListener(() {
+      if (!_terminalFocusNode.hasFocus) {
+        // 失去焦点时隐藏键盘
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+      }
+    });
     // 初始化终端会话
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final terminalProvider = context.read<TerminalProvider>();
       terminalProvider.init();
+      // 请求焦点以启用键盘输入
+      _terminalFocusNode.requestFocus();
     });
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 处理屏幕常亮设置
-    final settings = context.read<SettingsProvider>();
-    if (settings.keepScreenOn) {
-      WakelockPlus.enable();
-    } else {
-      WakelockPlus.disable();
-    }
-  }
-
-  @override
   void dispose() {
-    WakelockPlus.disable();
+    _terminalFocusNode.dispose();
     super.dispose();
   }
 
@@ -79,7 +77,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
             // 额外按键
             if (settings.showExtraKeys)
               ExtraKeysView(
-                onKeyTap: (key) => _sendKey(terminalProvider, key),
+                onTextKeyTap: (key) => _sendTextKey(terminalProvider, key),
+                onTerminalKeyTap: (key) =>
+                    _sendTerminalKey(terminalProvider, key),
                 vibrationEnabled: settings.vibrationEnabled,
               ),
           ],
@@ -164,7 +164,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ),
             ),
           ],
-          onSelected: (value) => _handleMenuAction(context, value, terminalProvider),
+          onSelected: (value) =>
+              _handleMenuAction(context, value, terminalProvider),
         ),
       ],
     );
@@ -212,12 +213,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
         controller: currentSession.controller,
         theme: settings.terminalTheme,
         textStyle: TerminalStyle(
-          fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ?? 'monospace',
+          fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
+              'monospace',
           fontSize: settings.fontSize,
         ),
         cursorType: settings.terminalCursorType,
         alwaysShowCursor: true,
         autofocus: true,
+        focusNode: _terminalFocusNode,
+        keyboardType: TextInputType.text,
         onSecondaryTapDown: (details, offset) {
           _showContextMenu(context, details, terminalProvider);
         },
@@ -225,21 +229,29 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
-  void _sendKey(TerminalProvider terminalProvider, String key) {
+  void _sendTextKey(TerminalProvider terminalProvider, String key) {
     final session = terminalProvider.currentSession;
     if (session != null) {
-      session.terminal.write(key);
+      session.write(key);
+    }
+  }
+
+  void _sendTerminalKey(TerminalProvider terminalProvider, TerminalKey key) {
+    final session = terminalProvider.currentSession;
+    if (session != null) {
+      // 直接调用xterm的keyInput方法来处理特殊按键
+      session.terminal.keyInput(key);
     }
   }
 
   void _toggleKeyboard(BuildContext context) {
-    final focusNode = FocusScope.of(context);
-    if (focusNode.hasFocus) {
-      focusNode.unfocus();
-      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    // 在Android上使用FocusNode来切换键盘
+    if (_terminalFocusNode.hasFocus) {
+      // 如果已有焦点，失去焦点以隐藏键盘
+      _terminalFocusNode.unfocus();
     } else {
-      focusNode.requestFocus();
-      SystemChannels.textInput.invokeMethod('TextInput.show');
+      // 请求焦点以显示键盘
+      _terminalFocusNode.requestFocus();
     }
   }
 
@@ -294,7 +306,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null) {
-      session.terminal.write(data!.text!);
+      // 发送到shell进程，而不是直接写到终端显示
+      session.write(data!.text!);
     }
   }
 

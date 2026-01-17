@@ -19,11 +19,14 @@ class TerminalProvider extends ChangeNotifier {
   }
 
   /// 创建新会话
-  TerminalSession createSession({String? title}) {
+  Future<TerminalSession> createSession({String? title}) async {
     final session = TerminalSession.create(
       title: title ?? 'Terminal ${_sessions.length + 1}',
     );
-    session.writeWelcomeMessage();
+
+    // 启动Shell进程
+    await session.start();
+
     _sessions.add(session);
     _currentIndex = _sessions.length - 1;
     _updateActiveState();
@@ -106,7 +109,8 @@ class TerminalProvider extends ChangeNotifier {
   /// 切换到上一个会话
   void previousSession() {
     if (_sessions.length > 1) {
-      switchToSession((_currentIndex - 1 + _sessions.length) % _sessions.length);
+      switchToSession(
+          (_currentIndex - 1 + _sessions.length) % _sessions.length);
     }
   }
 

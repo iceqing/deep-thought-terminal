@@ -10,10 +10,16 @@ dependencies:
   flutter:
     sdk: flutter
   xterm: ^4.0.0
+  flutter_pty: ^0.4.1
   google_fonts: ^6.1.0
   provider: ^6.1.1
   shared_preferences: ^2.2.0
   wakelock_plus: ^1.1.0
+  archive: ^3.4.10
+  http: ^1.1.0
+  path: ^1.8.3
+  path_provider: ^2.1.1
+  permission_handler: ^11.1.0
 
 dev_dependencies:
   flutter_test:
@@ -22,3 +28,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/bootstrap-aarch64.zip
+    - assets/bootstrap-x86_64.zip
