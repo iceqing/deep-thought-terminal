@@ -338,6 +338,175 @@ class TermuxBootstrap {
     // 确保关键库文件有正确的链接
     // Android的动态链接器可能不支持某些类型的符号链接
     await _ensureCriticalLibraries();
+
+    // 配置APT包管理器
+    await _configureApt();
+  }
+
+  /// 配置APT包管理器
+  static Future<void> _configureApt() async {
+    try {
+      // 创建APT目录结构
+      final aptDir = Directory('${TermuxConstants.etcDir}/apt');
+      final aptSourcesDir = Directory('${TermuxConstants.etcDir}/apt/sources.list.d');
+      final aptPreferencesDir = Directory('${TermuxConstants.etcDir}/apt/preferences.d');
+      final aptTrustedDir = Directory('${TermuxConstants.etcDir}/apt/trusted.gpg.d');
+      final varLibApt = Directory('${TermuxConstants.varDir}/lib/apt/lists/partial');
+      final varCacheApt = Directory('${TermuxConstants.varDir}/cache/apt/archives/partial');
+      final varLogApt = Directory('${TermuxConstants.varDir}/log/apt');
+
+      for (final dir in [aptDir, aptSourcesDir, aptPreferencesDir, aptTrustedDir,
+                         varLibApt, varCacheApt, varLogApt]) {
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+      }
+
+      // 写入sources.list - 使用Termux官方仓库
+      final sourcesListFile = File(TermuxConstants.aptSourcesList);
+      const sourcesListContent = '''# Termux main repository
+# Primary mirror with CloudFlare CDN
+deb https://packages-cf.termux.dev/apt/termux-main stable main
+''';
+      await sourcesListFile.writeAsString(sourcesListContent);
+      debugPrint('APT sources.list configured');
+
+      // 创建dpkg状态目录
+      final dpkgDir = Directory('${TermuxConstants.varDir}/lib/dpkg');
+      final dpkgInfoDir = Directory('${TermuxConstants.varDir}/lib/dpkg/info');
+      final dpkgUpdatesDir = Directory('${TermuxConstants.varDir}/lib/dpkg/updates');
+
+      for (final dir in [dpkgDir, dpkgInfoDir, dpkgUpdatesDir]) {
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+      }
+
+      // 创建dpkg status文件（如果不存在）
+      final dpkgStatusFile = File('${TermuxConstants.varDir}/lib/dpkg/status');
+      if (!await dpkgStatusFile.exists()) {
+        await dpkgStatusFile.writeAsString('');
+      }
+
+      // 创建dpkg available文件（如果不存在）
+      final dpkgAvailableFile = File('${TermuxConstants.varDir}/lib/dpkg/available');
+      if (!await dpkgAvailableFile.exists()) {
+        await dpkgAvailableFile.writeAsString('');
+      }
+
+      // 创建pkg包装脚本
+      await _createPkgScript();
+
+      debugPrint('APT/DPKG configured');
+    } catch (e) {
+      debugPrint('Failed to configure APT: $e');
+    }
+  }
+
+  /// 创建pkg包装脚本
+  static Future<void> _createPkgScript() async {
+    final pkgPath = '${TermuxConstants.binDir}/pkg';
+
+    try {
+      final pkgFile = File(pkgPath);
+
+      // 如果已存在且是我们的脚本，跳过
+      if (await pkgFile.exists()) {
+        final content = await pkgFile.readAsString();
+        if (content.contains('Deep Thought')) {
+          debugPrint('pkg script already exists');
+          return;
+        }
+      }
+
+      // 创建pkg脚本
+      final libDir = TermuxConstants.libDir;
+      final prefixDir = TermuxConstants.prefixDir;
+      final tmpDir = TermuxConstants.tmpDir;
+
+      final pkgScript = '''#!/system/bin/sh
+# pkg - Package manager wrapper for Deep Thought terminal
+# Simplified version inspired by Termux
+
+export LD_LIBRARY_PATH="$libDir"
+export PREFIX="$prefixDir"
+export TMPDIR="$tmpDir"
+
+show_help() {
+    echo "Usage: pkg <command> [arguments]"
+    echo ""
+    echo "Commands:"
+    echo "  install <pkg>    - Install a package"
+    echo "  remove <pkg>     - Remove a package"
+    echo "  update           - Update package lists"
+    echo "  upgrade          - Upgrade all packages"
+    echo "  search <query>   - Search for packages"
+    echo "  show <pkg>       - Show package details"
+    echo "  list-installed   - List installed packages"
+    echo "  list-all         - List all available packages"
+    echo "  files <pkg>      - List files in a package"
+    echo "  clean            - Clean package cache"
+    echo ""
+    echo "Examples:"
+    echo "  pkg update"
+    echo "  pkg install git"
+    echo "  pkg search python"
+}
+
+case "\$1" in
+    install|add|i)
+        shift
+        apt install -y "\$@"
+        ;;
+    remove|uninstall|rm)
+        shift
+        apt remove -y "\$@"
+        ;;
+    update|upd)
+        apt update
+        ;;
+    upgrade)
+        apt upgrade -y
+        ;;
+    search|se|s)
+        shift
+        apt search "\$@"
+        ;;
+    show|info)
+        shift
+        apt show "\$@"
+        ;;
+    list-installed|li)
+        apt list --installed 2>/dev/null
+        ;;
+    list-all|la)
+        apt list 2>/dev/null
+        ;;
+    files|f)
+        shift
+        dpkg -L "\$@"
+        ;;
+    clean|cl)
+        apt clean
+        apt autoclean
+        ;;
+    help|-h|--help|"")
+        show_help
+        ;;
+    *)
+        echo "Unknown command: \$1"
+        echo "Run 'pkg help' for usage."
+        exit 1
+        ;;
+esac
+''';
+
+      await pkgFile.writeAsString(pkgScript);
+      await Process.run('chmod', ['755', pkgPath]);
+      debugPrint('pkg script created');
+    } catch (e) {
+      debugPrint('Failed to create pkg script: $e');
+    }
   }
 
   /// 确保关键库文件存在

@@ -22,6 +22,7 @@ class TerminalScreen extends StatefulWidget {
 class _TerminalScreenState extends State<TerminalScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final FocusNode _terminalFocusNode = FocusNode();
+  bool _hasSelection = false;
 
   @override
   void initState() {
@@ -39,6 +40,27 @@ class _TerminalScreenState extends State<TerminalScreen> {
       terminalProvider.init();
       // 请求焦点以启用键盘输入
       _terminalFocusNode.requestFocus();
+
+      // 监听选择变化
+      _setupSelectionListener(terminalProvider);
+    });
+  }
+
+  void _setupSelectionListener(TerminalProvider terminalProvider) {
+    // 定期检查选择状态
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return false;
+
+      final session = terminalProvider.currentSession;
+      final hasSelection = session?.controller.selection != null;
+
+      if (hasSelection != _hasSelection) {
+        setState(() {
+          _hasSelection = hasSelection;
+        });
+      }
+      return mounted;
     });
   }
 
@@ -72,7 +94,19 @@ class _TerminalScreenState extends State<TerminalScreen> {
           children: [
             // 终端视图
             Expanded(
-              child: _buildTerminalView(context, terminalProvider, settings),
+              child: Stack(
+                children: [
+                  _buildTerminalView(context, terminalProvider, settings),
+                  // 选中文字时显示的浮动操作栏
+                  if (_hasSelection)
+                    Positioned(
+                      bottom: 16,
+                      left: 0,
+                      right: 0,
+                      child: _buildSelectionToolbar(context, terminalProvider, settings),
+                    ),
+                ],
+              ),
             ),
             // 额外按键
             if (settings.showExtraKeys)
@@ -208,23 +242,38 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     return Padding(
       padding: EdgeInsets.all(settings.terminalMargin.toDouble()),
-      child: TerminalView(
-        currentSession.terminal,
-        controller: currentSession.controller,
-        theme: settings.terminalTheme,
-        textStyle: TerminalStyle(
-          fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
-              'monospace',
-          fontSize: settings.fontSize,
-        ),
-        cursorType: settings.terminalCursorType,
-        alwaysShowCursor: true,
-        autofocus: true,
-        focusNode: _terminalFocusNode,
-        keyboardType: TextInputType.text,
-        onSecondaryTapDown: (details, offset) {
-          _showContextMenu(context, details, terminalProvider);
+      child: KeyboardListener(
+        focusNode: FocusNode(),
+        autofocus: false,
+        onKeyEvent: (event) {
+          // 处理物理键盘的Enter键
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+              currentSession.write('\r');
+            }
+          }
         },
+        child: TerminalView(
+          currentSession.terminal,
+          controller: currentSession.controller,
+          theme: settings.terminalTheme,
+          textStyle: TerminalStyle(
+            fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
+                'monospace',
+            fontSize: settings.fontSize,
+          ),
+          cursorType: settings.terminalCursorType,
+          alwaysShowCursor: true,
+          autofocus: true,
+          focusNode: _terminalFocusNode,
+          // 使用visiblePassword明确告诉系统这不是密码输入
+          // 这可以避免触发小米等厂商的安全键盘
+          keyboardType: TextInputType.visiblePassword,
+          onSecondaryTapDown: (details, offset) {
+            _showContextMenu(context, details, terminalProvider);
+          },
+        ),
       ),
     );
   }
@@ -289,6 +338,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
       final text = session.terminal.buffer.getText(selection);
       await Clipboard.setData(ClipboardData(text: text));
 
+      // Clear selection after copying
+      session.controller.clearSelection();
+      setState(() {
+        _hasSelection = false;
+      });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -352,6 +407,127 @@ class _TerminalScreenState extends State<TerminalScreen> {
       } else if (value == 'paste') {
         _pasteClipboard(terminalProvider);
       }
+    });
+  }
+
+  Widget _buildSelectionToolbar(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: settings.terminalTheme.background.withOpacity(0.95),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: settings.terminalTheme.foreground.withOpacity(0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildToolbarButton(
+              icon: Icons.copy,
+              label: 'Copy',
+              onTap: () => _copySelection(terminalProvider),
+              settings: settings,
+            ),
+            _buildToolbarDivider(settings),
+            _buildToolbarButton(
+              icon: Icons.select_all,
+              label: 'Select All',
+              onTap: () => _selectAll(terminalProvider),
+              settings: settings,
+            ),
+            _buildToolbarDivider(settings),
+            _buildToolbarButton(
+              icon: Icons.clear,
+              label: 'Clear',
+              onTap: () => _clearSelection(terminalProvider),
+              settings: settings,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbarButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required SettingsProvider settings,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: settings.terminalTheme.foreground,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: settings.terminalTheme.foreground,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbarDivider(SettingsProvider settings) {
+    return Container(
+      width: 1,
+      height: 20,
+      color: settings.terminalTheme.foreground.withOpacity(0.2),
+    );
+  }
+
+  void _selectAll(TerminalProvider terminalProvider) {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    // Select all visible content in the terminal buffer
+    final terminal = session.terminal;
+    final buffer = terminal.buffer;
+
+    // Create anchors from cell offsets
+    const beginOffset = CellOffset(0, 0);
+    final endOffset = CellOffset(terminal.viewWidth - 1, buffer.height - 1);
+
+    session.controller.setSelection(
+      buffer.createAnchorFromOffset(beginOffset),
+      buffer.createAnchorFromOffset(endOffset),
+    );
+  }
+
+  void _clearSelection(TerminalProvider terminalProvider) {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    session.controller.clearSelection();
+    setState(() {
+      _hasSelection = false;
     });
   }
 

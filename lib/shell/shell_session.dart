@@ -230,13 +230,17 @@ class ShellSessionFactory {
   static String _buildBashLaunchCommand() {
     final libPath = TermuxConstants.libDir;
     final bashPath = TermuxConstants.bashPath;
+    // 使用bash-real直接启动，绕过wrapper脚本
+    final bashRealPath = '${TermuxConstants.binDir}/bash-real';
     final homePath = TermuxConstants.homeDir;
     final prefixPath = TermuxConstants.prefixDir;
     final binPath = TermuxConstants.binDir;
     final tmpPath = TermuxConstants.tmpDir;
 
     // 使用export确保环境变量被正确设置
-    // 用分号分隔多个命令，确保与Android的sh兼容
+    // 使用 --noprofile --norc 跳过硬编码的Termux路径配置文件
+    // 因为bash二进制文件中硬编码了/data/data/com.termux/路径
+    // 优先使用bash-real（如果存在），否则回退到bash
     return 'export LD_LIBRARY_PATH="$libPath"; '
         'export HOME="$homePath"; '
         'export PREFIX="$prefixPath"; '
@@ -246,7 +250,8 @@ class ShellSessionFactory {
         'export LANG="en_US.UTF-8"; '
         'export SHELL="$bashPath"; '
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
-        'exec "$bashPath" --login';
+        'if [ -x "$bashRealPath" ]; then exec "$bashRealPath" --noprofile --norc; '
+        'else exec "$bashPath" --noprofile --norc; fi';
   }
 
   /// 获取桌面平台的默认shell
