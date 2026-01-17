@@ -1,0 +1,24 @@
+name: deep_thought
+description: A terminal emulator application inspired by Termux, built with Flutter.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  xterm: ^4.0.0
+  google_fonts: ^6.1.0
+  provider: ^6.1.1
+  shared_preferences: ^2.2.0
+  wakelock_plus: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
