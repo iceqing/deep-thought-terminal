@@ -236,6 +236,11 @@ class ShellSessionFactory {
     final prefixPath = TermuxConstants.prefixDir;
     final binPath = TermuxConstants.binDir;
     final tmpPath = TermuxConstants.tmpDir;
+    final etcPath = TermuxConstants.etcDir;
+    // APT 配置文件路径
+    final aptConfigPath = '$etcPath/apt/apt.conf';
+    // CA 证书路径
+    final caCertPath = '$etcPath/tls/cert.pem';
 
     // 使用export确保环境变量被正确设置
     // 使用 --noprofile --norc 跳过硬编码的Termux路径配置文件
@@ -249,6 +254,12 @@ class ShellSessionFactory {
         'export TERM="xterm-256color"; '
         'export LANG="en_US.UTF-8"; '
         'export SHELL="$bashPath"; '
+        // APT 配置 - 告诉 APT 使用我们的配置文件
+        'export APT_CONFIG="$aptConfigPath"; '
+        // SSL/TLS 证书配置
+        'export SSL_CERT_FILE="$caCertPath"; '
+        'export CURL_CA_BUNDLE="$caCertPath"; '
+        'export GIT_SSL_CAINFO="$caCertPath"; '
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
         'if [ -x "$bashRealPath" ]; then exec "$bashRealPath" --noprofile --norc; '
         'else exec "$bashPath" --noprofile --norc; fi';

@@ -1,4 +1,4 @@
-package com.deepthought.termux_flutter
+package com.dpterm
 
 import io.flutter.embedding.android.FlutterActivity
 

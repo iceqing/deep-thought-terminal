@@ -3,7 +3,7 @@
 
 class AppConstants {
   static const String appName = 'Deep Thought';
-  static const String packageName = 'com.deepthought.termux_flutter';
+  static const String packageName = 'com.dpterm';
   static const String version = '1.0.0';
 }
 

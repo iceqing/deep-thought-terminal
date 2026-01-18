@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -50,8 +51,14 @@ class TermuxBootstrap {
     try {
       // 检查是否已安装
       if (await isInstalled()) {
+        _status = BootstrapStatus.configuring;
+        onProgress?.call(_status, 0.9, 'Updating configuration...');
+
+        // 即使已安装，也要更新配置（修复路径、证书等）
+        await _configureEnvironment();
+
         _status = BootstrapStatus.installed;
-        onProgress?.call(_status, 1.0, 'Bootstrap already installed');
+        onProgress?.call(_status, 1.0, 'Bootstrap ready');
         return true;
       }
 
@@ -339,6 +346,11 @@ class TermuxBootstrap {
     // Android的动态链接器可能不支持某些类型的符号链接
     await _ensureCriticalLibraries();
 
+    // 补丁二进制文件中的硬编码路径
+    // Termux 二进制文件中硬编码了 /data/data/com.termux/ 路径
+    // 我们的包名 com.dpterm 与 com.termux 长度相同，可以直接替换
+    await _patchBinaryPaths();
+
     // 修复脚本中的硬编码路径
     // Termux bootstrap包中的脚本有硬编码的 /data/data/com.termux/ 路径
     await _fixHardcodedPaths();
@@ -347,6 +359,10 @@ class TermuxBootstrap {
     // Termux Android 7+ 的二进制文件有 DT_RUNPATH 指向 /data/data/com.termux/
     // 我们需要用包装脚本强制设置 LD_LIBRARY_PATH 来覆盖它
     await _createBinaryWrappers();
+
+    // 修复脚本的 shebang - 必须在 _createBinaryWrappers 之后运行
+    // 因为 bash 现在是包装脚本，需要将 shebang 改为使用 bash-real
+    await _fixScriptShebangs();
 
     // 配置APT包管理器
     await _configureApt();
@@ -423,14 +439,66 @@ class TermuxBootstrap {
 
     debugPrint('Found ${regularFiles.length} regular files and ${symlinks.length} symlinks');
 
+    // 不需要包装的方法列表
+    // 这些方法要么是简单的文件操作，要么是压缩工具，没有硬编码路径
+    final skipMethods = {
+      'store',    // 无压缩存储，APT 用作压缩器
+      'copy',     // 简单复制
+      'file',     // 本地文件访问
+      'cdrom',    // CD-ROM 访问
+      'gpgv',     // GPG 验证（单独处理）
+      'bzip2',    // 压缩方法
+      'gzip',     // 压缩方法
+      'xz',       // 压缩方法
+      'lzma',     // 压缩方法
+      'lz4',      // 压缩方法
+      'zstd',     // 压缩方法
+    };
+
+    // 恢复之前错误创建的 .real 文件
+    // 如果存在 xxx.real 文件且 xxx 是包装脚本，则删除包装脚本并重命名回去
+    for (final methodName in skipMethods) {
+      final methodPath = '${methodsDir.path}/$methodName';
+      final realPath = '${methodsDir.path}/$methodName.real';
+
+      final realFile = File(realPath);
+      if (await realFile.exists()) {
+        // .real 文件存在，说明之前错误地创建了包装
+        final methodFile = File(methodPath);
+        if (await methodFile.exists()) {
+          // 检查是否是包装脚本（非 ELF）
+          final bytes = await methodFile.openRead(0, 4).first;
+          final isElf = bytes.length >= 4 &&
+              bytes[0] == 0x7f && bytes[1] == 0x45 &&
+              bytes[2] == 0x4c && bytes[3] == 0x46;
+          if (!isElf) {
+            // 是包装脚本，删除它
+            await methodFile.delete();
+            debugPrint('Deleted wrapper script: $methodName');
+          }
+        }
+        // 重命名 .real 回原名
+        await realFile.rename(methodPath);
+        debugPrint('Restored apt method: $methodName');
+      }
+    }
+
     // 第二步：先处理普通文件（创建 .real 和包装脚本）
     for (final fileName in regularFiles) {
+      if (skipMethods.contains(fileName)) {
+        debugPrint('Skipping apt method (no wrapper needed): $fileName');
+        continue;
+      }
       debugPrint('Processing apt method (file): $fileName');
       await _createAptMethodWrapper(fileName);
     }
 
     // 第三步：处理符号链接（此时目标的 .real 应该已存在）
     for (final fileName in symlinks) {
+      if (skipMethods.contains(fileName)) {
+        debugPrint('Skipping apt method symlink (no wrapper needed): $fileName');
+        continue;
+      }
       debugPrint('Processing apt method (symlink): $fileName');
       await _createAptMethodWrapper(fileName);
     }
@@ -469,16 +537,20 @@ class TermuxBootstrap {
         return;
       }
 
-      // 检查别名文件是否已存在且可执行
+      // 检查别名文件是否已存在且是最新版本
       final aliasFile = File(aliasPath);
       if (await aliasFile.exists()) {
-        // 检查是否是有效的包装脚本
+        // 检查是否是有效的包装脚本（带有版本标记）
         try {
           final content = await aliasFile.readAsString();
-          if (content.contains('#!/system/bin/sh') && content.contains(targetRealPath)) {
+          // 检查是否包含最新版本的标记（REQUESTS_CA_BUNDLE）
+          if (content.contains('#!/system/bin/sh') &&
+              content.contains(targetRealPath) &&
+              content.contains('REQUESTS_CA_BUNDLE')) {
             debugPrint('Alias $aliasName already configured correctly');
             return;
           }
+          debugPrint('Alias $aliasName exists but needs update');
         } catch (e) {
           // 可能是二进制文件或无法读取
         }
@@ -496,11 +568,19 @@ class TermuxBootstrap {
 
       // 创建包装脚本
       final libDir = TermuxConstants.libDir;
+      final binDir = TermuxConstants.binDir;
       final tmpDir = TermuxConstants.tmpDir;
+      final etcDir = TermuxConstants.etcDir;
 
       final wrapperScript = '''#!/system/bin/sh
+# APT method alias wrapper for Deep Thought terminal
+# $aliasName -> $targetRealPath
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
+export REQUESTS_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$targetRealPath" "\$@"
 ''';
 
@@ -564,11 +644,16 @@ exec "$targetRealPath" "\$@"
         if (await targetRealFile.exists()) {
           // 目标已经被处理过，创建指向同一 .real 的包装脚本
           final libDir = TermuxConstants.libDir;
+          final binDir = TermuxConstants.binDir;
           final tmpDir = TermuxConstants.tmpDir;
+          final etcDir = TermuxConstants.etcDir;
 
           final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$targetRealPath" "\$@"
 ''';
 
@@ -607,11 +692,16 @@ exec "$targetRealPath" "\$@"
           await Process.run('chmod', ['755', realPath]);
 
           final libDir = TermuxConstants.libDir;
+          final binDir = TermuxConstants.binDir;
           final tmpDir = TermuxConstants.tmpDir;
+          final etcDir = TermuxConstants.etcDir;
 
           final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$realPath" "\$@"
 ''';
 
@@ -621,21 +711,29 @@ exec "$realPath" "\$@"
         } else {
           // 目标可能是包装脚本，创建指向目标的包装
           final libDir = TermuxConstants.libDir;
+          final binDir = TermuxConstants.binDir;
           final tmpDir = TermuxConstants.tmpDir;
+          final etcDir = TermuxConstants.etcDir;
 
           // 尝试找到目标的 .real
           if (await targetRealFile.exists()) {
             final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$targetRealPath" "\$@"
 ''';
             await File(methodPath).writeAsString(wrapperScript);
           } else {
             // 直接调用目标（它应该是个包装脚本）
             final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$actualBinaryPath" "\$@"
 ''';
             await File(methodPath).writeAsString(wrapperScript);
@@ -670,11 +768,16 @@ exec "$actualBinaryPath" "\$@"
 
       // 创建包装脚本
       final libDir = TermuxConstants.libDir;
+      final binDir = TermuxConstants.binDir;
       final tmpDir = TermuxConstants.tmpDir;
+      final etcDir = TermuxConstants.etcDir;
 
       final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 exec "$realPath" "\$@"
 ''';
 
@@ -730,9 +833,11 @@ exec "$realPath" "\$@"
       await Process.run('chmod', ['755', realPath]);
 
       final libDir = TermuxConstants.libDir;
+      final binDir = TermuxConstants.binDir;
       final tmpDir = TermuxConstants.tmpDir;
 
       final wrapperScript = '''#!/system/bin/sh
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
 exec "$realPath" "\$@"
@@ -785,12 +890,14 @@ exec "$realPath" "\$@"
 
       // 创建 bash 包装脚本
       final libDir = TermuxConstants.libDir;
+      final binDir = TermuxConstants.binDir;
       final tmpDir = TermuxConstants.tmpDir;
 
       final wrapperScript = '''#!/system/bin/sh
 # Bash wrapper script for Deep Thought terminal
 # The original bash has hardcoded paths to /data/data/com.termux/
 # This wrapper sets correct library path and uses --norc to skip config files
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
 exec "$bashRealPath" --norc "\$@"
@@ -840,6 +947,7 @@ exec "$bashRealPath" --norc "\$@"
 
       // 创建包装脚本
       final libDir = TermuxConstants.libDir;
+      final binDir = TermuxConstants.binDir;
       final tmpDir = TermuxConstants.tmpDir;
       final etcDir = TermuxConstants.etcDir;
 
@@ -853,6 +961,7 @@ exec "$bashRealPath" --norc "\$@"
 # Wrapper script to set correct library path
 # The original binary has DT_RUNPATH pointing to /data/data/com.termux/
 # This wrapper overrides it with the correct path
+export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
 export TMPDIR="$tmpDir"
 ${aptConfigExport}exec "$realPath" "\$@"
@@ -907,6 +1016,157 @@ ${aptConfigExport}exec "$realPath" "\$@"
       debugPrint('Hardcoded paths fixed');
     } catch (e) {
       debugPrint('Failed to fix hardcoded paths: $e');
+    }
+  }
+
+  /// 修复脚本的 shebang 行
+  /// 因为我们的 bash 是包装脚本，不能被内核直接用作解释器
+  /// 需要将 shebang 改为使用 bash-real 或 /system/bin/sh
+  static Future<void> _fixScriptShebangs() async {
+    debugPrint('Fixing script shebangs...');
+
+    final binDir = TermuxConstants.binDir;
+    final bashPath = '$binDir/bash';
+    final bashRealPath = '$binDir/bash-real';
+    final shPath = '$binDir/sh';
+
+    // 首先修复 sh 符号链接 - 它应该指向 bash-real 而不是 bash
+    await _fixShSymlink();
+
+    // 需要修复 shebang 的目录列表
+    final dirsToFix = [
+      TermuxConstants.binDir,
+      TermuxConstants.libexecDir,
+      '${TermuxConstants.libDir}/apt',
+      '${TermuxConstants.shareDir}',
+    ];
+
+    // shebang 替换规则：
+    // #!/.../bash -> #!/.../bash-real (保持bash特性)
+    // #!/.../sh -> #!/.../bash-real (sh 通常是 bash 的别名)
+    // 或者对于简单脚本使用 /system/bin/sh
+    final shebangReplacements = {
+      // bash shebangs
+      '#!$bashPath\n': '#!$bashRealPath\n',
+      '#!$bashPath ': '#!$bashRealPath ',
+      '#!$bashPath\r': '#!$bashRealPath\r',
+      // sh shebangs - 使用 bash-real
+      '#!$shPath\n': '#!$bashRealPath\n',
+      '#!$shPath ': '#!$bashRealPath ',
+      '#!$shPath\r': '#!$bashRealPath\r',
+      // 也处理可能的旧路径（以防万一）
+      '#!/data/data/com.termux/files/usr/bin/bash\n': '#!$bashRealPath\n',
+      '#!/data/data/com.termux/files/usr/bin/bash ': '#!$bashRealPath ',
+      '#!/data/data/com.termux/files/usr/bin/sh\n': '#!$bashRealPath\n',
+      '#!/data/data/com.termux/files/usr/bin/sh ': '#!$bashRealPath ',
+    };
+
+    int fixedCount = 0;
+
+    for (final dirPath in dirsToFix) {
+      final dir = Directory(dirPath);
+      if (!await dir.exists()) continue;
+
+      try {
+        await for (final entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is! File) continue;
+
+          try {
+            // 读取文件开头检查是否是脚本
+            final bytes = await entity.openRead(0, 256).first;
+            if (bytes.length < 2) continue;
+
+            // 检查是否有 shebang
+            if (bytes[0] != 0x23 || bytes[1] != 0x21) continue; // #!
+
+            // 跳过 ELF 文件
+            if (bytes.length >= 4 &&
+                bytes[0] == 0x7f && bytes[1] == 0x45 &&
+                bytes[2] == 0x4c && bytes[3] == 0x46) {
+              continue;
+            }
+
+            // 读取文件内容
+            final content = await entity.readAsString();
+
+            // 检查是否需要修复 shebang
+            bool needsFix = false;
+            var newContent = content;
+
+            for (final entry in shebangReplacements.entries) {
+              if (content.startsWith(entry.key)) {
+                newContent = entry.value + content.substring(entry.key.length);
+                needsFix = true;
+                break;
+              }
+            }
+
+            if (needsFix) {
+              await entity.writeAsString(newContent);
+              fixedCount++;
+              debugPrint('Fixed shebang: ${entity.path}');
+            }
+          } catch (e) {
+            // 跳过无法读取的文件
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fixing shebangs in $dirPath: $e');
+      }
+    }
+
+    debugPrint('Fixed $fixedCount script shebangs');
+  }
+
+  /// 修复 sh 符号链接
+  /// sh 通常是指向 bash 的符号链接，但 bash 现在是包装脚本
+  /// 需要让 sh 指向 bash-real 以便脚本可以正常执行
+  static Future<void> _fixShSymlink() async {
+    final binDir = TermuxConstants.binDir;
+    final shPath = '$binDir/sh';
+    final bashRealPath = '$binDir/bash-real';
+
+    try {
+      final shEntity = await FileSystemEntity.type(shPath, followLinks: false);
+
+      if (shEntity == FileSystemEntityType.link) {
+        // 检查当前指向
+        final link = Link(shPath);
+        final target = await link.target();
+
+        // 如果已经指向 bash-real，不需要修改
+        if (target == 'bash-real' || target == bashRealPath) {
+          debugPrint('sh symlink already points to bash-real');
+          return;
+        }
+
+        // 删除旧链接，创建新链接指向 bash-real
+        await link.delete();
+        await Link(shPath).create('bash-real');
+        debugPrint('Fixed sh symlink: now points to bash-real');
+      } else if (shEntity == FileSystemEntityType.file) {
+        // sh 是文件（可能是包装脚本或二进制）
+        // 检查是否是 ELF
+        final file = File(shPath);
+        final bytes = await file.openRead(0, 4).first;
+        if (bytes.length >= 4 &&
+            bytes[0] == 0x7f && bytes[1] == 0x45 &&
+            bytes[2] == 0x4c && bytes[3] == 0x46) {
+          // 是 ELF 二进制，保持不变
+          debugPrint('sh is an ELF binary, keeping as is');
+        } else {
+          // 是脚本，替换为符号链接
+          await file.delete();
+          await Link(shPath).create('bash-real');
+          debugPrint('Replaced sh script with symlink to bash-real');
+        }
+      } else {
+        // sh 不存在，创建符号链接
+        await Link(shPath).create('bash-real');
+        debugPrint('Created sh symlink to bash-real');
+      }
+    } catch (e) {
+      debugPrint('Failed to fix sh symlink: $e');
     }
   }
 
@@ -990,12 +1250,74 @@ ${aptConfigExport}exec "$realPath" "\$@"
     }
   }
 
+  /// 安装 GPG 密钥环
+  /// 将 share/termux-keyring/*.gpg 复制/链接到 etc/apt/trusted.gpg.d/
+  static Future<void> _installGpgKeyring() async {
+    debugPrint('Installing GPG keyring...');
+
+    final shareDir = TermuxConstants.shareDir;
+    final etcDir = TermuxConstants.etcDir;
+    final keyringSourceDir = Directory('$shareDir/termux-keyring');
+    final trustedGpgDir = Directory('$etcDir/apt/trusted.gpg.d');
+
+    try {
+      // 确保目标目录存在
+      if (!await trustedGpgDir.exists()) {
+        await trustedGpgDir.create(recursive: true);
+      }
+
+      // 检查源目录是否存在
+      if (!await keyringSourceDir.exists()) {
+        debugPrint('GPG keyring source directory not found: ${keyringSourceDir.path}');
+        return;
+      }
+
+      int installedKeys = 0;
+
+      // 复制所有 .gpg 文件到 trusted.gpg.d
+      await for (final entity in keyringSourceDir.list(followLinks: false)) {
+        if (entity is! File) continue;
+
+        final fileName = path.basename(entity.path);
+        if (!fileName.endsWith('.gpg')) continue;
+
+        final targetPath = '${trustedGpgDir.path}/$fileName';
+        final targetFile = File(targetPath);
+
+        // 检查目标是否已存在
+        if (await targetFile.exists()) {
+          debugPrint('GPG key already exists: $fileName');
+          installedKeys++;
+          continue;
+        }
+
+        // 复制密钥文件
+        try {
+          await entity.copy(targetPath);
+          debugPrint('Installed GPG key: $fileName');
+          installedKeys++;
+        } catch (e) {
+          debugPrint('Failed to install GPG key $fileName: $e');
+        }
+      }
+
+      debugPrint('GPG keyring installation complete: $installedKeys keys installed');
+    } catch (e) {
+      debugPrint('Failed to install GPG keyring: $e');
+    }
+  }
+
   /// 配置APT包管理器
   static Future<void> _configureApt() async {
     try {
       final prefixDir = TermuxConstants.prefixDir;
       final etcDir = TermuxConstants.etcDir;
       final varDir = TermuxConstants.varDir;
+
+      debugPrint('Configuring APT...');
+      debugPrint('  PREFIX: $prefixDir');
+      debugPrint('  ETC: $etcDir');
+      debugPrint('  VAR: $varDir');
 
       // 创建APT目录结构
       final aptDir = Directory('$etcDir/apt');
@@ -1014,8 +1336,12 @@ ${aptConfigExport}exec "$realPath" "\$@"
         }
       }
 
+      // 安装 GPG 密钥到 trusted.gpg.d
+      await _installGpgKeyring();
+
       // 创建 apt.conf 覆盖所有硬编码路径
       final aptConfFile = File('$etcDir/apt/apt.conf');
+      final caCertFile = '$etcDir/tls/cert.pem';
       final aptConfContent = '''// APT configuration for Deep Thought terminal
 // Override hardcoded /data/data/com.termux/ paths
 
@@ -1037,9 +1363,25 @@ Dir::Bin::solvers "${TermuxConstants.libDir}/apt/solvers";
 Dir::Bin::planners "${TermuxConstants.libDir}/apt/planners";
 Dir::Log "$varDir/log/apt";
 Dir::Ignore-Files-Silently "~\$";
+
+// SSL/TLS certificate configuration for HTTPS
+// GnuTLS has hardcoded certificate paths, but we patch the binary
+// to use our certificate file via a short symlink path
+Acquire::https::CaInfo "$caCertFile";
+Acquire::https::Verify-Peer "true";
+Acquire::https::Verify-Host "true";
 ''';
       await aptConfFile.writeAsString(aptConfContent);
-      debugPrint('APT apt.conf configured');
+      debugPrint('APT apt.conf configured at: ${aptConfFile.path}');
+
+      // 验证证书文件是否存在
+      final certFile = File(caCertFile);
+      if (await certFile.exists()) {
+        final certSize = await certFile.length();
+        debugPrint('CA certificate file exists: $caCertFile (${certSize} bytes)');
+      } else {
+        debugPrint('WARNING: CA certificate file NOT found: $caCertFile');
+      }
 
       // 写入sources.list - 使用Termux官方仓库
       final sourcesListFile = File(TermuxConstants.aptSourcesList);
@@ -1089,19 +1431,25 @@ deb https://packages-cf.termux.dev/apt/termux-main stable main
     try {
       final pkgFile = File(pkgPath);
 
-      // 如果已存在且是我们的脚本，跳过
+      // 检查是否需要更新 pkg 脚本
+      // 总是重新创建以确保包含最新的配置
       if (await pkgFile.exists()) {
         final content = await pkgFile.readAsString();
-        if (content.contains('Deep Thought')) {
-          debugPrint('pkg script already exists');
+        // 检查是否包含最新版本的功能（v3: GnuTLS patch check）
+        if (content.contains('Deep Thought') &&
+            content.contains('show_debug') &&
+            content.contains('GnuTLS patch status')) {
+          debugPrint('pkg script already up to date');
           return;
         }
+        debugPrint('Updating pkg script...');
       }
 
       // 创建pkg脚本
       final libDir = TermuxConstants.libDir;
       final prefixDir = TermuxConstants.prefixDir;
       final tmpDir = TermuxConstants.tmpDir;
+      final etcDir = TermuxConstants.etcDir;
 
       final pkgScript = '''#!/system/bin/sh
 # pkg - Package manager wrapper for Deep Thought terminal
@@ -1110,6 +1458,9 @@ deb https://packages-cf.termux.dev/apt/termux-main stable main
 export LD_LIBRARY_PATH="$libDir"
 export PREFIX="$prefixDir"
 export TMPDIR="$tmpDir"
+export APT_CONFIG="$etcDir/apt/apt.conf"
+export SSL_CERT_FILE="$etcDir/tls/cert.pem"
+export CURL_CA_BUNDLE="$etcDir/tls/cert.pem"
 
 show_help() {
     echo "Usage: pkg <command> [arguments]"
@@ -1125,11 +1476,78 @@ show_help() {
     echo "  list-all         - List all available packages"
     echo "  files <pkg>      - List files in a package"
     echo "  clean            - Clean package cache"
+    echo "  debug            - Show debug information"
     echo ""
     echo "Examples:"
     echo "  pkg update"
     echo "  pkg install git"
     echo "  pkg search python"
+}
+
+show_debug() {
+    echo "=== Deep Thought Package Manager Debug Info ==="
+    echo ""
+    echo "Environment:"
+    echo "  PREFIX=\$PREFIX"
+    echo "  APT_CONFIG=\$APT_CONFIG"
+    echo "  SSL_CERT_FILE=\$SSL_CERT_FILE"
+    echo "  LD_LIBRARY_PATH=\$LD_LIBRARY_PATH"
+    echo ""
+    echo "Checking files:"
+    if [ -f "\$APT_CONFIG" ]; then
+        echo "  [OK] apt.conf exists"
+        echo "  Content (SSL/TLS settings):"
+        grep -iE "cainfo|verify|insecure" "\$APT_CONFIG" 2>/dev/null || echo "    (no SSL settings found)"
+    else
+        echo "  [ERROR] apt.conf NOT found: \$APT_CONFIG"
+    fi
+    echo ""
+    if [ -f "\$SSL_CERT_FILE" ]; then
+        SIZE=\$(ls -l "\$SSL_CERT_FILE" | awk '{print \$5}')
+        PERMS=\$(ls -l "\$SSL_CERT_FILE" | awk '{print \$1}')
+        echo "  [OK] cert.pem exists (\$SIZE bytes, \$PERMS)"
+    else
+        echo "  [ERROR] cert.pem NOT found: \$SSL_CERT_FILE"
+    fi
+    echo ""
+    echo "APT methods:"
+    ls -la "$libDir/apt/methods/" 2>/dev/null || echo "  [ERROR] methods dir not found"
+    echo ""
+    echo "HTTPS method wrapper:"
+    if [ -f "$libDir/apt/methods/https" ]; then
+        cat "$libDir/apt/methods/https"
+    else
+        echo "  [ERROR] https method not found"
+    fi
+    echo ""
+    echo "HTTP.real exists:"
+    ls -la "$libDir/apt/methods/http.real" 2>/dev/null || echo "  [ERROR] http.real not found"
+    echo ""
+    echo "APT config dump (SSL/TLS):"
+    apt-config dump 2>/dev/null | grep -iE "cainfo|cert|ssl|https|verify|insecure" || echo "  (no SSL config found)"
+    echo ""
+    echo "GnuTLS patch status:"
+    SHORTCERT="\$PREFIX/../c"
+    if [ -L "\$SHORTCERT" ]; then
+        TARGET=\$(readlink "\$SHORTCERT")
+        echo "  [OK] Short cert symlink exists: \$SHORTCERT -> \$TARGET"
+    else
+        echo "  [ERROR] Short cert symlink NOT found: \$SHORTCERT"
+    fi
+    echo ""
+    echo "libgnutls.so patch check:"
+    GNUTLS_LIB=\$(ls "$libDir"/libgnutls.so* 2>/dev/null | head -1)
+    if [ -n "\$GNUTLS_LIB" ]; then
+        if strings "\$GNUTLS_LIB" 2>/dev/null | grep -q "com.dpterm"; then
+            echo "  [OK] libgnutls.so is patched (contains com.dpterm path)"
+        elif strings "\$GNUTLS_LIB" 2>/dev/null | grep -q "com.termux"; then
+            echo "  [WARNING] libgnutls.so NOT patched (still contains com.termux path)"
+        else
+            echo "  [UNKNOWN] Could not determine patch status"
+        fi
+    else
+        echo "  [ERROR] libgnutls.so not found"
+    fi
 }
 
 case "\$1" in
@@ -1168,6 +1586,9 @@ case "\$1" in
     clean|cl)
         apt clean
         apt autoclean
+        ;;
+    debug|diag)
+        show_debug
         ;;
     help|-h|--help|"")
         show_help
@@ -1347,6 +1768,239 @@ esac
     }
   }
 
+  /// 补丁二进制文件中的硬编码路径
+  /// Termux 二进制文件中硬编码了 /data/data/com.termux/ 路径
+  /// 我们的包名 com.dpterm 与 com.termux 长度相同（10字符），可以直接替换
+  static Future<void> _patchBinaryPaths() async {
+    debugPrint('Patching binary paths...');
+
+    // 原始路径和新路径（长度必须相同）
+    const oldPath = '/data/data/com.termux/';
+    final newPath = '/data/data/${AppConstants.packageName}/';
+
+    // 验证长度相同
+    if (oldPath.length != newPath.length) {
+      debugPrint('ERROR: Path lengths do not match! Old: ${oldPath.length}, New: ${newPath.length}');
+      return;
+    }
+
+    debugPrint('Patching: "$oldPath" -> "$newPath"');
+
+    int totalPatched = 0;
+    int totalSkipped = 0;
+
+    // 需要补丁的库文件 (在 lib 目录)
+    final librariesToPatch = [
+      'libgnutls.so',
+      'libapt-pkg.so',
+      'libapt-private.so',
+      'libcurl.so',
+    ];
+
+    // 需要补丁的二进制文件 (在 bin 目录)
+    // 这些二进制文件中可能有硬编码的配置路径
+    final binariesToPatch = [
+      'dpkg',
+      'dpkg-deb',
+      'dpkg-query',
+      'dpkg-split',
+      'dpkg-trigger',
+      'apt',
+      'apt-get',
+      'apt-cache',
+      'apt-config',
+      'apt-mark',
+      'apt-ftparchive',
+      'apt-sortpkgs',
+    ];
+
+    try {
+      // 补丁 lib 目录中的库文件
+      final libDir = Directory(TermuxConstants.libDir);
+      if (await libDir.exists()) {
+        final result = await _patchFilesInDirectory(
+          libDir,
+          librariesToPatch,
+          oldPath,
+          newPath,
+          matchPrefix: true,
+        );
+        totalPatched += result['patched'] as int;
+        totalSkipped += result['skipped'] as int;
+      }
+
+      // 补丁 bin 目录中的二进制文件
+      // 注意: 可能是原始文件或 .real 文件（取决于是否已创建包装脚本）
+      final binDir = Directory(TermuxConstants.binDir);
+      if (await binDir.exists()) {
+        // 首先尝试补丁 .real 文件（如果已经创建了包装脚本）
+        final realBinaries = binariesToPatch.map((b) => '$b.real').toList();
+        var result = await _patchFilesInDirectory(
+          binDir,
+          realBinaries,
+          oldPath,
+          newPath,
+          matchPrefix: false,
+        );
+        totalPatched += result['patched'] as int;
+        totalSkipped += result['skipped'] as int;
+
+        // 然后补丁原始二进制文件（如果还没有创建包装脚本）
+        result = await _patchFilesInDirectory(
+          binDir,
+          binariesToPatch,
+          oldPath,
+          newPath,
+          matchPrefix: false,
+        );
+        totalPatched += result['patched'] as int;
+        totalSkipped += result['skipped'] as int;
+      }
+
+      // 补丁 lib/apt/methods 目录中的 APT 方法二进制
+      // 只补丁 http 方法（它有硬编码的证书路径）
+      // store, copy, file, gpgv 等方法不需要补丁
+      final aptMethodsDir = Directory('${TermuxConstants.libDir}/apt/methods');
+      if (await aptMethodsDir.exists()) {
+        // 只补丁 http 和 https 方法（有硬编码路径）
+        final aptMethods = ['http.real', 'http'];
+        var result = await _patchFilesInDirectory(
+          aptMethodsDir,
+          aptMethods,
+          oldPath,
+          newPath,
+          matchPrefix: false,
+        );
+        totalPatched += result['patched'] as int;
+        totalSkipped += result['skipped'] as int;
+      }
+
+      debugPrint('Binary patching complete: $totalPatched patched, $totalSkipped skipped');
+    } catch (e) {
+      debugPrint('Failed to patch binary paths: $e');
+    }
+  }
+
+  /// 补丁指定目录中的文件
+  static Future<Map<String, int>> _patchFilesInDirectory(
+    Directory dir,
+    List<String> filePatterns,
+    String oldPath,
+    String newPath, {
+    bool matchPrefix = true,
+  }) async {
+    int patchedFiles = 0;
+    int skippedFiles = 0;
+
+    final oldPathBytes = oldPath.codeUnits;
+    final newPathBytes = newPath.codeUnits;
+
+    await for (final entity in dir.list(followLinks: false)) {
+      final fileName = path.basename(entity.path);
+
+      // 检查是否是需要补丁的文件
+      bool shouldPatch = false;
+      for (final pattern in filePatterns) {
+        if (matchPrefix) {
+          if (fileName.startsWith(pattern)) {
+            shouldPatch = true;
+            break;
+          }
+        } else {
+          if (fileName == pattern) {
+            shouldPatch = true;
+            break;
+          }
+        }
+      }
+
+      if (!shouldPatch) continue;
+
+      final file = File(entity.path);
+      if (!await file.exists()) continue;
+
+      // 检查是否是 ELF 文件
+      final bytes = await file.readAsBytes();
+      if (bytes.length < 4 ||
+          bytes[0] != 0x7f ||
+          bytes[1] != 0x45 ||
+          bytes[2] != 0x4c ||
+          bytes[3] != 0x46) {
+        continue; // 不是 ELF 文件
+      }
+
+      // 检查是否已经补丁过
+      if (_containsPattern(bytes, newPathBytes)) {
+        debugPrint('Already patched: $fileName');
+        skippedFiles++;
+        continue;
+      }
+
+      // 检查是否包含旧路径
+      if (!_containsPattern(bytes, oldPathBytes)) {
+        continue; // 不包含旧路径，跳过
+      }
+
+      // 查找并替换所有出现的旧路径
+      bool modified = false;
+      final newBytes = Uint8List.fromList(bytes);
+
+      for (int i = 0; i <= newBytes.length - oldPathBytes.length; i++) {
+        bool match = true;
+        for (int j = 0; j < oldPathBytes.length; j++) {
+          if (newBytes[i + j] != oldPathBytes[j]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          // 替换
+          for (int j = 0; j < newPathBytes.length; j++) {
+            newBytes[i + j] = newPathBytes[j];
+          }
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        // 备份原文件
+        final backupPath = '${entity.path}.orig';
+        final backupFile = File(backupPath);
+        if (!await backupFile.exists()) {
+          await file.copy(backupPath);
+        }
+
+        // 写入修改后的文件
+        await file.writeAsBytes(newBytes);
+        debugPrint('Patched: $fileName');
+        patchedFiles++;
+      }
+    }
+
+    return {'patched': patchedFiles, 'skipped': skippedFiles};
+  }
+
+  /// 检查字节数组是否包含指定模式
+  static bool _containsPattern(List<int> data, List<int> pattern) {
+    if (pattern.isEmpty || data.length < pattern.length) {
+      return false;
+    }
+
+    for (int i = 0; i <= data.length - pattern.length; i++) {
+      bool found = true;
+      for (int j = 0; j < pattern.length; j++) {
+        if (data[i + j] != pattern[j]) {
+          found = false;
+          break;
+        }
+      }
+      if (found) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// 获取 Shell 路径
   static Future<String> getShellPath() async {
     final bashFile = File(TermuxConstants.bashPath);
@@ -1361,6 +2015,11 @@ esac
 class TermuxEnvironment {
   /// 生成环境变量
   static Map<String, String> generateEnvironment() {
+    // CA 证书路径 - 用于 SSL/TLS 证书验证
+    final caCertFile = '${TermuxConstants.etcDir}/tls/cert.pem';
+    // APT 配置文件路径
+    final aptConfFile = '${TermuxConstants.etcDir}/apt/apt.conf';
+
     return {
       'HOME': TermuxConstants.homeDir,
       'PREFIX': TermuxConstants.prefixDir,
@@ -1372,9 +2031,14 @@ class TermuxEnvironment {
       'SHELL': TermuxConstants.bashPath,
       // LD_LIBRARY_PATH for dynamically linked binaries
       'LD_LIBRARY_PATH': TermuxConstants.libDir,
-      // LD_PRELOAD to help with library loading
       'ANDROID_ROOT': '/system',
       'ANDROID_DATA': '/data',
+      // APT 配置 - 告诉 APT 使用我们的配置文件
+      'APT_CONFIG': aptConfFile,
+      // SSL/TLS 证书配置 - 用于 HTTPS 连接验证
+      'SSL_CERT_FILE': caCertFile,
+      'CURL_CA_BUNDLE': caCertFile,
+      'GIT_SSL_CAINFO': caCertFile,
     };
   }
 
