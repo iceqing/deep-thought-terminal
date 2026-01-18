@@ -68,7 +68,26 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
       // 设置输入转换器
       _updateSessionInputTransformer();
+      
+      // 监听会话切换，确保新会话自动获得焦点
+      terminalProvider.addListener(_onTerminalProviderChanged);
     });
+  }
+
+  void _onTerminalProviderChanged() {
+    // 如果会话数量变化（通常是新建）或者索引变化（切换会话），则请求键盘
+    // 这里简单地在任何变化时尝试唤醒，也可以更精细地控制
+    if (mounted) {
+       _requestKeyboard();
+    }
+  }
+
+  void _requestKeyboard() {
+    if (!_terminalFocusNode.hasFocus) {
+       _terminalFocusNode.canRequestFocus = true;
+       _terminalFocusNode.requestFocus();
+       SystemChannels.textInput.invokeMethod('TextInput.show');
+    }
   }
 
   void _initVolumeKeyService() {
@@ -198,6 +217,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   @override
   void dispose() {
+    // 移除监听器
+    context.read<TerminalProvider>().removeListener(_onTerminalProviderChanged);
     _terminalFocusNode.dispose();
     VolumeKeyService.instance.onVolumeKey = null;
     super.dispose();
@@ -411,7 +432,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     return Padding(
       padding: EdgeInsets.all(settings.terminalMargin.toDouble()),
-      child: RawGestureDetector(
+      // 使用 GestureDetector 处理点击唤醒键盘
+      // 当键盘隐藏时（浏览模式），点击屏幕任意位置将唤醒键盘（输入模式）
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _requestKeyboard(),
+        excludeFromSemantics: true,
+        child: RawGestureDetector(
         gestures: {
           TwoFingerScaleGestureRecognizer: GestureRecognizerFactoryWithHandlers<
               TwoFingerScaleGestureRecognizer>(
@@ -484,6 +511,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
