@@ -35,14 +35,14 @@ class ExtraKeys {
   static const alt = ExtraKey(label: 'ALT', isModifier: true);
 
   // 导航键
-  static const home = ExtraKey(label: 'HOME', displayLabel: 'Home', terminalKey: TerminalKey.home);
-  static const end = ExtraKey(label: 'END', displayLabel: 'End', terminalKey: TerminalKey.end);
+  static const home = ExtraKey(label: 'HOME', displayLabel: 'HOME', terminalKey: TerminalKey.home);
+  static const end = ExtraKey(label: 'END', displayLabel: 'END', terminalKey: TerminalKey.end);
   static const pgup =
-      ExtraKey(label: 'PGUP', displayLabel: 'PgUp', terminalKey: TerminalKey.pageUp);
+      ExtraKey(label: 'PGUP', displayLabel: 'PGUP', terminalKey: TerminalKey.pageUp);
   static const pgdn =
-      ExtraKey(label: 'PGDN', displayLabel: 'PgDn', terminalKey: TerminalKey.pageDown);
+      ExtraKey(label: 'PGDN', displayLabel: 'PGDN', terminalKey: TerminalKey.pageDown);
   static const insert =
-      ExtraKey(label: 'INS', displayLabel: 'Ins', terminalKey: TerminalKey.insert);
+      ExtraKey(label: 'INS', displayLabel: 'INS', terminalKey: TerminalKey.insert);
 
   // 方向键
   static const up = ExtraKey(
@@ -62,7 +62,7 @@ class ExtraKeys {
   static const backspace =
       ExtraKey(label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
   static const deleteKey =
-      ExtraKey(label: 'FORWARD_DEL', displayLabel: 'Del', terminalKey: TerminalKey.delete);
+      ExtraKey(label: 'FORWARD_DEL', displayLabel: 'DEL', terminalKey: TerminalKey.delete);
 
   // 常用符号
   static const dash = ExtraKey(label: '-', text: '-');
@@ -259,98 +259,108 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
 
   /// 主键盘行 - 两行布局，方向键在右侧
   Widget _buildMainRow(ThemeData theme) {
-    return Row(
-      children: [
-        // 左侧主键区
-        Expanded(
-          child: Column(
-            children: [
-              // 第一行: ESC, CTRL, ALT, -, /, |, \, 展开
-              SizedBox(
-                height: 38,
-                child: Row(
-                  children: [
-                    _buildKey(ExtraKeys.esc, theme),
-                    _buildKey(ExtraKeys.ctrl, theme),
-                    _buildKey(ExtraKeys.alt, theme),
-                    _buildKey(ExtraKeys.dash, theme),
-                    _buildKey(ExtraKeys.slash, theme),
-                    _buildKey(ExtraKeys.pipe, theme),
-                    _buildKey(ExtraKeys.backslash, theme),
-                    _buildExpandButton(theme),
-                  ],
-                ),
-              ),
-              // 第二行: TAB, Home, End, ⌫, ↲
-              SizedBox(
-                height: 38,
-                child: Row(
-                  children: [
-                    _buildKey(ExtraKeys.tab, theme),
-                    _buildKey(ExtraKeys.home, theme),
-                    _buildKey(ExtraKeys.end, theme),
-                    _buildKey(ExtraKeys.backspace, theme),
-                    _buildKey(ExtraKeys.enter, theme),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        // 右侧方向键区 - 十字布局
-        _buildArrowKeysCluster(theme),
-      ],
-    );
-  }
-
-  /// 方向键十字布局
-  Widget _buildArrowKeysCluster(ThemeData theme) {
-    const keySize = 36.0;
     return SizedBox(
-      width: keySize * 3 + 8,
-      height: 76,
-      child: Column(
+      height: 76, // 38 * 2
+      child: Row(
         children: [
-          // 上箭头居中
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(width: keySize + 2),
-              _buildArrowKey(ExtraKeys.up, theme, keySize),
-              const SizedBox(width: keySize + 2),
-            ],
+          // 左侧主键区 (占 4/7 宽度)
+          Expanded(
+            flex: 4,
+            child: Column(
+              children: [
+                // 第一行: ESC, CTRL, ALT, -
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildKey(ExtraKeys.esc, theme),
+                      _buildKey(ExtraKeys.ctrl, theme),
+                      _buildKey(ExtraKeys.alt, theme),
+                      _buildKey(ExtraKeys.dash, theme),
+                    ],
+                  ),
+                ),
+                // 第二行: TAB, /, |, 展开
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildKey(ExtraKeys.tab, theme),
+                      _buildKey(ExtraKeys.slash, theme),
+                      _buildKey(ExtraKeys.pipe, theme),
+                      _buildExpandButton(theme),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          // 左、下、右箭头
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildArrowKey(ExtraKeys.left, theme, keySize),
-              _buildArrowKey(ExtraKeys.down, theme, keySize),
-              _buildArrowKey(ExtraKeys.right, theme, keySize),
-            ],
+          // 右侧方向键区 (占 3/7 宽度)
+          Expanded(
+            flex: 3,
+            child: _buildArrowKeysCluster(theme),
           ),
         ],
       ),
     );
   }
 
-  /// 方向键按钮
-  Widget _buildArrowKey(ExtraKey key, ThemeData theme, double size) {
-    return Padding(
-      padding: const EdgeInsets.all(1),
-      child: SizedBox(
-        width: size,
-        height: size,
+  /// 方向键十字布局 + Home/End (自适应宽度)
+  Widget _buildArrowKeysCluster(ThemeData theme) {
+    return Column(
+      children: [
+        // 上方行：Home, Up, End
+        Expanded(
+          child: Row(
+            children: [
+              _buildArrowKey(ExtraKeys.home, theme),
+              _buildArrowKey(ExtraKeys.up, theme),
+              _buildArrowKey(ExtraKeys.end, theme),
+            ],
+          ),
+        ),
+        // 下方行：Left, Down, Right
+        Expanded(
+          child: Row(
+            children: [
+              _buildArrowKey(ExtraKeys.left, theme),
+              _buildArrowKey(ExtraKeys.down, theme),
+              _buildArrowKey(ExtraKeys.right, theme),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 方向键按钮 (自适应宽度)
+  Widget _buildArrowKey(ExtraKey key, ThemeData theme) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(2),
         child: Material(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(4),
           child: InkWell(
             onTap: () => _handleKeyTap(key),
             borderRadius: BorderRadius.circular(4),
-            child: Icon(
-              key.icon,
-              size: 20,
-              color: theme.colorScheme.onSurface,
+            child: Center(
+              child: key.icon != null
+                  ? Icon(
+                      key.icon,
+                      size: 18,
+                      color: theme.colorScheme.onSurface,
+                    )
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        key.displayLabel ?? key.label,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ),
@@ -643,14 +653,18 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                           ? theme.colorScheme.onPrimary
                           : theme.colorScheme.onSurface,
                     )
-                  : Text(
-                      key.display,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w500,
-                        color: isPressed
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurface,
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        key.display,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w500,
+                          color: isPressed
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurface,
+                        ),
                       ),
                     ),
             ),
