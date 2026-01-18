@@ -920,30 +920,45 @@ exec "$bashRealPath" --norc "\$@"
       final binFile = File(binPath);
       final realFile = File(realPath);
 
-      // 如果 .real 文件已存在，说明已经处理过
+      // dpkg 需要特殊处理 - 总是更新包装器以确保使用最新的补丁逻辑
+      final forcedUpdate = (binaryName == 'dpkg');
+
+      // 如果 .real 文件已存在，检查是否需要更新
       if (await realFile.exists()) {
-        return;
-      }
+        if (!forcedUpdate) {
+          return;
+        }
+        // 强制更新：检查当前包装脚本是否是最新版本
+        if (await binFile.exists()) {
+          final content = await binFile.readAsString();
+          // 如果包含最新的补丁逻辑标记，则不需要更新
+          if (content.contains('dpkg-patch-v9')) {
+            return;
+          }
+        }
+        // 需要更新包装脚本，继续执行
+        debugPrint('Updating $binaryName wrapper to latest version');
+      } else {
+        // 检查原始二进制是否存在
+        if (!await binFile.exists()) {
+          return;
+        }
 
-      // 检查原始二进制是否存在
-      if (!await binFile.exists()) {
-        return;
-      }
+        // 检查是否是 ELF 二进制文件
+        final bytes = await binFile.openRead(0, 4).first;
+        if (bytes.length < 4 ||
+            bytes[0] != 0x7f ||
+            bytes[1] != 0x45 ||  // E
+            bytes[2] != 0x4c ||  // L
+            bytes[3] != 0x46) {  // F
+          // 不是 ELF 文件，可能已经是脚本，跳过
+          return;
+        }
 
-      // 检查是否是 ELF 二进制文件
-      final bytes = await binFile.openRead(0, 4).first;
-      if (bytes.length < 4 ||
-          bytes[0] != 0x7f ||
-          bytes[1] != 0x45 ||  // E
-          bytes[2] != 0x4c ||  // L
-          bytes[3] != 0x46) {  // F
-        // 不是 ELF 文件，可能已经是脚本，跳过
-        return;
+        // 重命名原始二进制为 .real
+        await binFile.rename(realPath);
+        await Process.run('chmod', ['755', realPath]);
       }
-
-      // 重命名原始二进制为 .real
-      await binFile.rename(realPath);
-      await Process.run('chmod', ['755', realPath]);
 
       // 创建包装脚本
       final libDir = TermuxConstants.libDir;
@@ -956,6 +971,158 @@ exec "$bashRealPath" --norc "\$@"
       final aptConfigExport = isAptTool
           ? 'export APT_CONFIG="$etcDir/apt/apt.conf"\n'
           : '';
+
+      // dpkg 需要特殊处理：在安装前补丁 .deb 文件中的路径
+      if (binaryName == 'dpkg') {
+        final wrapperScript = '''#!/system/bin/sh
+# dpkg wrapper that patches .deb files before installation
+# Termux packages contain hardcoded /data/data/com.termux/ paths
+# We need to extract, rename paths, and repack before installation
+# Version: dpkg-patch-v9
+export PATH="$binDir:/system/bin:/system/xbin"
+export LD_LIBRARY_PATH="$libDir"
+export TMPDIR="$tmpDir"
+export APT_CONFIG="$etcDir/apt/apt.conf"
+
+DPKG_REAL="$realPath"
+LOGFILE="$tmpDir/dpkg-patch.log"
+
+# Use dpkg-deb.real if available, otherwise use dpkg-deb
+if [ -f "$binDir/dpkg-deb.real" ]; then
+    DPKG_DEB_CMD="$binDir/dpkg-deb.real"
+elif [ -f "$binDir/dpkg-deb" ]; then
+    DPKG_DEB_CMD="$binDir/dpkg-deb"
+else
+    exec "\$DPKG_REAL" "\$@"
+fi
+
+# Function to patch a .deb file
+patch_deb() {
+    local debfile="\$1"
+
+    if [ ! -f "\$debfile" ]; then
+        return 1
+    fi
+
+    local tmpdir="\$TMPDIR/dpkg-patch-\$\$-\$RANDOM"
+    mkdir -p "\$tmpdir/extract"
+
+    # Extract the .deb
+    "\$DPKG_DEB_CMD" -R "\$debfile" "\$tmpdir/extract" 2>> "\$LOGFILE"
+    if [ \$? -ne 0 ]; then
+        echo "\$(date): ERROR: Failed to extract \$debfile" >> "\$LOGFILE"
+        rm -rf "\$tmpdir"
+        return 1
+    fi
+
+    # Debug: show extracted structure
+    echo "\$(date): Extracted \$debfile, structure:" >> "\$LOGFILE"
+    find "\$tmpdir/extract" -type d 2>/dev/null | head -15 >> "\$LOGFILE"
+
+    # Find and rename all com.termux directories to com.dpterm
+    local found_termux=0
+    local termux_dirs=\$(find "\$tmpdir/extract" -type d -name "com.termux" 2>/dev/null)
+
+    if [ -n "\$termux_dirs" ]; then
+        echo "\$(date): Found com.termux dirs: \$termux_dirs" >> "\$LOGFILE"
+        for termux_dir in \$termux_dirs; do
+            if [ -d "\$termux_dir" ]; then
+                local parent_dir=\$(dirname "\$termux_dir")
+                local target_dir="\$parent_dir/com.dpterm"
+                mv "\$termux_dir" "\$target_dir" 2>> "\$LOGFILE"
+                if [ \$? -eq 0 ]; then
+                    found_termux=1
+                    echo "\$(date): Renamed \$termux_dir -> \$target_dir" >> "\$LOGFILE"
+                else
+                    echo "\$(date): ERROR: Failed to rename \$termux_dir" >> "\$LOGFILE"
+                fi
+            fi
+        done
+    fi
+
+    # Patch all files (binaries and scripts) that contain com.termux paths
+    # Since com.termux and com.dpterm are same length (10 chars), binary patching is safe
+    local patched_files=0
+    for filepath in \$(find "\$tmpdir/extract" -type f 2>/dev/null); do
+        if [ -f "\$filepath" ]; then
+            # Check if file contains com.termux (binary-safe grep)
+            if grep -q "com\.termux" "\$filepath" 2>/dev/null; then
+                # Use LC_ALL=C sed for binary-safe replacement
+                LC_ALL=C sed -i 's|com\.termux|com.dpterm|g' "\$filepath" 2>/dev/null
+                patched_files=1
+            fi
+        fi
+    done
+
+    # Repack if we renamed directories OR patched files
+    if [ \$found_termux -eq 1 ] || [ \$patched_files -eq 1 ]; then
+        # Fix permissions on DEBIAN scripts
+        # dpkg-deb requires maintainer scripts to have permissions >=0555 and <=0775
+        if [ -d "\$tmpdir/extract/DEBIAN" ]; then
+            chmod 755 "\$tmpdir/extract/DEBIAN"/* 2>/dev/null
+        fi
+
+        # Repack the .deb
+        "\$DPKG_DEB_CMD" -b "\$tmpdir/extract" "\$tmpdir/patched.deb" 2>> "\$LOGFILE"
+        if [ \$? -eq 0 ] && [ -f "\$tmpdir/patched.deb" ]; then
+            # Make sure we can overwrite the original
+            chmod 644 "\$debfile" 2>/dev/null
+            cp "\$tmpdir/patched.deb" "\$debfile" 2>> "\$LOGFILE"
+            if [ \$? -eq 0 ]; then
+                echo "\$(date): Patched \$debfile (dirs:\$found_termux files:\$patched_files)" >> "\$LOGFILE"
+            else
+                echo "\$(date): ERROR: Failed to copy patched deb to \$debfile" >> "\$LOGFILE"
+            fi
+        else
+            echo "\$(date): ERROR: Failed to repack \$debfile" >> "\$LOGFILE"
+        fi
+    fi
+
+    rm -rf "\$tmpdir"
+}
+
+# Check for --recursive flag and directory argument
+# APT calls: dpkg --recursive /path/to/dir (dir contains .deb files)
+HAS_RECURSIVE=0
+RECURSIVE_DIR=""
+for arg in "\$@"; do
+    if [ "\$arg" = "--recursive" ] || [ "\$arg" = "-R" ]; then
+        HAS_RECURSIVE=1
+    fi
+    # Check if it's a directory (potential recursive target)
+    if [ \$HAS_RECURSIVE -eq 1 ] && [ -d "\$arg" ]; then
+        RECURSIVE_DIR="\$arg"
+    fi
+done
+
+# If recursive mode with a directory, patch all .deb files in it
+if [ \$HAS_RECURSIVE -eq 1 ] && [ -n "\$RECURSIVE_DIR" ] && [ -d "\$RECURSIVE_DIR" ]; then
+    echo "\$(date): Recursive install from \$RECURSIVE_DIR" >> "\$LOGFILE"
+    for debfile in "\$RECURSIVE_DIR"/*.deb; do
+        if [ -f "\$debfile" ]; then
+            patch_deb "\$debfile"
+        fi
+    done
+fi
+
+# Also check for direct .deb file arguments
+for arg in "\$@"; do
+    case "\$arg" in
+        *.deb)
+            if [ -f "\$arg" ]; then
+                patch_deb "\$arg"
+            fi
+            ;;
+    esac
+done
+
+exec "\$DPKG_REAL" "\$@"
+''';
+        await binFile.writeAsString(wrapperScript);
+        await Process.run('chmod', ['755', binPath]);
+        debugPrint('Created special dpkg wrapper with .deb patching');
+        return;
+      }
 
       final wrapperScript = '''#!/system/bin/sh
 # Wrapper script to set correct library path
