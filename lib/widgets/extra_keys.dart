@@ -35,8 +35,8 @@ class ExtraKeys {
   static const alt = ExtraKey(label: 'ALT', isModifier: true);
 
   // 导航键
-  static const home = ExtraKey(label: 'HOME', terminalKey: TerminalKey.home);
-  static const end = ExtraKey(label: 'END', terminalKey: TerminalKey.end);
+  static const home = ExtraKey(label: 'HOME', displayLabel: 'Home', terminalKey: TerminalKey.home);
+  static const end = ExtraKey(label: 'END', displayLabel: 'End', terminalKey: TerminalKey.end);
   static const pgup =
       ExtraKey(label: 'PGUP', displayLabel: 'PgUp', terminalKey: TerminalKey.pageUp);
   static const pgdn =
@@ -265,31 +265,30 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         Expanded(
           child: Column(
             children: [
-              // 第一行: ESC, TAB, CTRL, ALT, -, /, |, 展开
+              // 第一行: ESC, CTRL, ALT, -, /, |, \, 展开
               SizedBox(
                 height: 38,
                 child: Row(
                   children: [
                     _buildKey(ExtraKeys.esc, theme),
-                    _buildKey(ExtraKeys.tab, theme),
                     _buildKey(ExtraKeys.ctrl, theme),
                     _buildKey(ExtraKeys.alt, theme),
                     _buildKey(ExtraKeys.dash, theme),
                     _buildKey(ExtraKeys.slash, theme),
                     _buildKey(ExtraKeys.pipe, theme),
+                    _buildKey(ExtraKeys.backslash, theme),
                     _buildExpandButton(theme),
                   ],
                 ),
               ),
-              // 第二行: HOME, END, PGUP, PGDN, ⌫, ↲
+              // 第二行: TAB, Home, End, ⌫, ↲
               SizedBox(
                 height: 38,
                 child: Row(
                   children: [
+                    _buildKey(ExtraKeys.tab, theme),
                     _buildKey(ExtraKeys.home, theme),
                     _buildKey(ExtraKeys.end, theme),
-                    _buildKey(ExtraKeys.pgup, theme),
-                    _buildKey(ExtraKeys.pgdn, theme),
                     _buildKey(ExtraKeys.backspace, theme),
                     _buildKey(ExtraKeys.enter, theme),
                   ],
@@ -611,10 +610,10 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
       height: 36,
       child: Row(
         children: [
+          _buildKey(ExtraKeys.pgup, theme),
+          _buildKey(ExtraKeys.pgdn, theme),
           _buildKey(ExtraKeys.insert, theme),
           _buildKey(ExtraKeys.deleteKey, theme),
-          _buildKey(ExtraKeys.underscore, theme),
-          _buildKey(ExtraKeys.backslash, theme),
         ],
       ),
     );
