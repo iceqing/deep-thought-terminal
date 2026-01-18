@@ -151,6 +151,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       ),
       actions: [
+        // 快速复制按钮
+        IconButton(
+          icon: const Icon(Icons.copy_all),
+          onPressed: () => _showCopyOptions(context, terminalProvider),
+          tooltip: 'Copy options',
+        ),
         // 切换键盘
         IconButton(
           icon: const Icon(Icons.keyboard),
@@ -172,7 +178,17 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 children: [
                   Icon(Icons.copy),
                   SizedBox(width: 8),
-                  Text('Copy'),
+                  Text('Copy Selection'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'copy_all',
+              child: Row(
+                children: [
+                  Icon(Icons.copy_all),
+                  SizedBox(width: 8),
+                  Text('Copy All'),
                 ],
               ),
             ),
@@ -183,6 +199,17 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   Icon(Icons.paste),
                   SizedBox(width: 8),
                   Text('Paste'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'select_all',
+              child: Row(
+                children: [
+                  Icon(Icons.select_all),
+                  SizedBox(width: 8),
+                  Text('Select All'),
                 ],
               ),
             ),
@@ -320,12 +347,163 @@ class _TerminalScreenState extends State<TerminalScreen> {
       case 'copy':
         _copySelection(terminalProvider);
         break;
+      case 'copy_all':
+        _copyAllContent(terminalProvider);
+        break;
       case 'paste':
         _pasteClipboard(terminalProvider);
+        break;
+      case 'select_all':
+        _selectAll(terminalProvider);
         break;
       case 'settings':
         _openSettings(context);
         break;
+    }
+  }
+
+  /// 显示复制选项弹窗
+  void _showCopyOptions(BuildContext context, TerminalProvider terminalProvider) {
+    final settings = context.read<SettingsProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: settings.terminalTheme.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: settings.terminalTheme.foreground.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                'Copy Options',
+                style: TextStyle(
+                  color: settings.terminalTheme.foreground,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildCopyOptionTile(
+                icon: Icons.copy_all,
+                title: 'Copy All Content',
+                subtitle: 'Copy entire terminal buffer',
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyAllContent(terminalProvider);
+                },
+                settings: settings,
+              ),
+              _buildCopyOptionTile(
+                icon: Icons.select_all,
+                title: 'Select All & Copy',
+                subtitle: 'Select all text and copy',
+                onTap: () {
+                  Navigator.pop(context);
+                  _selectAll(terminalProvider);
+                  // 延迟一下让选择生效后再复制
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    _copySelection(terminalProvider);
+                  });
+                },
+                settings: settings,
+              ),
+              if (_hasSelection)
+                _buildCopyOptionTile(
+                  icon: Icons.copy,
+                  title: 'Copy Selection',
+                  subtitle: 'Copy currently selected text',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _copySelection(terminalProvider);
+                  },
+                  settings: settings,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCopyOptionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    required SettingsProvider settings,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: settings.terminalTheme.foreground),
+      title: Text(
+        title,
+        style: TextStyle(color: settings.terminalTheme.foreground),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: settings.terminalTheme.foreground.withOpacity(0.6),
+          fontSize: 12,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  /// 复制所有终端内容
+  void _copyAllContent(TerminalProvider terminalProvider) async {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    final terminal = session.terminal;
+    final buffer = terminal.buffer;
+
+    // 获取所有行的文本
+    final lines = <String>[];
+    for (int i = 0; i < buffer.lines.length; i++) {
+      final line = buffer.lines[i];
+      final text = line.getText().trimRight();
+      lines.add(text);
+    }
+
+    // 移除末尾的空行
+    while (lines.isNotEmpty && lines.last.isEmpty) {
+      lines.removeLast();
+    }
+
+    final text = lines.join('\n');
+
+    if (text.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Copied ${lines.length} lines to clipboard'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Terminal is empty'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
     }
   }
 
@@ -417,32 +595,43 @@ class _TerminalScreenState extends State<TerminalScreen> {
   ) {
     return Center(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(
-          color: settings.terminalTheme.background.withOpacity(0.95),
-          borderRadius: BorderRadius.circular(24),
+          color: settings.terminalTheme.background,
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: settings.terminalTheme.foreground.withOpacity(0.3),
+            color: settings.terminalTheme.foreground.withOpacity(0.4),
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildToolbarButton(
+            // 复制选中内容 - 主要按钮
+            _buildToolbarPrimaryButton(
               icon: Icons.copy,
               label: 'Copy',
               onTap: () => _copySelection(terminalProvider),
               settings: settings,
             ),
             _buildToolbarDivider(settings),
+            // 复制全部
+            _buildToolbarButton(
+              icon: Icons.copy_all,
+              label: 'All',
+              onTap: () => _copyAllContent(terminalProvider),
+              settings: settings,
+            ),
+            _buildToolbarDivider(settings),
+            // 全选
             _buildToolbarButton(
               icon: Icons.select_all,
               label: 'Select All',
@@ -450,13 +639,54 @@ class _TerminalScreenState extends State<TerminalScreen> {
               settings: settings,
             ),
             _buildToolbarDivider(settings),
+            // 清除选择
             _buildToolbarButton(
-              icon: Icons.clear,
-              label: 'Clear',
+              icon: Icons.close,
+              label: '',
               onTap: () => _clearSelection(terminalProvider),
               settings: settings,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbarPrimaryButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required SettingsProvider settings,
+  }) {
+    return Material(
+      color: settings.terminalTheme.foreground.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: settings.terminalTheme.foreground,
+              ),
+              if (label.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: settings.terminalTheme.foreground,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
