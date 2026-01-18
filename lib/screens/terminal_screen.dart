@@ -40,9 +40,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
     super.initState();
     // 监听焦点变化来显示/隐藏键盘
     _terminalFocusNode.addListener(() {
+      if (mounted) setState(() {});
       if (!_terminalFocusNode.hasFocus) {
         // 失去焦点时隐藏键盘
         SystemChannels.textInput.invokeMethod('TextInput.hide');
+        // 锁定焦点请求，防止滚动时误触导致键盘弹出和视图跳转
+        _terminalFocusNode.canRequestFocus = false;
       }
     });
 
@@ -296,9 +299,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
         // 切换键盘
         IconButton(
-          icon: const Icon(Icons.keyboard),
+          icon: Icon(_terminalFocusNode.hasFocus
+              ? Icons.keyboard_hide
+              : Icons.keyboard),
           onPressed: () => _toggleKeyboard(context),
-          tooltip: 'Toggle keyboard',
+          tooltip: _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
         ),
         // 新建会话
         IconButton(
@@ -507,8 +512,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (_terminalFocusNode.hasFocus) {
       // 如果已有焦点，失去焦点以隐藏键盘
       _terminalFocusNode.unfocus();
+      // 这里的 canRequestFocus = false 会在 listener 中设置
     } else {
-      // 请求焦点以显示键盘
+      // 解锁并请求焦点以显示键盘
+      _terminalFocusNode.canRequestFocus = true;
       _terminalFocusNode.requestFocus();
     }
   }
