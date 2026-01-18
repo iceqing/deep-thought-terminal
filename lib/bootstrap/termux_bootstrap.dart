@@ -367,6 +367,9 @@ class TermuxBootstrap {
     // 配置APT包管理器
     await _configureApt();
 
+    // 创建工具脚本
+    await createSetupStorageScript();
+
     // 创建 bashrc 配置文件
     await _createBashrc();
   }
@@ -1844,6 +1847,67 @@ esac
       debugPrint('pkg script created');
     } catch (e) {
       debugPrint('Failed to create pkg script: $e');
+    }
+  }
+
+  /// 创建 setup-storage 脚本
+  /// 类似 Termux 的 termux-setup-storage 功能
+  static Future<void> createSetupStorageScript() async {
+    final scriptPath = '${TermuxConstants.binDir}/setup-storage';
+
+    try {
+      final scriptFile = File(scriptPath);
+
+      // 检查是否已存在
+      if (await scriptFile.exists()) {
+        final content = await scriptFile.readAsString();
+        if (content.contains('Deep Thought Storage Setup')) {
+          debugPrint('setup-storage script already exists');
+          return;
+        }
+      }
+
+      // OSC 52 是剪贴板操作，我们使用自定义 OSC 序列来触发存储设置
+      // 使用 OSC 7777 作为自定义命令（避免与标准序列冲突）
+      // 格式: ESC ] 7777 ; setup-storage BEL
+      final script = r'''#!/system/bin/sh
+# setup-storage - Storage setup for Deep Thought terminal
+# Similar to Termux's termux-setup-storage
+
+echo "Deep Thought Storage Setup"
+echo ""
+echo "This will set up access to external storage."
+echo "A permission dialog will be shown if needed."
+echo ""
+echo "The following symlinks will be created in ~/storage:"
+echo "  shared    -> External storage root (/sdcard)"
+echo "  downloads -> Downloads directory"
+echo "  dcim      -> DCIM (photos/videos)"
+echo "  pictures  -> Pictures directory"
+echo "  music     -> Music directory"
+echo "  movies    -> Movies directory"
+echo "  documents -> Documents directory"
+echo "  external-N -> App-specific external storage"
+echo "  media-N   -> App-specific media storage"
+echo ""
+
+# 发送 OSC 序列触发 Flutter 处理存储权限
+# ESC ] 7777 ; setup-storage BEL
+printf '\033]7777;setup-storage\007'
+
+# 给用户一些反馈
+echo "Requesting storage permission..."
+echo "Please grant access in the system dialog if prompted."
+echo ""
+echo "Note: If using Android 11+, you need to enable"
+echo "'Allow access to manage all files' in settings."
+''';
+
+      await scriptFile.writeAsString(script);
+      await Process.run('chmod', ['755', scriptPath]);
+      debugPrint('setup-storage script created');
+    } catch (e) {
+      debugPrint('Failed to create setup-storage script: $e');
     }
   }
 

@@ -100,3 +100,4 @@ coverage/
 *.test.dart.js
 *.test.dart.js.deps
 *.test.dart.js.map
+*this-session-is-being-continued-from-a-previous-co.txt

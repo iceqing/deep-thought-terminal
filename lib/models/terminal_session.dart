@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 import '../shell/shell_session.dart';
+import '../services/storage_service.dart';
+import '../utils/constants.dart';
 
 /// 输入修饰符转换函数类型
 typedef InputModifierTransformer = String Function(String input);
@@ -127,10 +129,78 @@ class TerminalSession {
   void _handleOutput(List<int> data) {
     try {
       final text = utf8.decode(data, allowMalformed: true);
-      terminal.write(text);
+
+      // 检测自定义 OSC 序列: ESC ] 7777 ; command BEL
+      // 用于与 Flutter 应用通信
+      final oscPattern = RegExp(r'\x1b\]7777;([^\x07]+)\x07');
+      final match = oscPattern.firstMatch(text);
+
+      if (match != null) {
+        final command = match.group(1);
+        _handleOscCommand(command);
+        // 移除 OSC 序列，不显示在终端中
+        final cleanText = text.replaceAll(oscPattern, '');
+        if (cleanText.isNotEmpty) {
+          terminal.write(cleanText);
+        }
+      } else {
+        terminal.write(text);
+      }
+
       _onTextChanged?.call();
     } catch (e) {
       terminal.write(utf8.decode(data, allowMalformed: true));
+    }
+  }
+
+  /// 处理自定义 OSC 命令
+  void _handleOscCommand(String? command) {
+    if (command == null) return;
+
+    switch (command) {
+      case 'setup-storage':
+        _setupStorage();
+        break;
+      default:
+        debugPrint('Unknown OSC command: $command');
+    }
+  }
+
+  /// 执行存储设置
+  Future<void> _setupStorage() async {
+    final homePath = TermuxConstants.homeDir;
+
+    try {
+      final result = await StorageService.instance.setupStorage(homePath);
+
+      // 输出结果到终端
+      terminal.write('\r\n');
+      if (result.success) {
+        terminal.write('\x1b[32m'); // 绿色
+        terminal.write('Storage setup completed successfully!\r\n');
+        terminal.write('\x1b[0m'); // 重置颜色
+        terminal.write('\r\nCreated symlinks in ~/storage:\r\n');
+        for (final link in result.created) {
+          final parts = link.split(' -> ');
+          if (parts.length == 2) {
+            final name = parts[0].split('/').last;
+            terminal.write('  $name -> ${parts[1]}\r\n');
+          }
+        }
+        terminal.write('\r\nYou can now access external storage via ~/storage/\r\n');
+      } else {
+        terminal.write('\x1b[31m'); // 红色
+        terminal.write('Storage setup failed!\r\n');
+        terminal.write('\x1b[0m'); // 重置颜色
+        for (final error in result.errors) {
+          terminal.write('  Error: $error\r\n');
+        }
+      }
+      terminal.write('\r\n');
+      _onTextChanged?.call();
+    } catch (e) {
+      terminal.write('\r\n\x1b[31mStorage setup error: $e\x1b[0m\r\n');
+      _onTextChanged?.call();
     }
   }
 
