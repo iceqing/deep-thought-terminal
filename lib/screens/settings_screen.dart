@@ -32,6 +32,9 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(title: 'Input'),
           _VibrationSetting(),
           _BellSetting(),
+          _SectionHeader(title: 'Gestures'),
+          _PinchZoomSetting(),
+          _VolumeKeysSetting(),
           _SectionHeader(title: 'Advanced'),
           _ResetSettingsTile(),
           SizedBox(height: 32),
@@ -453,6 +456,42 @@ class _BellSetting extends StatelessWidget {
       subtitle: const Text('Play sound on bell character'),
       value: settings.bellEnabled,
       onChanged: (value) => settings.setBellEnabled(value),
+    );
+  }
+}
+
+/// 双指缩放
+class _PinchZoomSetting extends StatelessWidget {
+  const _PinchZoomSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+
+    return SwitchListTile(
+      secondary: const Icon(Icons.pinch),
+      title: const Text('Pinch to Zoom'),
+      subtitle: const Text('Use two fingers to resize text'),
+      value: settings.pinchZoomEnabled,
+      onChanged: (value) => settings.setPinchZoomEnabled(value),
+    );
+  }
+}
+
+/// 音量键作为修饰键
+class _VolumeKeysSetting extends StatelessWidget {
+  const _VolumeKeysSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+
+    return SwitchListTile(
+      secondary: const Icon(Icons.volume_up),
+      title: const Text('Volume Keys as Modifiers'),
+      subtitle: const Text('Vol+ = Ctrl, Vol- = Alt'),
+      value: settings.volumeKeysEnabled,
+      onChanged: (value) => settings.setVolumeKeysEnabled(value),
     );
   }
 }

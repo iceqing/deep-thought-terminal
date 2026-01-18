@@ -366,6 +366,77 @@ class TermuxBootstrap {
 
     // 配置APT包管理器
     await _configureApt();
+
+    // 创建 bashrc 配置文件
+    await _createBashrc();
+  }
+
+  /// 创建 bashrc 配置文件
+  static Future<void> _createBashrc() async {
+    final bashrcPath = '${TermuxConstants.homeDir}/.bashrc';
+    final bashrcFile = File(bashrcPath);
+
+    // 如果已存在则不覆盖用户配置
+    if (await bashrcFile.exists()) {
+      return;
+    }
+
+    final bashrcContent = '''
+# ~/.bashrc - Deep Thought Terminal Configuration
+
+# 提示符设置 - 绿色路径
+PS1='\\[\\e[0;32m\\]\\w\\[\\e[0m\\] \\\$ '
+
+# 启用颜色支持
+export CLICOLOR=1
+export CLICOLOR_FORCE=1
+
+# LS_COLORS 配置
+# di=目录 ln=链接 so=socket pi=管道 ex=可执行 bd=块设备 cd=字符设备
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.7z=1;31:*.rar=1;31:*.jpg=1;35:*.jpeg=1;35:*.png=1;35:*.gif=1;35:*.bmp=1;35:*.mp3=1;36:*.mp4=1;36:*.mkv=1;36:*.avi=1;36:*.pdf=1;33:*.doc=1;33:*.txt=0;37'
+
+# 常用命令别名 - 启用颜色
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias l='ls -CF --color=auto'
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+alias diff='diff --color=auto'
+
+# 便捷别名
+alias ..='cd ..'
+alias ...='cd ../..'
+alias c='clear'
+alias h='history'
+alias q='exit'
+
+# 历史记录配置
+export HISTSIZE=1000
+export HISTFILESIZE=2000
+export HISTCONTROL=ignoredups:erasedups
+
+# 让 less 支持颜色
+export LESS='-R'
+export LESS_TERMCAP_mb=\$'\\e[1;31m'
+export LESS_TERMCAP_md=\$'\\e[1;36m'
+export LESS_TERMCAP_me=\$'\\e[0m'
+export LESS_TERMCAP_so=\$'\\e[1;44;33m'
+export LESS_TERMCAP_se=\$'\\e[0m'
+export LESS_TERMCAP_us=\$'\\e[1;32m'
+export LESS_TERMCAP_ue=\$'\\e[0m'
+
+# GCC 颜色
+export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+''';
+
+    try {
+      await bashrcFile.writeAsString(bashrcContent);
+      debugPrint('Created bashrc at $bashrcPath');
+    } catch (e) {
+      debugPrint('Failed to create bashrc: $e');
+    }
   }
 
   /// 创建关键二进制文件的包装脚本

@@ -243,9 +243,7 @@ class ShellSessionFactory {
     final caCertPath = '$etcPath/tls/cert.pem';
 
     // 使用export确保环境变量被正确设置
-    // 使用 --noprofile --norc 跳过硬编码的Termux路径配置文件
-    // 因为bash二进制文件中硬编码了/data/data/com.termux/路径
-    // 优先使用bash-real（如果存在），否则回退到bash
+    // 使用 --noprofile --norc 跳过所有系统配置文件（bash二进制中硬编码了com.termux路径）
     return 'export LD_LIBRARY_PATH="$libPath"; '
         'export HOME="$homePath"; '
         'export PREFIX="$prefixPath"; '
@@ -254,13 +252,28 @@ class ShellSessionFactory {
         'export TERM="xterm-256color"; '
         'export LANG="en_US.UTF-8"; '
         'export SHELL="$bashPath"; '
-        // APT 配置 - 告诉 APT 使用我们的配置文件
+        // APT 配置
         'export APT_CONFIG="$aptConfigPath"; '
         // SSL/TLS 证书配置
         'export SSL_CERT_FILE="$caCertPath"; '
         'export CURL_CA_BUNDLE="$caCertPath"; '
         'export GIT_SSL_CAINFO="$caCertPath"; '
+        // 颜色支持
+        'export CLICOLOR=1; '
+        'export CLICOLOR_FORCE=1; '
+        // LS_COLORS - 文件类型颜色
+        r"export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.jpg=1;35:*.png=1;35:*.mp3=1;36:*.mp4=1;36'; "
+        // GCC 颜色
+        r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
+        // less 颜色
+        'export LESS="-R"; '
+        // 历史记录
+        'export HISTSIZE=1000; '
+        'export HISTCONTROL=ignoredups; '
+        // PS1 提示符 - 绿色路径
+        r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
+        // 使用 --noprofile --norc 跳过所有硬编码路径的配置文件
         'if [ -x "$bashRealPath" ]; then exec "$bashRealPath" --noprofile --norc; '
         'else exec "$bashPath" --noprofile --norc; fi';
   }

@@ -30,6 +30,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _vibrationEnabled = DefaultSettings.vibrationEnabled;
   bool _bellEnabled = DefaultSettings.bellEnabled;
 
+  // 手势设置
+  bool _pinchZoomEnabled = DefaultSettings.pinchZoomEnabled;
+  bool _volumeKeysEnabled = DefaultSettings.volumeKeysEnabled;
+
   // Getters
   bool get initialized => _initialized;
   String get fontFamily => _fontFamily;
@@ -42,6 +46,8 @@ class SettingsProvider extends ChangeNotifier {
   int get terminalMargin => _terminalMargin;
   bool get vibrationEnabled => _vibrationEnabled;
   bool get bellEnabled => _bellEnabled;
+  bool get pinchZoomEnabled => _pinchZoomEnabled;
+  bool get volumeKeysEnabled => _volumeKeysEnabled;
 
   TerminalTheme get terminalTheme => AppTerminalThemes.getTheme(_colorTheme);
 
@@ -77,6 +83,8 @@ class SettingsProvider extends ChangeNotifier {
     _terminalMargin = _prefs.getInt('terminalMargin') ?? DefaultSettings.terminalMargin;
     _vibrationEnabled = _prefs.getBool('vibrationEnabled') ?? DefaultSettings.vibrationEnabled;
     _bellEnabled = _prefs.getBool('bellEnabled') ?? DefaultSettings.bellEnabled;
+    _pinchZoomEnabled = _prefs.getBool('pinchZoomEnabled') ?? DefaultSettings.pinchZoomEnabled;
+    _volumeKeysEnabled = _prefs.getBool('volumeKeysEnabled') ?? DefaultSettings.volumeKeysEnabled;
   }
 
   // Setters
@@ -140,6 +148,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setPinchZoomEnabled(bool value) async {
+    _pinchZoomEnabled = value;
+    await _prefs.setBool('pinchZoomEnabled', value);
+    notifyListeners();
+  }
+
+  Future<void> setVolumeKeysEnabled(bool value) async {
+    _volumeKeysEnabled = value;
+    await _prefs.setBool('volumeKeysEnabled', value);
+    notifyListeners();
+  }
+
   /// 重置为默认设置
   Future<void> resetToDefaults() async {
     await setFontFamily(DefaultSettings.fontFamily);
@@ -152,5 +172,7 @@ class SettingsProvider extends ChangeNotifier {
     await setTerminalMargin(DefaultSettings.terminalMargin);
     await setVibrationEnabled(DefaultSettings.vibrationEnabled);
     await setBellEnabled(DefaultSettings.bellEnabled);
+    await setPinchZoomEnabled(DefaultSettings.pinchZoomEnabled);
+    await setVolumeKeysEnabled(DefaultSettings.volumeKeysEnabled);
   }
 }

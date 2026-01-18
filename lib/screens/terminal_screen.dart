@@ -6,6 +6,8 @@ import 'package:xterm/xterm.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../providers/settings_provider.dart';
 import '../providers/terminal_provider.dart';
+import '../services/volume_key_service.dart';
+import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
 import '../widgets/session_drawer.dart';
 import 'settings_screen.dart';
@@ -24,6 +26,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
   final FocusNode _terminalFocusNode = FocusNode();
   bool _hasSelection = false;
 
+  // 缩放相关
+  double _baseScaleFontSize = 14.0;
+
+  // 音量键修饰符状态
+  bool _volumeUpCtrlActive = false;
+  bool _volumeDownAltActive = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +43,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
         SystemChannels.textInput.invokeMethod('TextInput.hide');
       }
     });
+
+    // 初始化音量键服务
+    _initVolumeKeyService();
+
     // 初始化终端会话
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final terminalProvider = context.read<TerminalProvider>();
@@ -43,7 +56,121 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
       // 监听选择变化
       _setupSelectionListener(terminalProvider);
+
+      // 更新音量键启用状态
+      final settings = context.read<SettingsProvider>();
+      VolumeKeyService.instance.setEnabled(settings.volumeKeysEnabled);
+
+      // 设置输入转换器
+      _updateSessionInputTransformer();
     });
+  }
+
+  void _initVolumeKeyService() {
+    final service = VolumeKeyService.instance;
+    service.init();
+    service.onVolumeKey = (key, action) {
+      if (!mounted) return;
+
+      final settings = context.read<SettingsProvider>();
+      if (!settings.volumeKeysEnabled) return;
+
+      setState(() {
+        if (key == 'up') {
+          // 音量上键 = Ctrl
+          _volumeUpCtrlActive = action == 'down';
+        } else if (key == 'down') {
+          // 音量下键 = Alt
+          _volumeDownAltActive = action == 'down';
+        }
+      });
+
+      // 更新当前会话的输入转换器
+      _updateSessionInputTransformer();
+    };
+  }
+
+  /// 更新当前会话的输入转换器
+  void _updateSessionInputTransformer() {
+    final terminalProvider = context.read<TerminalProvider>();
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    // 设置输入转换器，用于处理 Ctrl/Alt 修饰键
+    session.inputTransformer = (String input) {
+      return _transformInputWithModifiers(input);
+    };
+  }
+
+  /// 应用修饰符转换输入
+  String _transformInputWithModifiers(String input) {
+    // 如果没有激活任何修饰符，直接返回原始输入
+    if (!_volumeUpCtrlActive && !_volumeDownAltActive) {
+      return input;
+    }
+
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < input.length; i++) {
+      var char = input.codeUnitAt(i);
+      var charStr = input[i];
+
+      // 应用 Ctrl 修饰符
+      if (_volumeUpCtrlActive) {
+        // a-z -> Ctrl+a-z (1-26)
+        if (char >= 0x61 && char <= 0x7a) {
+          char = char - 0x60; // 'a' -> 1, 'b' -> 2, ..., 'z' -> 26
+          charStr = String.fromCharCode(char);
+        }
+        // A-Z -> Ctrl+A-Z (1-26)
+        else if (char >= 0x41 && char <= 0x5a) {
+          char = char - 0x40;
+          charStr = String.fromCharCode(char);
+        }
+        // 特殊字符
+        else if (char == 0x40 || char == 0x20) {
+          // @ 或 空格 -> Ctrl+@ (NUL, 0)
+          charStr = String.fromCharCode(0);
+        } else if (char == 0x5b) {
+          // [ -> Ctrl+[ (ESC, 27)
+          charStr = String.fromCharCode(27);
+        } else if (char == 0x5c) {
+          // \ -> Ctrl+\ (FS, 28)
+          charStr = String.fromCharCode(28);
+        } else if (char == 0x5d) {
+          // ] -> Ctrl+] (GS, 29)
+          charStr = String.fromCharCode(29);
+        } else if (char == 0x5e || char == 0x36) {
+          // ^ 或 6 -> Ctrl+^ (RS, 30)
+          charStr = String.fromCharCode(30);
+        } else if (char == 0x5f || char == 0x2d) {
+          // _ 或 - -> Ctrl+_ (US, 31)
+          charStr = String.fromCharCode(31);
+        }
+      }
+
+      // 应用 Alt 修饰符 (发送 ESC 前缀)
+      if (_volumeDownAltActive) {
+        buffer.write('\x1b'); // ESC
+      }
+
+      buffer.write(charStr);
+    }
+
+    // 重置修饰符状态（按下一个键后自动重置）
+    if (_volumeUpCtrlActive || _volumeDownAltActive) {
+      // 使用 Future.microtask 避免在 build 期间调用 setState
+      Future.microtask(() {
+        if (mounted) {
+          setState(() {
+            _volumeUpCtrlActive = false;
+            _volumeDownAltActive = false;
+          });
+        }
+      });
+    }
+
+    return buffer.toString();
   }
 
   void _setupSelectionListener(TerminalProvider terminalProvider) {
@@ -67,6 +194,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   @override
   void dispose() {
     _terminalFocusNode.dispose();
+    VolumeKeyService.instance.onVolumeKey = null;
     super.dispose();
   }
 
@@ -81,6 +209,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
     } else {
       WakelockPlus.disable();
     }
+
+    // 同步音量键设置到原生层
+    VolumeKeyService.instance.setEnabled(settings.volumeKeysEnabled);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -111,10 +242,14 @@ class _TerminalScreenState extends State<TerminalScreen> {
             // 额外按键
             if (settings.showExtraKeys)
               ExtraKeysView(
-                onTextKeyTap: (key) => _sendTextKey(terminalProvider, key),
+                onTextKeyTap: (key) => _sendTextKeyWithVolumeModifiers(terminalProvider, key),
                 onTerminalKeyTap: (key) =>
                     _sendTerminalKey(terminalProvider, key),
                 vibrationEnabled: settings.vibrationEnabled,
+                ctrlPressed: _volumeUpCtrlActive,
+                altPressed: _volumeDownAltActive,
+                onCtrlToggle: () => setState(() => _volumeUpCtrlActive = !_volumeUpCtrlActive),
+                onAltToggle: () => setState(() => _volumeDownAltActive = !_volumeDownAltActive),
               ),
           ],
         ),
@@ -269,47 +404,70 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     return Padding(
       padding: EdgeInsets.all(settings.terminalMargin.toDouble()),
-      child: KeyboardListener(
-        focusNode: FocusNode(),
-        autofocus: false,
-        onKeyEvent: (event) {
-          // 处理物理键盘的Enter键
-          if (event is KeyDownEvent) {
-            if (event.logicalKey == LogicalKeyboardKey.enter ||
-                event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-              currentSession.write('\r');
+      child: GestureDetector(
+        // 双指缩放调整字体大小
+        onScaleStart: (details) {
+          if (details.pointerCount >= 2) {
+            _baseScaleFontSize = settings.fontSize;
+          }
+        },
+        onScaleUpdate: (details) {
+          if (details.pointerCount >= 2 && settings.pinchZoomEnabled) {
+            // 计算新的字体大小
+            final newSize = (_baseScaleFontSize * details.scale)
+                .clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
+            // 只有当变化超过0.5时才更新，避免频繁刷新
+            if ((newSize - settings.fontSize).abs() >= 0.5) {
+              settings.setFontSize(newSize);
             }
           }
         },
-        child: TerminalView(
-          currentSession.terminal,
-          controller: currentSession.controller,
-          theme: settings.terminalTheme,
-          textStyle: TerminalStyle(
-            fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
-                'monospace',
-            fontSize: settings.fontSize,
-          ),
-          cursorType: settings.terminalCursorType,
-          alwaysShowCursor: true,
-          autofocus: true,
-          focusNode: _terminalFocusNode,
-          // 使用visiblePassword明确告诉系统这不是密码输入
-          // 这可以避免触发小米等厂商的安全键盘
-          keyboardType: TextInputType.visiblePassword,
-          onSecondaryTapDown: (details, offset) {
-            _showContextMenu(context, details, terminalProvider);
+        child: KeyboardListener(
+          focusNode: FocusNode(),
+          autofocus: false,
+          onKeyEvent: (event) {
+            // 处理物理键盘的Enter键
+            if (event is KeyDownEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.enter ||
+                  event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                currentSession.write('\r');
+              }
+            }
           },
+          child: TerminalView(
+            currentSession.terminal,
+            controller: currentSession.controller,
+            theme: settings.terminalTheme,
+            textStyle: TerminalStyle(
+              fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
+                  'monospace',
+              fontSize: settings.fontSize,
+            ),
+            cursorType: settings.terminalCursorType,
+            alwaysShowCursor: true,
+            autofocus: true,
+            focusNode: _terminalFocusNode,
+            // 使用visiblePassword明确告诉系统这不是密码输入
+            // 这可以避免触发小米等厂商的安全键盘
+            keyboardType: TextInputType.visiblePassword,
+            onSecondaryTapDown: (details, offset) {
+              _showContextMenu(context, details, terminalProvider);
+            },
+          ),
         ),
       ),
     );
   }
 
-  void _sendTextKey(TerminalProvider terminalProvider, String key) {
+  /// 发送文本键到终端
+  /// 注意：ExtraKeysView 已经处理了 Ctrl/Alt 修饰键转换
+  /// 这里直接写入，不再重复转换
+  void _sendTextKeyWithVolumeModifiers(TerminalProvider terminalProvider, String key) {
     final session = terminalProvider.currentSession;
-    if (session != null) {
-      session.write(key);
-    }
+    if (session == null) return;
+
+    // 直接写入到 shell（绕过 inputTransformer，因为 ExtraKeysView 已经处理了转换）
+    session.write(key);
   }
 
   void _sendTerminalKey(TerminalProvider terminalProvider, TerminalKey key) {

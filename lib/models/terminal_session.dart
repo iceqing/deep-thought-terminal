@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 import '../shell/shell_session.dart';
 
+/// 输入修饰符转换函数类型
+typedef InputModifierTransformer = String Function(String input);
+
 /// 终端会话模型
 /// 参考 termux-app: TerminalSession.java
 class TerminalSession {
@@ -26,6 +29,9 @@ class TerminalSession {
   // 状态变化回调
   VoidCallback? _onTextChanged;
   VoidCallback? _onSessionFinished;
+
+  // 输入修饰符转换器 - 用于处理 Ctrl/Alt 修饰键
+  InputModifierTransformer? inputTransformer;
 
   TerminalSession({
     required this.id,
@@ -65,9 +71,13 @@ class TerminalSession {
       _shellSession = await ShellSessionFactory.createInteractiveSession();
 
       // 设置终端输出回调 - 将xterm的输出发送到Shell进程
+      // 如果设置了inputTransformer，先转换输入（用于Ctrl/Alt修饰键）
       terminal.onOutput = (String data) {
         if (_shellSession != null && _isRunning) {
-          _shellSession!.write(data);
+          final transformedData = inputTransformer != null
+              ? inputTransformer!(data)
+              : data;
+          _shellSession!.write(transformedData);
         }
       };
 

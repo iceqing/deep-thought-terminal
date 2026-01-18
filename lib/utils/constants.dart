@@ -87,6 +87,8 @@ class DefaultSettings {
   static const bool vibrationEnabled = true;
   static const int terminalMargin = 0;
   static const bool bellEnabled = true;
+  static const bool pinchZoomEnabled = true;
+  static const bool volumeKeysEnabled = true;
 }
 
 /// 可用字体列表

@@ -9,8 +9,8 @@ import 'package:xterm/xterm.dart';
 class ExtraKey {
   final String label;
   final String? displayLabel;
-  final String? text;  // 普通文本字符
-  final TerminalKey? terminalKey;  // xterm特殊按键
+  final String? text; // 普通文本字符
+  final TerminalKey? terminalKey; // xterm特殊按键
   final bool isModifier;
   final IconData? icon;
 
@@ -28,79 +28,125 @@ class ExtraKey {
 
 /// 预定义的额外按键
 class ExtraKeys {
-  // ESC键
+  // 功能键
   static const esc = ExtraKey(label: 'ESC', terminalKey: TerminalKey.escape);
-
-  // TAB键
   static const tab = ExtraKey(label: 'TAB', terminalKey: TerminalKey.tab);
-
-  // CTRL修饰键
   static const ctrl = ExtraKey(label: 'CTRL', isModifier: true);
-
-  // ALT修饰键
   static const alt = ExtraKey(label: 'ALT', isModifier: true);
 
-  // HOME键
+  // 导航键
   static const home = ExtraKey(label: 'HOME', terminalKey: TerminalKey.home);
-
-  // END键
   static const end = ExtraKey(label: 'END', terminalKey: TerminalKey.end);
-
-  // PAGE UP键
-  static const pgup = ExtraKey(label: 'PGUP', displayLabel: '↑PG', terminalKey: TerminalKey.pageUp);
-
-  // PAGE DOWN键
-  static const pgdn = ExtraKey(label: 'PGDN', displayLabel: '↓PG', terminalKey: TerminalKey.pageDown);
+  static const pgup =
+      ExtraKey(label: 'PGUP', displayLabel: 'PgUp', terminalKey: TerminalKey.pageUp);
+  static const pgdn =
+      ExtraKey(label: 'PGDN', displayLabel: 'PgDn', terminalKey: TerminalKey.pageDown);
+  static const insert =
+      ExtraKey(label: 'INS', displayLabel: 'Ins', terminalKey: TerminalKey.insert);
 
   // 方向键
-  static const up = ExtraKey(label: 'UP', terminalKey: TerminalKey.arrowUp, icon: Icons.keyboard_arrow_up);
-  static const down = ExtraKey(label: 'DOWN', terminalKey: TerminalKey.arrowDown, icon: Icons.keyboard_arrow_down);
-  static const left = ExtraKey(label: 'LEFT', terminalKey: TerminalKey.arrowLeft, icon: Icons.keyboard_arrow_left);
-  static const right = ExtraKey(label: 'RIGHT', terminalKey: TerminalKey.arrowRight, icon: Icons.keyboard_arrow_right);
+  static const up = ExtraKey(
+      label: 'UP', terminalKey: TerminalKey.arrowUp, icon: Icons.keyboard_arrow_up);
+  static const down = ExtraKey(
+      label: 'DOWN', terminalKey: TerminalKey.arrowDown, icon: Icons.keyboard_arrow_down);
+  static const left = ExtraKey(
+      label: 'LEFT', terminalKey: TerminalKey.arrowLeft, icon: Icons.keyboard_arrow_left);
+  static const right = ExtraKey(
+      label: 'RIGHT',
+      terminalKey: TerminalKey.arrowRight,
+      icon: Icons.keyboard_arrow_right);
 
-  // 回车键
-  static const enter = ExtraKey(label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
+  // 编辑键
+  static const enter =
+      ExtraKey(label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
+  static const backspace =
+      ExtraKey(label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
+  static const deleteKey =
+      ExtraKey(label: 'FORWARD_DEL', displayLabel: 'Del', terminalKey: TerminalKey.delete);
 
-  // 退格键
-  static const backspace = ExtraKey(label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
-
-  // 删除键 (向前删除)
-  static const deleteKey = ExtraKey(label: 'FORWARD_DEL', displayLabel: '⌦', terminalKey: TerminalKey.delete);
-
+  // 常用符号
   static const dash = ExtraKey(label: '-', text: '-');
   static const slash = ExtraKey(label: '/', text: '/');
   static const pipe = ExtraKey(label: '|', text: '|');
   static const backslash = ExtraKey(label: '\\', text: '\\');
   static const underscore = ExtraKey(label: '_', text: '_');
+  static const tilde = ExtraKey(label: '~', text: '~');
+  static const at = ExtraKey(label: '@', text: '@');
+  static const hash = ExtraKey(label: '#', text: '#');
+  static const dollar = ExtraKey(label: '\$', text: '\$');
+  static const percent = ExtraKey(label: '%', text: '%');
+  static const caret = ExtraKey(label: '^', text: '^');
+  static const ampersand = ExtraKey(label: '&', text: '&');
+  static const asterisk = ExtraKey(label: '*', text: '*');
+  static const equals = ExtraKey(label: '=', text: '=');
+  static const plus = ExtraKey(label: '+', text: '+');
+  static const colon = ExtraKey(label: ':', text: ':');
+  static const semicolon = ExtraKey(label: ';', text: ';');
+  static const quote = ExtraKey(label: "'", text: "'");
+  static const doubleQuote = ExtraKey(label: '"', text: '"');
+  static const backtick = ExtraKey(label: '`', text: '`');
+  static const exclamation = ExtraKey(label: '!', text: '!');
+  static const question = ExtraKey(label: '?', text: '?');
+  static const lessThan = ExtraKey(label: '<', text: '<');
+  static const greaterThan = ExtraKey(label: '>', text: '>');
 
-  /// 默认按键行布局（两行）
-  static const List<List<ExtraKey>> defaultLayout = [
-    [esc, tab, ctrl, alt, dash, underscore, up, slash],
-    [home, end, pgup, pgdn, left, down, right, pipe],
-  ];
+  // 括号
+  static const leftParen = ExtraKey(label: '(', text: '(');
+  static const rightParen = ExtraKey(label: ')', text: ')');
+  static const leftBracket = ExtraKey(label: '[', text: '[');
+  static const rightBracket = ExtraKey(label: ']', text: ']');
+  static const leftBrace = ExtraKey(label: '{', text: '{');
+  static const rightBrace = ExtraKey(label: '}', text: '}');
 
-  /// 简单按键行布局（单行）
-  static const List<ExtraKey> simpleLayout = [
-    esc,
-    tab,
-    ctrl,
-    alt,
-    left,
-    backspace,
-    enter,
-    up,
-    down,
-    right,
+  // 功能键 F1-F12
+  static const f1 = ExtraKey(label: 'F1', terminalKey: TerminalKey.f1);
+  static const f2 = ExtraKey(label: 'F2', terminalKey: TerminalKey.f2);
+  static const f3 = ExtraKey(label: 'F3', terminalKey: TerminalKey.f3);
+  static const f4 = ExtraKey(label: 'F4', terminalKey: TerminalKey.f4);
+  static const f5 = ExtraKey(label: 'F5', terminalKey: TerminalKey.f5);
+  static const f6 = ExtraKey(label: 'F6', terminalKey: TerminalKey.f6);
+  static const f7 = ExtraKey(label: 'F7', terminalKey: TerminalKey.f7);
+  static const f8 = ExtraKey(label: 'F8', terminalKey: TerminalKey.f8);
+  static const f9 = ExtraKey(label: 'F9', terminalKey: TerminalKey.f9);
+  static const f10 = ExtraKey(label: 'F10', terminalKey: TerminalKey.f10);
+  static const f11 = ExtraKey(label: 'F11', terminalKey: TerminalKey.f11);
+  static const f12 = ExtraKey(label: 'F12', terminalKey: TerminalKey.f12);
+}
+
+/// 快捷命令定义
+class QuickCommand {
+  final String label;
+  final String command;
+  final IconData? icon;
+
+  const QuickCommand({
+    required this.label,
+    required this.command,
+    this.icon,
+  });
+
+  static const List<QuickCommand> commands = [
+    QuickCommand(label: 'clear', command: 'clear\n'),
+    QuickCommand(label: 'ls -la', command: 'ls -la\n'),
+    QuickCommand(label: 'cd ..', command: 'cd ..\n'),
+    QuickCommand(label: 'pwd', command: 'pwd\n'),
+    QuickCommand(label: 'exit', command: 'exit\n'),
+    QuickCommand(label: 'history', command: 'history\n'),
+    QuickCommand(label: 'top', command: 'top\n'),
+    QuickCommand(label: 'htop', command: 'htop\n'),
   ];
 }
 
-/// 额外按键视图
+/// 新版额外按键视图 - 带展开功能
 class ExtraKeysView extends StatefulWidget {
-  final Function(String) onTextKeyTap;  // 普通文本按键
-  final Function(TerminalKey) onTerminalKeyTap;  // xterm特殊按键
+  final Function(String) onTextKeyTap;
+  final Function(TerminalKey) onTerminalKeyTap;
   final VoidCallback? onCtrlToggle;
   final VoidCallback? onAltToggle;
   final bool vibrationEnabled;
+  // 外部控制的修饰键状态（用于音量键同步）
+  final bool ctrlPressed;
+  final bool altPressed;
 
   const ExtraKeysView({
     super.key,
@@ -109,15 +155,24 @@ class ExtraKeysView extends StatefulWidget {
     this.onCtrlToggle,
     this.onAltToggle,
     this.vibrationEnabled = true,
+    this.ctrlPressed = false,
+    this.altPressed = false,
   });
 
   @override
   State<ExtraKeysView> createState() => _ExtraKeysViewState();
 }
 
-class _ExtraKeysViewState extends State<ExtraKeysView> {
-  bool _ctrlPressed = false;
-  bool _altPressed = false;
+class _ExtraKeysViewState extends State<ExtraKeysView>
+    with SingleTickerProviderStateMixin {
+  bool _localCtrlPressed = false;
+  bool _localAltPressed = false;
+  bool _expanded = false;
+  int _expandedTab = 0; // 0: 符号, 1: 功能键, 2: 快捷命令
+
+  // 使用外部状态或本地状态
+  bool get _ctrlPressed => widget.ctrlPressed || _localCtrlPressed;
+  bool get _altPressed => widget.altPressed || _localAltPressed;
 
   void _handleKeyTap(ExtraKey key) {
     if (widget.vibrationEnabled) {
@@ -126,24 +181,25 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
 
     if (key.isModifier) {
       if (key.label == 'CTRL') {
-        setState(() => _ctrlPressed = !_ctrlPressed);
-        widget.onCtrlToggle?.call();
+        // 如果有外部控制，通过回调通知
+        if (widget.onCtrlToggle != null) {
+          widget.onCtrlToggle!();
+        } else {
+          setState(() => _localCtrlPressed = !_localCtrlPressed);
+        }
       } else if (key.label == 'ALT') {
-        setState(() => _altPressed = !_altPressed);
-        widget.onAltToggle?.call();
+        if (widget.onAltToggle != null) {
+          widget.onAltToggle!();
+        } else {
+          setState(() => _localAltPressed = !_localAltPressed);
+        }
       }
     } else if (key.terminalKey != null) {
-      // 使用xterm的特殊按键处理
       widget.onTerminalKeyTap(key.terminalKey!);
-      setState(() {
-        _ctrlPressed = false;
-        _altPressed = false;
-      });
+      _resetModifiers();
     } else if (key.text != null) {
-      // 普通文本按键
       String keyToSend = key.text!;
 
-      // 处理 Ctrl 组合键
       if (_ctrlPressed) {
         final char = keyToSend.codeUnitAt(0);
         if (char >= 0x61 && char <= 0x7a) {
@@ -151,17 +207,36 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
         } else if (char >= 0x41 && char <= 0x5a) {
           keyToSend = String.fromCharCode(char - 0x40);
         }
-        setState(() => _ctrlPressed = false);
       }
 
-      // 处理 Alt 组合键
       if (_altPressed) {
         keyToSend = '\x1b$keyToSend';
-        setState(() => _altPressed = false);
       }
 
       widget.onTextKeyTap(keyToSend);
+      _resetModifiers();
     }
+  }
+
+  void _resetModifiers() {
+    setState(() {
+      _localCtrlPressed = false;
+      _localAltPressed = false;
+    });
+    // 如果有外部控制，也需要重置
+    if (widget.ctrlPressed && widget.onCtrlToggle != null) {
+      widget.onCtrlToggle!();
+    }
+    if (widget.altPressed && widget.onAltToggle != null) {
+      widget.onAltToggle!();
+    }
+  }
+
+  void _handleCommandTap(QuickCommand cmd) {
+    if (widget.vibrationEnabled) {
+      HapticFeedback.lightImpact();
+    }
+    widget.onTextKeyTap(cmd.command);
   }
 
   @override
@@ -173,22 +248,379 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildKeyRow(ExtraKeys.simpleLayout, theme),
+          // 展开面板
+          if (_expanded) _buildExpandedPanel(theme),
+          // 主键盘行
+          _buildMainRow(theme),
         ],
       ),
     );
   }
 
-  Widget _buildKeyRow(List<ExtraKey> keys, ThemeData theme) {
+  /// 主键盘行 - 两行布局，方向键在右侧
+  Widget _buildMainRow(ThemeData theme) {
+    return Row(
+      children: [
+        // 左侧主键区
+        Expanded(
+          child: Column(
+            children: [
+              // 第一行: ESC, TAB, CTRL, ALT, -, /, |, 展开
+              SizedBox(
+                height: 38,
+                child: Row(
+                  children: [
+                    _buildKey(ExtraKeys.esc, theme),
+                    _buildKey(ExtraKeys.tab, theme),
+                    _buildKey(ExtraKeys.ctrl, theme),
+                    _buildKey(ExtraKeys.alt, theme),
+                    _buildKey(ExtraKeys.dash, theme),
+                    _buildKey(ExtraKeys.slash, theme),
+                    _buildKey(ExtraKeys.pipe, theme),
+                    _buildExpandButton(theme),
+                  ],
+                ),
+              ),
+              // 第二行: HOME, END, PGUP, PGDN, ⌫, ↲
+              SizedBox(
+                height: 38,
+                child: Row(
+                  children: [
+                    _buildKey(ExtraKeys.home, theme),
+                    _buildKey(ExtraKeys.end, theme),
+                    _buildKey(ExtraKeys.pgup, theme),
+                    _buildKey(ExtraKeys.pgdn, theme),
+                    _buildKey(ExtraKeys.backspace, theme),
+                    _buildKey(ExtraKeys.enter, theme),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 右侧方向键区 - 十字布局
+        _buildArrowKeysCluster(theme),
+      ],
+    );
+  }
+
+  /// 方向键十字布局
+  Widget _buildArrowKeysCluster(ThemeData theme) {
+    const keySize = 36.0;
     return SizedBox(
-      height: 42,
-      child: Row(
-        children: keys.map((key) => _buildKey(key, theme)).toList(),
+      width: keySize * 3 + 8,
+      height: 76,
+      child: Column(
+        children: [
+          // 上箭头居中
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: keySize + 2),
+              _buildArrowKey(ExtraKeys.up, theme, keySize),
+              const SizedBox(width: keySize + 2),
+            ],
+          ),
+          // 左、下、右箭头
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildArrowKey(ExtraKeys.left, theme, keySize),
+              _buildArrowKey(ExtraKeys.down, theme, keySize),
+              _buildArrowKey(ExtraKeys.right, theme, keySize),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildKey(ExtraKey key, ThemeData theme) {
+  /// 方向键按钮
+  Widget _buildArrowKey(ExtraKey key, ThemeData theme, double size) {
+    return Padding(
+      padding: const EdgeInsets.all(1),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(4),
+          child: InkWell(
+            onTap: () => _handleKeyTap(key),
+            borderRadius: BorderRadius.circular(4),
+            child: Icon(
+              key.icon,
+              size: 20,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 展开按钮
+  Widget _buildExpandButton(ThemeData theme) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Material(
+          color: _expanded
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(4),
+          child: InkWell(
+            onTap: () {
+              if (widget.vibrationEnabled) {
+                HapticFeedback.lightImpact();
+              }
+              setState(() => _expanded = !_expanded);
+            },
+            borderRadius: BorderRadius.circular(4),
+            child: Center(
+              child: Icon(
+                _expanded ? Icons.keyboard_hide : Icons.apps,
+                size: 18,
+                color: _expanded
+                    ? theme.colorScheme.onPrimaryContainer
+                    : theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 展开的面板
+  Widget _buildExpandedPanel(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Tab 切换栏
+          SizedBox(
+            height: 32,
+            child: Row(
+              children: [
+                _buildTabButton('符号', 0, theme),
+                _buildTabButton('F键', 1, theme),
+                _buildTabButton('命令', 2, theme),
+                _buildTabButton('导航', 3, theme),
+              ],
+            ),
+          ),
+          // 内容区域
+          _buildTabContent(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(String label, int index, ThemeData theme) {
+    final isSelected = _expandedTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (widget.vibrationEnabled) {
+            HapticFeedback.selectionClick();
+          }
+          setState(() => _expandedTab = index);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent(ThemeData theme) {
+    switch (_expandedTab) {
+      case 0:
+        return _buildSymbolsPanel(theme);
+      case 1:
+        return _buildFunctionKeysPanel(theme);
+      case 2:
+        return _buildCommandsPanel(theme);
+      case 3:
+        return _buildNavigationPanel(theme);
+      default:
+        return _buildSymbolsPanel(theme);
+    }
+  }
+
+  /// 符号面板
+  Widget _buildSymbolsPanel(ThemeData theme) {
+    final symbols = [
+      // 第一行
+      [
+        ExtraKeys.tilde,
+        ExtraKeys.backtick,
+        ExtraKeys.exclamation,
+        ExtraKeys.at,
+        ExtraKeys.hash,
+        ExtraKeys.dollar,
+        ExtraKeys.percent,
+        ExtraKeys.caret,
+      ],
+      // 第二行
+      [
+        ExtraKeys.ampersand,
+        ExtraKeys.asterisk,
+        ExtraKeys.leftParen,
+        ExtraKeys.rightParen,
+        ExtraKeys.underscore,
+        ExtraKeys.plus,
+        ExtraKeys.equals,
+        ExtraKeys.backslash,
+      ],
+      // 第三行
+      [
+        ExtraKeys.leftBracket,
+        ExtraKeys.rightBracket,
+        ExtraKeys.leftBrace,
+        ExtraKeys.rightBrace,
+        ExtraKeys.lessThan,
+        ExtraKeys.greaterThan,
+        ExtraKeys.question,
+        ExtraKeys.colon,
+      ],
+      // 第四行
+      [
+        ExtraKeys.semicolon,
+        ExtraKeys.quote,
+        ExtraKeys.doubleQuote,
+      ],
+    ];
+
+    return Column(
+      children: symbols.map((row) => _buildSymbolRow(row, theme)).toList(),
+    );
+  }
+
+  Widget _buildSymbolRow(List<ExtraKey> keys, ThemeData theme) {
+    return SizedBox(
+      height: 36,
+      child: Row(
+        children: keys.map((key) => _buildKey(key, theme, fontSize: 14)).toList(),
+      ),
+    );
+  }
+
+  /// 功能键面板
+  Widget _buildFunctionKeysPanel(ThemeData theme) {
+    final fKeys = [
+      [
+        ExtraKeys.f1,
+        ExtraKeys.f2,
+        ExtraKeys.f3,
+        ExtraKeys.f4,
+        ExtraKeys.f5,
+        ExtraKeys.f6,
+      ],
+      [
+        ExtraKeys.f7,
+        ExtraKeys.f8,
+        ExtraKeys.f9,
+        ExtraKeys.f10,
+        ExtraKeys.f11,
+        ExtraKeys.f12,
+      ],
+    ];
+
+    return Column(
+      children: fKeys.map((row) {
+        return SizedBox(
+          height: 36,
+          child: Row(
+            children: row.map((key) => _buildKey(key, theme, fontSize: 11)).toList(),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// 快捷命令面板
+  Widget _buildCommandsPanel(ThemeData theme) {
+    return SizedBox(
+      height: 72,
+      child: GridView.count(
+        crossAxisCount: 4,
+        childAspectRatio: 2.5,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(2),
+        children: QuickCommand.commands.map((cmd) {
+          return Padding(
+            padding: const EdgeInsets.all(2),
+            child: Material(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(4),
+              child: InkWell(
+                onTap: () => _handleCommandTap(cmd),
+                borderRadius: BorderRadius.circular(4),
+                child: Center(
+                  child: Text(
+                    cmd.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// 导航键面板
+  Widget _buildNavigationPanel(ThemeData theme) {
+    return SizedBox(
+      height: 36,
+      child: Row(
+        children: [
+          _buildKey(ExtraKeys.insert, theme),
+          _buildKey(ExtraKeys.deleteKey, theme),
+          _buildKey(ExtraKeys.underscore, theme),
+          _buildKey(ExtraKeys.backslash, theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKey(ExtraKey key, ThemeData theme, {double fontSize = 12}) {
     final isPressed = (key.label == 'CTRL' && _ctrlPressed) ||
         (key.label == 'ALT' && _altPressed);
 
@@ -207,7 +639,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
               child: key.icon != null
                   ? Icon(
                       key.icon,
-                      size: 20,
+                      size: 18,
                       color: isPressed
                           ? theme.colorScheme.onPrimary
                           : theme.colorScheme.onSurface,
@@ -215,7 +647,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
                   : Text(
                       key.display,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: fontSize,
                         fontWeight: FontWeight.w500,
                         color: isPressed
                             ? theme.colorScheme.onPrimary
@@ -230,7 +662,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView> {
   }
 }
 
-/// 完整的额外按键视图（两行）
+/// 完整的额外按键视图（两行）- 保留兼容
 class FullExtraKeysView extends StatefulWidget {
   final Function(String) onTextKeyTap;
   final Function(TerminalKey) onTerminalKeyTap;
@@ -248,110 +680,12 @@ class FullExtraKeysView extends StatefulWidget {
 }
 
 class _FullExtraKeysViewState extends State<FullExtraKeysView> {
-  bool _ctrlPressed = false;
-  bool _altPressed = false;
-
-  void _handleKeyTap(ExtraKey key) {
-    if (widget.vibrationEnabled) {
-      HapticFeedback.lightImpact();
-    }
-
-    if (key.isModifier) {
-      if (key.label == 'CTRL') {
-        setState(() => _ctrlPressed = !_ctrlPressed);
-      } else if (key.label == 'ALT') {
-        setState(() => _altPressed = !_altPressed);
-      }
-    } else if (key.terminalKey != null) {
-      widget.onTerminalKeyTap(key.terminalKey!);
-      setState(() {
-        _ctrlPressed = false;
-        _altPressed = false;
-      });
-    } else if (key.text != null) {
-      String keyToSend = key.text!;
-
-      if (_ctrlPressed) {
-        final char = keyToSend.codeUnitAt(0);
-        if (char >= 0x61 && char <= 0x7a) {
-          keyToSend = String.fromCharCode(char - 0x60);
-        } else if (char >= 0x41 && char <= 0x5a) {
-          keyToSend = String.fromCharCode(char - 0x40);
-        }
-        setState(() => _ctrlPressed = false);
-      }
-
-      if (_altPressed) {
-        keyToSend = '\x1b$keyToSend';
-        setState(() => _altPressed = false);
-      }
-
-      widget.onTextKeyTap(keyToSend);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: ExtraKeys.defaultLayout
-            .map((row) => _buildKeyRow(row, theme))
-            .toList(),
-      ),
-    );
-  }
-
-  Widget _buildKeyRow(List<ExtraKey> keys, ThemeData theme) {
-    return SizedBox(
-      height: 42,
-      child: Row(
-        children: keys.map((key) => _buildKey(key, theme)).toList(),
-      ),
-    );
-  }
-
-  Widget _buildKey(ExtraKey key, ThemeData theme) {
-    final isPressed = (key.label == 'CTRL' && _ctrlPressed) ||
-        (key.label == 'ALT' && _altPressed);
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: Material(
-          color: isPressed
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: () => _handleKeyTap(key),
-            borderRadius: BorderRadius.circular(4),
-            child: Center(
-              child: key.icon != null
-                  ? Icon(
-                      key.icon,
-                      size: 20,
-                      color: isPressed
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurface,
-                    )
-                  : Text(
-                      key.display,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isPressed
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-      ),
+    return ExtraKeysView(
+      onTextKeyTap: widget.onTextKeyTap,
+      onTerminalKeyTap: widget.onTerminalKeyTap,
+      vibrationEnabled: widget.vibrationEnabled,
     );
   }
 }
