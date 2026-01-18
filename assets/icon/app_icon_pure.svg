@@ -1,0 +1,57 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Deepest Space Gradient -->
+    <radialGradient id="bg_grad" cx="50%" cy="50%" r="70%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#000000" />
+    </radialGradient>
+
+    <!-- Intense Electric Cyan Glow -->
+    <filter id="intense_glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="30" result="coloredBlur"/>
+      <feColorMatrix type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 1 0" in="coloredBlur" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Core Gradient for the Symbol -->
+    <linearGradient id="symbol_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00FFFF" /> <!-- Electric Cyan -->
+      <stop offset="100%" stop-color="#2E2EFE" /> <!-- Deep Electric Blue -->
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bg_grad)"/>
+
+  <!-- The Single, Powerful Symbol -->
+  <g transform="translate(512, 512)">
+    
+    <!-- The Prompt Symbol ">" -->
+    <!-- Centered, massive, and powerful -->
+    <!-- Scaled up significantly to dominate the icon -->
+    <path d="M-150 -200 L 150 0 L -150 200" 
+          stroke="url(#symbol_grad)" 
+          stroke-width="120" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"
+          filter="url(#intense_glow)">
+       <!-- Subtle Pulse Animation -->
+       <animate attributeName="stroke-opacity" values="1;0.85;1" dur="4s" repeatCount="indefinite" />
+    </path>
+
+    <!-- The Singularity Dot (Hidden in plain sight?) -->
+    <!-- Maybe a small dot at the vertex to suggest the AI spark? -->
+    <!-- Or just keep it pure. Let's keep it pure but add a subtle core highlight. -->
+    
+    <!-- Core Vertex Highlight to suggest intelligence -->
+    <circle cx="150" cy="0" r="20" fill="white" filter="url(#intense_glow)" opacity="0.8"/>
+
+  </g>
+</svg>
