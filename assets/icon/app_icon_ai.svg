@@ -1,0 +1,112 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradient: Deep Midnight Blue to Black -->
+    <radialGradient id="bg_grad" cx="50%" cy="50%" r="70%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#0f172a" /> <!-- Slate 900-ish -->
+      <stop offset="60%" stop-color="#020617" /> <!-- Darker -->
+      <stop offset="100%" stop-color="#000000" />
+    </radialGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="neon_glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="15" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Intense Singularity Glow -->
+    <filter id="singularity_glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="30" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 18 -7" result="goo" />
+      <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+      <feGaussianBlur stdDeviation="20" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Neural Network Gradient -->
+    <linearGradient id="neural_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00FFFF" /> <!-- Cyan -->
+      <stop offset="50%" stop-color="#2E2EFE" /> <!-- Blue -->
+      <stop offset="100%" stop-color="#DF01D7" /> <!-- Violet -->
+    </linearGradient>
+  </defs>
+
+  <!-- Base App Icon Shape -->
+  <rect x="0" y="0" width="1024" height="1024" rx="220" fill="url(#bg_grad)"/>
+  
+  <!-- Subtle Grid Background (High Tech feel) -->
+  <mask id="grid_mask">
+    <rect width="1024" height="1024" fill="white"/>
+    <path d="M0 0 L1024 1024" stroke="black" stroke-width="200" filter="url(#neon_glow)"/>
+  </mask>
+  <pattern id="smallGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+    <path d="M 60 0 L 0 0 0 60" fill="none" stroke="white" stroke-width="1" opacity="0.1"/>
+  </pattern>
+  <rect width="1024" height="1024" fill="url(#smallGrid)" mask="url(#grid_mask)" opacity="0.3"/>
+
+  <!-- Main Content Container -->
+  <g transform="translate(140, 512)">
+    
+    <!-- The Prompt: ">" -->
+    <!-- Electric Blue, Monospace, Bold -->
+    <text x="0" y="140" font-family="monospace" font-weight="bold" font-size="600" fill="#00FFFF" filter="url(#neon_glow)" style="text-shadow: 0 0 30px #00FFFF;">&gt;</text>
+
+    <!-- The Singularity (replacing the cursor) -->
+    <!-- Positioned to the right of the prompt -->
+    <g transform="translate(580, -30)" filter="url(#singularity_glow)">
+      
+      <!-- Core Burst -->
+      <circle cx="0" cy="0" r="40" fill="white" opacity="0.9" />
+      <circle cx="0" cy="0" r="80" fill="url(#neural_grad)" opacity="0.6">
+        <animate attributeName="r" values="70;90;70" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.6;0.3;0.6" dur="2s" repeatCount="indefinite" />
+      </circle>
+
+      <!-- Exploding Rays / Neural Connections -->
+      <g stroke="url(#neural_grad)" stroke-width="6" stroke-linecap="round">
+         <!-- Random rays simulating explosion/network -->
+         <line x1="0" y1="0" x2="180" y2="-120" opacity="0.8" />
+         <line x1="0" y1="0" x2="200" y2="40" opacity="0.7" />
+         <line x1="0" y1="0" x2="140" y2="160" opacity="0.9" />
+         <line x1="0" y1="0" x2="-60" y2="180" opacity="0.6" />
+         <line x1="0" y1="0" x2="-100" y2="-150" opacity="0.5" />
+         <line x1="0" y1="0" x2="80" y2="-200" opacity="0.8" />
+         
+         <!-- Secondary Connections (The Network) -->
+         <line x1="180" y1="-120" x2="240" y2="-80" stroke-width="4" opacity="0.6" />
+         <line x1="180" y1="-120" x2="140" y2="-180" stroke-width="4" opacity="0.5" />
+         <line x1="200" y1="40" x2="280" y2="60" stroke-width="4" opacity="0.6" />
+         <line x1="140" y1="160" x2="180" y2="220" stroke-width="4" opacity="0.7" />
+      </g>
+
+      <!-- Nodes (Data Points) -->
+      <g fill="#FFFFFF" filter="url(#neon_glow)">
+         <circle cx="180" cy="-120" r="12" />
+         <circle cx="200" cy="40" r="10" />
+         <circle cx="140" cy="160" r="14" />
+         <circle cx="80" cy="-200" r="8" />
+         <circle cx="-60" cy="180" r="9" />
+         <circle cx="240" cy="-80" r="6" />
+      </g>
+      
+      <!-- Orbiting Rings (Data flow) -->
+      <ellipse cx="0" cy="0" rx="140" ry="60" stroke="#DF01D7" stroke-width="3" fill="none" transform="rotate(45)" opacity="0.6">
+         <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="10s" repeatCount="indefinite" />
+      </ellipse>
+      <ellipse cx="0" cy="0" rx="160" ry="40" stroke="#00FFFF" stroke-width="3" fill="none" transform="rotate(-30)" opacity="0.6">
+         <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="15s" repeatCount="indefinite" />
+      </ellipse>
+
+    </g>
+  </g>
+</svg>
