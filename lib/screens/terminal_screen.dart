@@ -10,6 +10,8 @@ import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
 import '../widgets/session_drawer.dart';
+import '../utils/gesture_utils.dart';
+import '../widgets/terminal_selection_handles.dart';
 import 'settings_screen.dart';
 
 /// 终端主屏幕
@@ -404,25 +406,32 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     return Padding(
       padding: EdgeInsets.all(settings.terminalMargin.toDouble()),
-      child: GestureDetector(
-        // 双指缩放调整字体大小
-        onScaleStart: (details) {
-          if (details.pointerCount >= 2) {
-            _baseScaleFontSize = settings.fontSize;
-          }
+      child: RawGestureDetector(
+        gestures: {
+          TwoFingerScaleGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+              TwoFingerScaleGestureRecognizer>(
+            () => TwoFingerScaleGestureRecognizer(),
+            (TwoFingerScaleGestureRecognizer instance) {
+              instance.onStart = (details) {
+                if (details.pointerCount >= 2) {
+                  _baseScaleFontSize = settings.fontSize;
+                }
+              };
+              instance.onUpdate = (details) {
+                if (details.pointerCount >= 2 && settings.pinchZoomEnabled) {
+                  final newSize = (_baseScaleFontSize * details.scale)
+                      .clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
+                  if ((newSize - settings.fontSize).abs() >= 0.5) {
+                    settings.setFontSize(newSize);
+                  }
+                }
+              };
+            },
+          ),
         },
-        onScaleUpdate: (details) {
-          if (details.pointerCount >= 2 && settings.pinchZoomEnabled) {
-            // 计算新的字体大小
-            final newSize = (_baseScaleFontSize * details.scale)
-                .clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
-            // 只有当变化超过0.5时才更新，避免频繁刷新
-            if ((newSize - settings.fontSize).abs() >= 0.5) {
-              settings.setFontSize(newSize);
-            }
-          }
-        },
-        child: KeyboardListener(
+        child: Stack(
+          children: [
+            KeyboardListener(
           focusNode: FocusNode(),
           autofocus: false,
           onKeyEvent: (event) {
@@ -442,6 +451,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
               fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
                   'monospace',
               fontSize: settings.fontSize,
+              height: 1.1,
             ),
             cursorType: settings.terminalCursorType,
             alwaysShowCursor: true,
@@ -454,6 +464,20 @@ class _TerminalScreenState extends State<TerminalScreen> {
               _showContextMenu(context, details, terminalProvider);
             },
           ),
+        ),
+        if (_hasSelection)
+            TerminalSelectionHandles(
+              terminal: currentSession.terminal,
+              controller: currentSession.controller,
+              textStyle: TerminalStyle(
+                fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
+                    'monospace',
+                fontSize: settings.fontSize,
+                height: 1.1,
+              ),
+              handleColor: settings.terminalTheme.blue,
+            ),
+          ],
         ),
       ),
     );
