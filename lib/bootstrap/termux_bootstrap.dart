@@ -1939,11 +1939,30 @@ echo "'Allow access to manage all files' in settings."
 
       // 创建 termux-setup-storage 别名以兼容 Termux 脚本
       final termuxAliasPath = '${TermuxConstants.binDir}/termux-setup-storage';
-      final termuxAliasFile = File(termuxAliasPath);
-      if (!await termuxAliasFile.exists()) {
-        // 创建符号链接
-        await Link(termuxAliasPath).create('setup-storage');
-        debugPrint('termux-setup-storage symlink created');
+      final termuxAliasLink = Link(termuxAliasPath);
+
+      // 检查是否需要创建或更新符号链接
+      bool needCreate = true;
+      if (await termuxAliasLink.exists()) {
+        try {
+          final target = await termuxAliasLink.target();
+          if (target == scriptPath) {
+            needCreate = false; // 已经是正确的符号链接
+          } else {
+            await termuxAliasLink.delete(); // 删除错误的符号链接
+          }
+        } catch (e) {
+          // 符号链接损坏，删除它
+          try {
+            await termuxAliasLink.delete();
+          } catch (_) {}
+        }
+      }
+
+      if (needCreate) {
+        // 使用绝对路径创建符号链接
+        await termuxAliasLink.create(scriptPath);
+        debugPrint('termux-setup-storage symlink created -> $scriptPath');
       }
     } catch (e) {
       debugPrint('Failed to create setup-storage script: $e');
