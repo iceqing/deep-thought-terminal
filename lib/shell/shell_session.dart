@@ -250,6 +250,7 @@ class ShellSessionFactory {
         'export PATH="$binPath:/system/bin:/system/xbin"; '
         'export TMPDIR="$tmpPath"; '
         'export TERM="xterm-256color"; '
+        'export TERMINFO="$prefixPath/share/terminfo"; '
         'export LANG="en_US.UTF-8"; '
         'export SHELL="$bashPath"; '
         // APT 配置
