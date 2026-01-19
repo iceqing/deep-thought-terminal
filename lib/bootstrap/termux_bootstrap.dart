@@ -1046,6 +1046,36 @@ exec "$bashRealPath" --norc "\$@"
           ? 'export APT_CONFIG="$etcDir/apt/apt.conf"\n'
           : '';
 
+      // update-alternatives 需要特殊处理：设置正确的目录路径
+      if (binaryName == 'update-alternatives') {
+        final varDir = TermuxConstants.varDir;
+        final wrapperScript = '''#!/system/bin/sh
+# update-alternatives wrapper for Deep Thought terminal
+# Overrides hardcoded /data/data/com.termux/ paths
+export PATH="$binDir:/system/bin:/system/xbin"
+export LD_LIBRARY_PATH="$libDir"
+export TMPDIR="$tmpDir"
+
+ADMINDIR="$varDir/lib/dpkg/alternatives"
+ALTDIR="$etcDir/alternatives"
+LOGFILE="$varDir/log/alternatives.log"
+
+# Create required directories
+mkdir -p "\$ADMINDIR" 2>/dev/null
+mkdir -p "\$ALTDIR" 2>/dev/null
+mkdir -p "$varDir/log" 2>/dev/null
+
+# Touch log file to ensure it exists
+touch "\$LOGFILE" 2>/dev/null
+
+exec "$realPath" --admindir "\$ADMINDIR" --altdir "\$ALTDIR" --log "\$LOGFILE" "\$@"
+''';
+        await binFile.writeAsString(wrapperScript);
+        await Process.run('chmod', ['755', binPath]);
+        debugPrint('Created special update-alternatives wrapper');
+        return;
+      }
+
       // dpkg 需要特殊处理：在安装前补丁 .deb 文件中的路径
       if (binaryName == 'dpkg') {
         final wrapperScript = '''#!/system/bin/sh
@@ -2114,6 +2144,7 @@ echo "'Allow access to manage all files' in settings."
       'apt-mark',
       'apt-ftparchive',
       'apt-sortpkgs',
+      'update-alternatives',
     ];
 
     try {
