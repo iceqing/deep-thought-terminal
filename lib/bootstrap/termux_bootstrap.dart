@@ -1936,6 +1936,15 @@ echo "'Allow access to manage all files' in settings."
       await scriptFile.writeAsString(script);
       await Process.run('chmod', ['755', scriptPath]);
       debugPrint('setup-storage script created');
+
+      // 创建 termux-setup-storage 别名以兼容 Termux 脚本
+      final termuxAliasPath = '${TermuxConstants.binDir}/termux-setup-storage';
+      final termuxAliasFile = File(termuxAliasPath);
+      if (!await termuxAliasFile.exists()) {
+        // 创建符号链接
+        await Link(termuxAliasPath).create('setup-storage');
+        debugPrint('termux-setup-storage symlink created');
+      }
     } catch (e) {
       debugPrint('Failed to create setup-storage script: $e');
     }

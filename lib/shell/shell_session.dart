@@ -63,6 +63,7 @@ class PtyShellSession implements ShellSession {
 
     env['TERM'] = 'xterm-256color';
     env['COLORTERM'] = 'truecolor';
+    env['DPTERM_VERSION'] = '0.0.1';
 
     final workDir = workingDirectory ?? env['HOME'] ?? '/sdcard';
 
@@ -259,6 +260,8 @@ class ShellSessionFactory {
         'export SSL_CERT_FILE="$caCertPath"; '
         'export CURL_CA_BUNDLE="$caCertPath"; '
         'export GIT_SSL_CAINFO="$caCertPath"; '
+        // Deep Thought 版本标识（类似 TERMUX_VERSION）
+        'export DPTERM_VERSION="0.0.1"; '
         // 颜色支持
         'export CLICOLOR=1; '
         'export CLICOLOR_FORCE=1; '

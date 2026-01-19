@@ -135,6 +135,18 @@ class QuickCommand {
     QuickCommand(label: 'top', command: 'top\n'),
     QuickCommand(label: 'htop', command: 'htop\n'),
   ];
+
+  /// Termux 兼容命令
+  static const List<QuickCommand> termuxCommands = [
+    QuickCommand(label: 'setup-storage', command: 'termux-setup-storage\n', icon: Icons.folder_open),
+    QuickCommand(label: 'pkg install', command: 'pkg install '),
+    QuickCommand(label: 'pkg search', command: 'pkg search '),
+    QuickCommand(label: 'pkg list', command: 'pkg list-installed\n'),
+    QuickCommand(label: 'pkg upgrade', command: 'pkg upgrade\n'),
+    QuickCommand(label: 'pkg update', command: 'pkg update\n'),
+    QuickCommand(label: 'apt install', command: 'apt install '),
+    QuickCommand(label: 'apt update', command: 'apt update\n'),
+  ];
 }
 
 /// 新版额外按键视图 - 带展开功能
@@ -168,7 +180,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   bool _localCtrlPressed = false;
   bool _localAltPressed = false;
   bool _expanded = false;
-  int _expandedTab = 0; // 0: 符号, 1: 功能键, 2: 快捷命令
+  int _expandedTab = 0; // 0: 符号, 1: 功能键, 2: 快捷命令, 3: 导航, 4: Termux
 
   // 使用外部状态或本地状态
   bool get _ctrlPressed => widget.ctrlPressed || _localCtrlPressed;
@@ -424,6 +436,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                 _buildTabButton('F键', 1, theme),
                 _buildTabButton('命令', 2, theme),
                 _buildTabButton('导航', 3, theme),
+                _buildTabButton('Termux', 4, theme),
               ],
             ),
           ),
@@ -482,6 +495,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         return _buildCommandsPanel(theme);
       case 3:
         return _buildNavigationPanel(theme);
+      case 4:
+        return _buildTermuxPanel(theme);
       default:
         return _buildSymbolsPanel(theme);
     }
@@ -625,6 +640,58 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
           _buildKey(ExtraKeys.insert, theme),
           _buildKey(ExtraKeys.deleteKey, theme),
         ],
+      ),
+    );
+  }
+
+  /// Termux 命令面板
+  Widget _buildTermuxPanel(ThemeData theme) {
+    return SizedBox(
+      height: 72,
+      child: GridView.count(
+        crossAxisCount: 4,
+        childAspectRatio: 2.5,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(2),
+        children: QuickCommand.termuxCommands.map((cmd) {
+          return Padding(
+            padding: const EdgeInsets.all(2),
+            child: Material(
+              color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(4),
+              child: InkWell(
+                onTap: () => _handleCommandTap(cmd),
+                borderRadius: BorderRadius.circular(4),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (cmd.icon != null) ...[
+                        Icon(
+                          cmd.icon,
+                          size: 12,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 2),
+                      ],
+                      Flexible(
+                        child: Text(
+                          cmd.label,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
