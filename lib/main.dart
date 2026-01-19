@@ -5,6 +5,7 @@ import 'bootstrap/termux_bootstrap.dart';
 import 'providers/settings_provider.dart';
 import 'providers/terminal_provider.dart';
 import 'providers/ssh_provider.dart';
+import 'providers/task_provider.dart';
 import 'screens/bootstrap_screen.dart';
 import 'screens/terminal_screen.dart';
 import 'utils/constants.dart';
@@ -25,6 +26,7 @@ class DeepThoughtApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()..init()),
         ChangeNotifierProvider(create: (_) => TerminalProvider()),
         ChangeNotifierProvider(create: (_) => SSHProvider()..init()),
+        ChangeNotifierProvider(create: (_) => TaskProvider()..init()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {

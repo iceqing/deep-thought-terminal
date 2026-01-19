@@ -10,6 +10,8 @@ import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
 import '../widgets/session_drawer.dart';
+import '../widgets/task_drawer.dart';
+import '../models/task.dart';
 import '../utils/gesture_utils.dart';
 import '../widgets/terminal_selection_handles.dart';
 import 'settings_screen.dart';
@@ -246,6 +248,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
       drawer: SessionDrawer(
         onSettingsTap: () => _openSettings(context),
       ),
+      endDrawer: TaskDrawer(
+        onTaskExecute: (task) => _executeTask(terminalProvider, task),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -312,12 +317,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       ),
       actions: [
-        // 快速复制按钮
-        IconButton(
-          icon: const Icon(Icons.copy_all),
-          onPressed: () => _showCopyOptions(context, terminalProvider),
-          tooltip: 'Copy options',
-        ),
         // 切换键盘
         IconButton(
           icon: Icon(_terminalFocusNode.hasFocus
@@ -325,6 +324,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
               : Icons.keyboard),
           onPressed: () => _toggleKeyboard(context),
           tooltip: _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
+        ),
+        // 任务管理
+        IconButton(
+          icon: const Icon(Icons.play_circle_outline),
+          onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+          tooltip: 'Tasks',
         ),
         // 新建会话
         IconButton(
@@ -335,13 +340,24 @@ class _TerminalScreenState extends State<TerminalScreen> {
         // 更多选项
         PopupMenuButton<String>(
           itemBuilder: (context) => [
+            if (_hasSelection)
+              const PopupMenuItem(
+                value: 'copy',
+                child: Row(
+                  children: [
+                    Icon(Icons.copy),
+                    SizedBox(width: 8),
+                    Text('Copy Selection'),
+                  ],
+                ),
+              ),
             const PopupMenuItem(
-              value: 'copy',
+              value: 'copy_last_50',
               child: Row(
                 children: [
-                  Icon(Icons.copy),
+                  Icon(Icons.history),
                   SizedBox(width: 8),
-                  Text('Copy Selection'),
+                  Text('Copy Last 50 Lines'),
                 ],
               ),
             ),
@@ -355,6 +371,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 ],
               ),
             ),
+            const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'paste',
               child: Row(
@@ -362,17 +379,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   Icon(Icons.paste),
                   SizedBox(width: 8),
                   Text('Paste'),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'select_all',
-              child: Row(
-                children: [
-                  Icon(Icons.select_all),
-                  SizedBox(width: 8),
-                  Text('Select All'),
                 ],
               ),
             ),
@@ -564,14 +570,14 @@ class _TerminalScreenState extends State<TerminalScreen> {
       case 'copy':
         _copySelection(terminalProvider);
         break;
+      case 'copy_last_50':
+        _copyLastLines(terminalProvider, 50);
+        break;
       case 'copy_all':
         _copyAllContent(terminalProvider);
         break;
       case 'paste':
         _pasteClipboard(terminalProvider);
-        break;
-      case 'select_all':
-        _selectAll(terminalProvider);
         break;
       case 'settings':
         _openSettings(context);
@@ -579,104 +585,53 @@ class _TerminalScreenState extends State<TerminalScreen> {
     }
   }
 
-  /// 显示复制选项弹窗
-  void _showCopyOptions(BuildContext context, TerminalProvider terminalProvider) {
-    final settings = context.read<SettingsProvider>();
+  /// 复制最后N行终端内容
+  void _copyLastLines(TerminalProvider terminalProvider, int lineCount) async {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: settings.terminalTheme.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: settings.terminalTheme.foreground.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Text(
-                'Copy Options',
-                style: TextStyle(
-                  color: settings.terminalTheme.foreground,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildCopyOptionTile(
-                icon: Icons.copy_all,
-                title: 'Copy All Content',
-                subtitle: 'Copy entire terminal buffer',
-                onTap: () {
-                  Navigator.pop(context);
-                  _copyAllContent(terminalProvider);
-                },
-                settings: settings,
-              ),
-              _buildCopyOptionTile(
-                icon: Icons.select_all,
-                title: 'Select All & Copy',
-                subtitle: 'Select all text and copy',
-                onTap: () {
-                  Navigator.pop(context);
-                  _selectAll(terminalProvider);
-                  // 延迟一下让选择生效后再复制
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    _copySelection(terminalProvider);
-                  });
-                },
-                settings: settings,
-              ),
-              if (_hasSelection)
-                _buildCopyOptionTile(
-                  icon: Icons.copy,
-                  title: 'Copy Selection',
-                  subtitle: 'Copy currently selected text',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _copySelection(terminalProvider);
-                  },
-                  settings: settings,
-                ),
-            ],
+    final terminal = session.terminal;
+    final buffer = terminal.buffer;
+
+    // 获取所有行的文本
+    final allLines = <String>[];
+    for (int i = 0; i < buffer.lines.length; i++) {
+      final line = buffer.lines[i];
+      final text = line.getText().trimRight();
+      allLines.add(text);
+    }
+
+    // 移除末尾的空行
+    while (allLines.isNotEmpty && allLines.last.isEmpty) {
+      allLines.removeLast();
+    }
+
+    if (allLines.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Terminal is empty'),
+            duration: Duration(seconds: 1),
           ),
-        ),
-      ),
-    );
-  }
+        );
+      }
+      return;
+    }
 
-  Widget _buildCopyOptionTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    required SettingsProvider settings,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: settings.terminalTheme.foreground),
-      title: Text(
-        title,
-        style: TextStyle(color: settings.terminalTheme.foreground),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(
-          color: settings.terminalTheme.foreground.withOpacity(0.6),
-          fontSize: 12,
+    // 取最后N行
+    final startIndex = (allLines.length - lineCount).clamp(0, allLines.length);
+    final lastLines = allLines.sublist(startIndex);
+    final text = lastLines.join('\n');
+
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Copied ${lastLines.length} lines to clipboard'),
+          duration: const Duration(seconds: 2),
         ),
-      ),
-      onTap: onTap,
-    );
+      );
+    }
   }
 
   /// 复制所有终端内容
@@ -759,6 +714,35 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // 发送到shell进程，而不是直接写到终端显示
       session.write(data!.text!);
     }
+  }
+
+  /// 执行任务脚本
+  void _executeTask(TerminalProvider terminalProvider, Task task) {
+    final session = terminalProvider.currentSession;
+    if (session == null) {
+      // 如果没有会话，先创建一个
+      terminalProvider.createSession();
+      // 等待会话创建完成后执行
+      Future.delayed(const Duration(milliseconds: 100), () {
+        final newSession = terminalProvider.currentSession;
+        if (newSession != null) {
+          _sendTaskScript(newSession, task);
+        }
+      });
+    } else {
+      _sendTaskScript(session, task);
+    }
+  }
+
+  /// 发送任务脚本到终端
+  void _sendTaskScript(dynamic session, Task task) {
+    // 发送脚本到shell
+    // 如果脚本不以换行结尾，添加换行以执行
+    var script = task.script;
+    if (!script.endsWith('\n')) {
+      script += '\n';
+    }
+    session.write(script);
   }
 
   void _showContextMenu(
