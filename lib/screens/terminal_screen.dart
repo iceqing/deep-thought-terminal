@@ -68,9 +68,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
       final settings = context.read<SettingsProvider>();
       VolumeKeyService.instance.setEnabled(settings.volumeKeysEnabled);
 
+      // 启动设置重载监听（支持 termux-reload-settings 命令）
+      settings.startReloadWatcher();
+
       // 设置输入转换器
       _updateSessionInputTransformer();
-      
+
       // 监听会话切换，确保新会话自动获得焦点
       terminalProvider.addListener(_onTerminalProviderChanged);
     });
@@ -486,8 +489,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             controller: currentSession.controller,
             theme: settings.terminalTheme,
             textStyle: TerminalStyle(
-              fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
-                  'monospace',
+              fontFamily: _getTerminalFontFamily(settings),
               fontSize: settings.fontSize,
               height: 1.1,
             ),
@@ -508,8 +510,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
               terminal: currentSession.terminal,
               controller: currentSession.controller,
               textStyle: TerminalStyle(
-                fontFamily: GoogleFonts.getFont(settings.fontFamily).fontFamily ??
-                    'monospace',
+                fontFamily: _getTerminalFontFamily(settings),
                 fontSize: settings.fontSize,
                 height: 1.1,
               ),
@@ -551,6 +552,22 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // 解锁并请求焦点以显示键盘
       _terminalFocusNode.canRequestFocus = true;
       _terminalFocusNode.requestFocus();
+    }
+  }
+
+  /// 获取终端字体族名称
+  /// 支持：自定义字体 > 内置 Nerd Font > Google Fonts
+  String _getTerminalFontFamily(SettingsProvider settings) {
+    // 使用内置字体（自定义字体或 Nerd Font）
+    if (settings.useBuiltInFont) {
+      return settings.effectiveFontFamily;
+    }
+    // 使用 Google Fonts
+    try {
+      return GoogleFonts.getFont(settings.fontFamily).fontFamily ?? 'monospace';
+    } catch (e) {
+      // 如果 Google Fonts 加载失败，回退到内置 Nerd Font
+      return AvailableFonts.nerdFontFamily;
     }
   }
 

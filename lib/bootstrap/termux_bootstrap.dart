@@ -351,6 +351,10 @@ class TermuxBootstrap {
     // 我们的包名 com.dpterm 与 com.termux 长度相同，可以直接替换
     await _patchBinaryPaths();
 
+    // 补丁 dpkg info 文件中的硬编码路径
+    // dpkg 的 .list 文件记录了包文件路径，需要修正
+    await _patchDpkgInfoFiles();
+
     // 修复脚本中的硬编码路径
     // Termux bootstrap包中的脚本有硬编码的 /data/data/com.termux/ 路径
     await _fixHardcodedPaths();
@@ -369,6 +373,12 @@ class TermuxBootstrap {
 
     // 创建工具脚本
     await createSetupStorageScript();
+
+    // 创建 chsh 替代脚本（不依赖 termux-am 广播）
+    await _createChshScript();
+
+    // 创建 termux-reload-settings 替代脚本
+    await _createTermuxReloadSettingsScript();
 
     // 创建 bashrc 配置文件
     await _createBashrc();
@@ -1284,9 +1294,121 @@ ${aptConfigExport}exec "$realPath" "\$@"
         await _fixScriptsInDirectory(libAptDir.path, pathReplacements);
       }
 
+      // 补丁 termux-am (Android Activity Manager)
+      // termux-am 是 DEX 文件，包含硬编码的 com.termux 包名
+      await _patchTermuxAm();
+
       debugPrint('Hardcoded paths fixed');
     } catch (e) {
       debugPrint('Failed to fix hardcoded paths: $e');
+    }
+  }
+
+  /// 补丁 termux-am 中的包名
+  /// termux-am 使用 com.termux 作为 Android 包名发送 Intent
+  /// 需要替换为实际的包名 com.dpterm
+  static Future<void> _patchTermuxAm() async {
+    // termux-am 可能在 bin 或 libexec 目录
+    final possiblePaths = [
+      '${TermuxConstants.binDir}/termux-am',
+      '${TermuxConstants.libexecDir}/termux-am',
+      '${TermuxConstants.binDir}/am',
+    ];
+
+    const oldPackage = 'com.termux';
+    const newPackage = 'com.dpterm';
+
+    // 验证长度相同（二进制安全替换需要）
+    if (oldPackage.length != newPackage.length) {
+      debugPrint('ERROR: Package name lengths do not match!');
+      return;
+    }
+
+    for (final path in possiblePaths) {
+      final file = File(path);
+      if (!await file.exists()) continue;
+
+      try {
+        final bytes = await file.readAsBytes();
+        final oldBytes = Uint8List.fromList(oldPackage.codeUnits);
+        final newBytes = Uint8List.fromList(newPackage.codeUnits);
+
+        // 查找并替换所有出现的 com.termux
+        int patchCount = 0;
+        for (int i = 0; i <= bytes.length - oldBytes.length; i++) {
+          bool match = true;
+          for (int j = 0; j < oldBytes.length; j++) {
+            if (bytes[i + j] != oldBytes[j]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            for (int j = 0; j < newBytes.length; j++) {
+              bytes[i + j] = newBytes[j];
+            }
+            patchCount++;
+            i += oldBytes.length - 1; // 跳过已替换的部分
+          }
+        }
+
+        if (patchCount > 0) {
+          await file.writeAsBytes(bytes);
+          debugPrint('Patched $path: replaced $patchCount occurrences of $oldPackage');
+        }
+      } catch (e) {
+        debugPrint('Failed to patch $path: $e');
+      }
+    }
+
+    // 同时补丁 termux-am 相关的脚本包装器
+    await _patchTermuxAmScripts();
+  }
+
+  /// 补丁 termux-am 相关脚本中的包名引用
+  static Future<void> _patchTermuxAmScripts() async {
+    final scriptsToCheck = [
+      '${TermuxConstants.binDir}/chsh',
+      '${TermuxConstants.binDir}/termux-reload-settings',
+      '${TermuxConstants.binDir}/termux-open',
+      '${TermuxConstants.binDir}/termux-open-url',
+      '${TermuxConstants.binDir}/termux-share',
+      '${TermuxConstants.binDir}/termux-toast',
+      '${TermuxConstants.binDir}/termux-vibrate',
+      '${TermuxConstants.binDir}/termux-notification',
+      '${TermuxConstants.binDir}/termux-tts-speak',
+      '${TermuxConstants.binDir}/termux-clipboard-set',
+      '${TermuxConstants.binDir}/termux-clipboard-get',
+    ];
+
+    const replacements = {
+      'com.termux': 'com.dpterm',
+      'com.termux.app': 'com.dpterm.app',
+      'com.termux.api': 'com.dpterm.api',
+    };
+
+    for (final scriptPath in scriptsToCheck) {
+      final file = File(scriptPath);
+      if (!await file.exists()) continue;
+
+      try {
+        var content = await file.readAsString();
+        bool modified = false;
+
+        for (final entry in replacements.entries) {
+          if (content.contains(entry.key)) {
+            content = content.replaceAll(entry.key, entry.value);
+            modified = true;
+          }
+        }
+
+        if (modified) {
+          await file.writeAsString(content);
+          debugPrint('Patched script: $scriptPath');
+        }
+      } catch (e) {
+        // 可能是二进制文件，跳过
+      }
     }
   }
 
@@ -1969,6 +2091,182 @@ echo "'Allow access to manage all files' in settings."
     }
   }
 
+  /// 创建 chsh 替代脚本
+  /// 原版 chsh 依赖 termux-am 广播，这里改为直接修改 shell 配置
+  static Future<void> _createChshScript() async {
+    final chshPath = '${TermuxConstants.binDir}/chsh';
+    final homeDir = TermuxConstants.homeDir;
+    final binDir = TermuxConstants.binDir;
+
+    try {
+      final chshScript = '''#!/system/bin/sh
+# chsh - Change login shell for Deep Thought terminal
+# This is a replacement that doesn't require termux-am broadcasts
+
+SHELL_CONFIG="$homeDir/.shell"
+BASHRC="$homeDir/.bashrc"
+PROFILE="$homeDir/.profile"
+
+show_help() {
+    echo "Usage: chsh [-s shell]"
+    echo ""
+    echo "Options:"
+    echo "  -s shell    Specify the new login shell"
+    echo "  -h          Show this help message"
+    echo ""
+    echo "Available shells:"
+    for shell in $binDir/bash $binDir/zsh $binDir/fish $binDir/sh; do
+        if [ -x "\$shell" ]; then
+            echo "  \$shell"
+        fi
+    done
+    echo ""
+    echo "Note: Changes take effect on next terminal session"
+}
+
+# Parse arguments
+NEW_SHELL=""
+while [ \$# -gt 0 ]; do
+    case "\$1" in
+        -s)
+            shift
+            NEW_SHELL="\$1"
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            # Assume it's the shell name if not starting with -
+            if [ -z "\$NEW_SHELL" ]; then
+                NEW_SHELL="\$1"
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [ -z "\$NEW_SHELL" ]; then
+    show_help
+    exit 1
+fi
+
+# Resolve shell path
+case "\$NEW_SHELL" in
+    bash|/*/bash)
+        SHELL_PATH="$binDir/bash"
+        ;;
+    zsh|/*/zsh)
+        SHELL_PATH="$binDir/zsh"
+        ;;
+    fish|/*/fish)
+        SHELL_PATH="$binDir/fish"
+        ;;
+    sh|/*/sh)
+        SHELL_PATH="$binDir/sh"
+        ;;
+    /*)
+        SHELL_PATH="\$NEW_SHELL"
+        ;;
+    *)
+        SHELL_PATH="$binDir/\$NEW_SHELL"
+        ;;
+esac
+
+# Check if shell exists
+if [ ! -x "\$SHELL_PATH" ]; then
+    echo "Error: Shell '\$SHELL_PATH' not found or not executable"
+    exit 1
+fi
+
+# Save the shell preference
+echo "\$SHELL_PATH" > "\$SHELL_CONFIG"
+chmod 600 "\$SHELL_CONFIG"
+
+# Also update .bashrc to exec the new shell (for compatibility)
+SHELL_NAME=\$(basename "\$SHELL_PATH")
+if [ "\$SHELL_NAME" != "bash" ]; then
+    # Check if exec line already exists
+    if ! grep -q "^exec.*\$SHELL_NAME" "\$BASHRC" 2>/dev/null; then
+        # Remove any existing exec lines for other shells
+        if [ -f "\$BASHRC" ]; then
+            sed -i '/^exec.*\\(zsh\\|fish\\)/d' "\$BASHRC" 2>/dev/null
+        fi
+        # Add exec line at the end
+        echo "" >> "\$BASHRC"
+        echo "# Auto-start \$SHELL_NAME (set by chsh)" >> "\$BASHRC"
+        echo "exec \$SHELL_PATH" >> "\$BASHRC"
+    fi
+    echo "Shell changed to \$SHELL_PATH"
+    echo "Note: The change will take effect on next terminal session"
+else
+    # Bash selected, remove any exec lines
+    if [ -f "\$BASHRC" ]; then
+        sed -i '/^exec.*\\(zsh\\|fish\\)/d' "\$BASHRC" 2>/dev/null
+        sed -i '/^# Auto-start.*set by chsh/d' "\$BASHRC" 2>/dev/null
+    fi
+    echo "Shell changed to bash"
+fi
+''';
+
+      await File(chshPath).writeAsString(chshScript);
+      await Process.run('chmod', ['755', chshPath]);
+      debugPrint('chsh script created');
+    } catch (e) {
+      debugPrint('Failed to create chsh script: $e');
+    }
+  }
+
+  /// 创建 termux-reload-settings 脚本
+  /// 通过创建信号文件通知 Flutter 应用重载设置
+  static Future<void> _createTermuxReloadSettingsScript() async {
+    final scriptPath = '${TermuxConstants.binDir}/termux-reload-settings';
+    final homeDir = TermuxConstants.homeDir;
+
+    try {
+      final script = '''#!/system/bin/sh
+# termux-reload-settings - Reload terminal settings
+# Deep Thought implementation using signal file mechanism
+
+TERMUX_CONFIG_DIR="$homeDir/.termux"
+SIGNAL_FILE="\$TERMUX_CONFIG_DIR/.reload-settings"
+PROPS_FILE="\$TERMUX_CONFIG_DIR/termux.properties"
+
+# Ensure config directory exists
+mkdir -p "\$TERMUX_CONFIG_DIR" 2>/dev/null
+
+# Create signal file to notify the app
+touch "\$SIGNAL_FILE"
+
+echo "Settings reload requested."
+
+# Check if properties file exists
+if [ -f "\$PROPS_FILE" ]; then
+    echo "Loading settings from: \$PROPS_FILE"
+else
+    echo "Note: No termux.properties file found."
+    echo "Create \$PROPS_FILE to customize settings."
+    echo ""
+    echo "Example settings:"
+    echo "  terminal-font-size=14"
+    echo "  terminal-cursor-style=block"
+    echo "  extra-keys=true"
+    echo "  bell-character=vibrate"
+fi
+
+echo ""
+echo "Settings will be applied shortly..."
+exit 0
+''';
+
+      await File(scriptPath).writeAsString(script);
+      await Process.run('chmod', ['755', scriptPath]);
+      debugPrint('termux-reload-settings script created');
+    } catch (e) {
+      debugPrint('Failed to create termux-reload-settings script: $e');
+    }
+  }
+
   /// 确保关键库文件存在
   /// 如果符号链接不工作，直接复制文件
   static Future<void> _ensureCriticalLibraries() async {
@@ -2125,6 +2423,52 @@ echo "'Allow access to manage all files' in settings."
       } catch (e) {
         debugPrint('Failed to copy library $versionName: $e');
       }
+    }
+  }
+
+  /// 补丁 dpkg info 文件中的硬编码路径
+  /// dpkg 的 .list 文件记录了已安装包的文件路径
+  /// 这些路径包含 /data/data/com.termux/，需要替换为正确的路径
+  static Future<void> _patchDpkgInfoFiles() async {
+    debugPrint('Patching dpkg info files...');
+
+    const oldPath = '/data/data/com.termux/';
+    final newPath = '/data/data/${AppConstants.packageName}/';
+
+    final dpkgInfoDir = Directory('${TermuxConstants.varDir}/lib/dpkg/info');
+    if (!await dpkgInfoDir.exists()) {
+      debugPrint('dpkg info directory does not exist, skipping');
+      return;
+    }
+
+    int patchedFiles = 0;
+    int patchedLines = 0;
+
+    try {
+      await for (final entity in dpkgInfoDir.list()) {
+        if (entity is File) {
+          final filename = entity.path.split('/').last;
+          // 补丁 .list 文件（记录包文件路径）和 .conffiles 文件
+          if (filename.endsWith('.list') || filename.endsWith('.conffiles')) {
+            try {
+              final content = await entity.readAsString();
+              if (content.contains(oldPath)) {
+                final newContent = content.replaceAll(oldPath, newPath);
+                await entity.writeAsString(newContent);
+                final lineCount = oldPath.allMatches(content).length;
+                patchedFiles++;
+                patchedLines += lineCount;
+              }
+            } catch (e) {
+              debugPrint('Failed to patch ${entity.path}: $e');
+            }
+          }
+        }
+      }
+
+      debugPrint('Patched $patchedFiles dpkg info files ($patchedLines path entries)');
+    } catch (e) {
+      debugPrint('Failed to patch dpkg info files: $e');
     }
   }
 

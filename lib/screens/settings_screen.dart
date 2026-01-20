@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
+import '../models/mirror.dart';
 
 /// 设置页面
 /// 参考 termux-app: SettingsActivity.java, TermuxPreferencesFragment.java
@@ -35,6 +36,8 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(title: 'Gestures'),
           _PinchZoomSetting(),
           _VolumeKeysSetting(),
+          _SectionHeader(title: 'Package Sources'),
+          _MirrorSetting(),
           _SectionHeader(title: 'Advanced'),
           _ResetSettingsTile(),
           SizedBox(height: 32),
@@ -103,11 +106,26 @@ class _FontFamilySetting extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final font = AvailableFonts.fonts[index];
                   final isSelected = font == settings.fontFamily;
+                  final isNerdFont = font == AvailableFonts.nerdFont;
+
+                  // 获取字体样式：内置 Nerd Font 或 Google Fonts
+                  TextStyle fontStyle;
+                  if (isNerdFont) {
+                    fontStyle = const TextStyle(
+                      fontFamily: 'JetBrainsMonoNerdFont',
+                    );
+                  } else {
+                    try {
+                      fontStyle = GoogleFonts.getFont(font);
+                    } catch (e) {
+                      fontStyle = const TextStyle();
+                    }
+                  }
 
                   return ListTile(
                     title: Text(
-                      font,
-                      style: GoogleFonts.getFont(font),
+                      isNerdFont ? '$font (Built-in, supports p10k icons)' : font,
+                      style: fontStyle,
                     ),
                     trailing: isSelected
                         ? Icon(
@@ -538,5 +556,168 @@ class _ResetSettingsTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 镜像源选择
+class _MirrorSetting extends StatelessWidget {
+  const _MirrorSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final currentMirror = settings.currentMirror;
+
+    return ListTile(
+      leading: const Icon(Icons.cloud_download),
+      title: const Text('Package Mirror'),
+      subtitle: Text('${currentMirror.name} (${currentMirror.region})'),
+      onTap: () => _showMirrorPicker(context, settings),
+    );
+  }
+
+  void _showMirrorPicker(BuildContext context, SettingsProvider settings) {
+    final mirrorsByRegion = AvailableMirrors.byRegion;
+    final regions = mirrorsByRegion.keys.toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Select Package Mirror',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: regions.length,
+                  itemBuilder: (context, regionIndex) {
+                    final region = regions[regionIndex];
+                    final mirrors = mirrorsByRegion[region]!;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            region,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ...mirrors.map((mirror) {
+                          final isSelected = mirror.id == settings.mirrorId;
+                          return ListTile(
+                            leading: Icon(
+                              _getRegionIcon(mirror.region),
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            title: Text(mirror.name),
+                            subtitle: Text(
+                              mirror.description.isNotEmpty
+                                  ? mirror.description
+                                  : mirror.url,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  )
+                                : null,
+                            onTap: () async {
+                              Navigator.pop(context);
+                              _applyMirror(context, settings, mirror);
+                            },
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getRegionIcon(String region) {
+    switch (region) {
+      case 'Global':
+        return Icons.public;
+      case 'China':
+        return Icons.flag;
+      case 'Europe':
+        return Icons.euro;
+      case 'Europe/India':
+        return Icons.language;
+      case 'North America':
+        return Icons.landscape;
+      default:
+        return Icons.cloud;
+    }
+  }
+
+  void _applyMirror(
+    BuildContext context,
+    SettingsProvider settings,
+    TermuxMirror mirror,
+  ) async {
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text('Switching to ${mirror.name}...'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final success = await settings.setMirror(mirror.id);
+
+    // 关闭加载对话框
+    if (context.mounted) {
+      Navigator.pop(context);
+    }
+
+    // 显示结果
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? 'Mirror changed to ${mirror.name}'
+                : 'Failed to change mirror',
+          ),
+          backgroundColor: success ? null : Colors.red,
+        ),
+      );
+    }
   }
 }

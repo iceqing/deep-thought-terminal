@@ -78,7 +78,7 @@ class DefaultSettings {
   static const double fontSize = 14.0;
   static const double minFontSize = 8.0;
   static const double maxFontSize = 32.0;
-  static const String fontFamily = 'Roboto Mono';
+  static const String fontFamily = 'JetBrains Mono Nerd'; // 默认使用内置 Nerd Font
   static const String colorTheme = 'default';
   static const String cursorStyle = 'block';
   static const bool cursorBlink = true;
@@ -93,7 +93,17 @@ class DefaultSettings {
 
 /// 可用字体列表
 class AvailableFonts {
+  /// 内置 Nerd Font 名称（用于显示）
+  static const String nerdFont = 'JetBrains Mono Nerd';
+
+  /// 内置 Nerd Font 的实际字体族名称
+  static const String nerdFontFamily = 'JetBrainsMonoNerdFont';
+
+  /// 自定义字体族名称（用于 ~/.termux/font.ttf）
+  static const String customFontFamily = 'CustomTerminalFont';
+
   static const List<String> fonts = [
+    'JetBrains Mono Nerd',  // 内置 Nerd Font（支持 p10k 图标）
     'Roboto Mono',
     'Fira Code',
     'Ubuntu Mono',
@@ -102,6 +112,17 @@ class AvailableFonts {
     'Source Code Pro',
     'JetBrains Mono',
   ];
+
+  /// 获取字体显示名称
+  static String getDisplayName(String fontFamily, {bool hasCustomFont = false}) {
+    if (fontFamily == nerdFont || fontFamily == nerdFontFamily) {
+      return 'JetBrains Mono Nerd (Built-in)';
+    }
+    if (fontFamily == customFontFamily) {
+      return 'Custom Font (~/.termux/font.ttf)';
+    }
+    return fontFamily;
+  }
 }
 
 /// 光标样式

@@ -31,3 +31,7 @@ flutter:
   assets:
     - assets/bootstrap-aarch64.zip
     - assets/bootstrap-x86_64.zip
+  fonts:
+    - family: JetBrainsMonoNerdFont
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoNerdFont-Regular.ttf
