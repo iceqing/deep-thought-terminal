@@ -2055,38 +2055,25 @@ echo "Note: If using Android 11+, you need to enable"
 echo "'Allow access to manage all files' in settings."
 ''';
 
-      await scriptFile.writeAsString(script);
-      await Process.run('chmod', ['755', scriptPath]);
-      debugPrint('setup-storage script created');
+            await scriptFile.writeAsString(script);
 
-      // 创建 termux-setup-storage 别名以兼容 Termux 脚本
-      final termuxAliasPath = '${TermuxConstants.binDir}/termux-setup-storage';
-      final termuxAliasLink = Link(termuxAliasPath);
+            await Process.run('chmod', ['755', scriptPath]);
 
-      // 检查是否需要创建或更新符号链接
-      bool needCreate = true;
-      if (await termuxAliasLink.exists()) {
-        try {
-          final target = await termuxAliasLink.target();
-          if (target == scriptPath) {
-            needCreate = false; // 已经是正确的符号链接
-          } else {
-            await termuxAliasLink.delete(); // 删除错误的符号链接
-          }
-        } catch (e) {
-          // 符号链接损坏，删除它
-          try {
-            await termuxAliasLink.delete();
-          } catch (_) {}
-        }
-      }
+      
 
-      if (needCreate) {
-        // 使用绝对路径创建符号链接
-        await termuxAliasLink.create(scriptPath);
-        debugPrint('termux-setup-storage symlink created -> $scriptPath');
-      }
-    } catch (e) {
+            // Also overwrite termux-setup-storage
+
+            final termuxScriptPath = '${TermuxConstants.binDir}/termux-setup-storage';
+
+            await File(termuxScriptPath).writeAsString(script);
+
+            await Process.run('chmod', ['755', termuxScriptPath]);
+
+      
+
+            debugPrint('setup-storage and termux-setup-storage scripts created');
+
+          } catch (e) {
       debugPrint('Failed to create setup-storage script: $e');
     }
   }

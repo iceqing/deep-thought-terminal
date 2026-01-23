@@ -161,6 +161,7 @@ class ExtraKeysView extends StatefulWidget {
   // 外部控制的修饰键状态（用于音量键同步）
   final bool ctrlPressed;
   final bool altPressed;
+  final List<QuickCommand>? customCommands; // 自定义命令
 
   const ExtraKeysView({
     super.key,
@@ -171,6 +172,7 @@ class ExtraKeysView extends StatefulWidget {
     this.vibrationEnabled = true,
     this.ctrlPressed = false,
     this.altPressed = false,
+    this.customCommands,
   });
 
   @override
@@ -323,13 +325,49 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                     ],
                   ),
                 ),
-                // 第二行: TAB, /, |, 展开
+                // 第二行: TAB, /, Tasks, 展开
                 Expanded(
                   child: Row(
                     children: [
                       _buildKey(ExtraKeys.tab, theme),
                       _buildKey(ExtraKeys.slash, theme),
-                      _buildKey(ExtraKeys.pipe, theme),
+                      // 快捷指令入口
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Material(
+                            color: _expanded && _expandedTab == 2
+                                ? theme.colorScheme.tertiaryContainer
+                                : theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(4),
+                            child: InkWell(
+                              onTap: () {
+                                if (widget.vibrationEnabled) {
+                                  HapticFeedback.lightImpact();
+                                }
+                                setState(() {
+                                  if (_expanded && _expandedTab == 2) {
+                                    _expanded = false; // 如果已经在任务面板，则关闭
+                                  } else {
+                                    _expanded = true;
+                                    _expandedTab = 2; // 切换到命令 Tab (index 2)
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(4),
+                              child: Center(
+                                child: Icon(
+                                  Icons.flash_on,
+                                  size: 18,
+                                  color: _expanded && _expandedTab == 2
+                                      ? theme.colorScheme.onTertiaryContainer
+                                      : theme.colorScheme.primary, // 使用主色突出
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       _buildExpandButton(theme),
                     ],
                   ),
@@ -626,38 +664,58 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
     );
   }
 
-  /// 快捷命令面板
+  /// 快捷命令面板 - 优化为横向滚动
   Widget _buildCommandsPanel(ThemeData theme) {
-    return SizedBox(
+    final allCommands = [
+      ...?widget.customCommands,
+      ...QuickCommand.commands,
+    ];
+
+    return Container(
       height: 72,
-      child: GridView.count(
-        crossAxisCount: 4,
-        childAspectRatio: 2.5,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(2),
-        children: QuickCommand.commands.map((cmd) {
-          return Padding(
-            padding: const EdgeInsets.all(2),
-            child: Material(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(4),
-              child: InkWell(
-                onTap: () => _handleCommandTap(cmd),
-                borderRadius: BorderRadius.circular(4),
-                child: Center(
-                  child: Text(
-                    cmd.label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: theme.colorScheme.onSurface,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        itemCount: allCommands.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cmd = allCommands[index];
+          return Material(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(8),
+            // elevation: 1, // 扁平化风格更好
+            child: InkWell(
+              onTap: () => _handleCommandTap(cmd),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.center,
+                constraints: const BoxConstraints(minWidth: 72),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (cmd.icon != null) ...[
+                      Icon(cmd.icon, size: 20, color: theme.colorScheme.primary),
+                      const SizedBox(height: 4),
+                    ],
+                    Text(
+                      cmd.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ),
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
