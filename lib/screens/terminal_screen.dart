@@ -9,6 +9,7 @@ import 'package:xterm/xterm.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../providers/settings_provider.dart';
 import '../providers/terminal_provider.dart';
+import '../providers/ssh_provider.dart';
 import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
@@ -19,6 +20,7 @@ import '../utils/gesture_utils.dart';
 import '../widgets/terminal_selection_handles.dart';
 import '../widgets/scaled_terminal_view.dart';
 import 'settings_screen.dart';
+import 'ssh_manager_screen.dart';
 
 /// 终端主屏幕
 /// 参考 termux-app: TermuxActivity.java
@@ -410,6 +412,121 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
+  void _showNewSessionSheet(BuildContext context, TerminalProvider terminalProvider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Allow full height if needed
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final sshProvider = context.watch<SSHProvider>();
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        'New Session',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SSHManagerScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.settings),
+                        label: const Text('Manage SSH'),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    children: [
+                      // Local Shell Option
+                      ListTile(
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.terminal),
+                        ),
+                        title: const Text('Local Terminal'),
+                        subtitle: const Text('Start a new local shell session'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          terminalProvider.createSession();
+                        },
+                      ),
+                      if (sshProvider.hosts.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            'SSH Connections',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        ...sshProvider.hosts.map((host) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                                child: Text(host.displayName.characters.first.toUpperCase()),
+                              ),
+                              title: Text(host.displayName),
+                              subtitle: Text('${host.username}@${host.host}'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.pop(context);
+                                terminalProvider.createSession(title: host.displayName).then((session) {
+                                  Future.delayed(const Duration(milliseconds: 300), () {
+                                    session.write('${host.command}\r');
+                                  });
+                                });
+                              },
+                            )),
+                      ],
+                      // Quick Connect Hint (Placeholder)
+                      // ListTile(
+                      //   leading: const Icon(Icons.bolt),
+                      //   title: const Text('Quick Connect...'),
+                      //   onTap: () { /* TODO */ },
+                      // ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
     TerminalProvider terminalProvider,
@@ -516,7 +633,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
           ],
           onSelected: (value) {
             if (value == 'new_session') {
-              terminalProvider.createSession();
+              _showNewSessionSheet(context, terminalProvider);
             } else if (value == 'tasks') {
               _scaffoldKey.currentState?.openEndDrawer();
             } else {

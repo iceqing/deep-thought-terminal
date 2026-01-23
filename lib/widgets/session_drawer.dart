@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/terminal_provider.dart';
 import '../models/terminal_session.dart';
-import '../screens/ssh_manager_screen.dart';
 
 /// 会话列表抽屉
 /// 参考 termux-app: TermuxSessionsListViewController.java
@@ -62,14 +61,26 @@ class SessionDrawer extends StatelessWidget {
             Expanded(
               child: terminalProvider.sessions.isEmpty
                   ? Center(
-                      child: Text(
-                        'No sessions',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.layers_clear,
+                            size: 48,
+                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No active sessions',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: terminalProvider.sessions.length,
                       itemBuilder: (context, index) {
                         final session = terminalProvider.sessions[index];
@@ -99,40 +110,17 @@ class SessionDrawer extends StatelessWidget {
                       },
                     ),
             ),
-
-            // 底部操作按钮
-            const Divider(height: 1),
+            
+            // 底部信息栏 (可选)
+            Divider(height: 1, color: theme.colorScheme.outlineVariant),
             Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SSHManagerScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.dns),
-                      label: const Text('SSH'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        terminalProvider.createSession();
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('New'),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                '${terminalProvider.sessions.length} active session(s)',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -146,11 +134,13 @@ class SessionDrawer extends StatelessWidget {
     TerminalProvider provider,
     int index,
   ) {
+    // 只有一个会话时，或者用户通过滑动删除时，可能不需要确认？
+    // 为了防止误触，保留确认是个好习惯，尤其是终端内容可能很重要。
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Close Session'),
-        content: const Text('Are you sure you want to close this session?'),
+        content: Text('Close "${provider.sessions[index].displayName}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -161,7 +151,7 @@ class SessionDrawer extends StatelessWidget {
               provider.closeSession(index);
               Navigator.pop(context);
               if (provider.sessions.isEmpty) {
-                Navigator.pop(context); // 关闭抽屉
+                Navigator.pop(context); // Close drawer if empty
               }
             },
             child: const Text('Close'),
@@ -236,57 +226,81 @@ class _SessionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return ListTile(
-      selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withOpacity(0.3),
-      leading: Icon(
-        Icons.terminal,
-        color: isSelected
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
+    
+    // 使用 Dismissible 实现滑动删除
+    // 注意：Dismissible 需要唯一的 key。session.id 是唯一的。
+    return Dismissible(
+      key: Key(session.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: theme.colorScheme.errorContainer,
+        child: Icon(
+          Icons.delete_outline,
+          color: theme.colorScheme.onErrorContainer,
+        ),
       ),
-      title: Text(
-        session.displayName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        _formatTime(session.createdAt),
-        style: theme.textTheme.bodySmall,
-      ),
-      trailing: PopupMenuButton<String>(
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'rename',
-            child: Row(
-              children: [
-                Icon(Icons.edit),
-                SizedBox(width: 8),
-                Text('Rename'),
-              ],
+      confirmDismiss: (direction) async {
+        // 复用 onClose 逻辑（这会弹窗）。
+        // 如果想让滑动直接删除不确认，可以直接返回 true 并调用逻辑。
+        // 为了安全起见，这里触发确认弹窗。
+        onClose();
+        // 因为 onClose 是 void 且内部弹窗是异步的，这里 Dismissible 需要 Future<bool>
+        // 这种写法不太好适配 Dismissible 的 confirmDismiss。
+        // 简单起见，我们暂不支持滑动直接触发 Dismissible 的动画删除，
+        // 而是滑动后触发 onClose，然后由 Provider 更新列表来重建 UI。
+        return false; 
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.secondaryContainer : null,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected ? null : Border.all(color: Colors.transparent), // 占位保持布局稳定
+        ),
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          onTap: onTap,
+          onLongPress: onRename, // 长按重命名
+          leading: CircleAvatar(
+            backgroundColor: isSelected 
+                ? theme.colorScheme.primary 
+                : theme.colorScheme.surfaceContainerHighest,
+            foregroundColor: isSelected 
+                ? theme.colorScheme.onPrimary 
+                : theme.colorScheme.onSurfaceVariant,
+            child: const Icon(Icons.terminal, size: 20),
+          ),
+          title: Text(
+            session.displayName,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? theme.colorScheme.onSecondaryContainer : null,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            _formatTime(session.createdAt),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: isSelected 
+                  ? theme.colorScheme.onSecondaryContainer.withOpacity(0.7) 
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const PopupMenuItem(
-            value: 'close',
-            child: Row(
-              children: [
-                Icon(Icons.close),
-                SizedBox(width: 8),
-                Text('Close'),
-              ],
+          trailing: IconButton(
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: onClose,
+            tooltip: 'Close Session',
+            style: IconButton.styleFrom(
+              foregroundColor: isSelected 
+                  ? theme.colorScheme.onSecondaryContainer 
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ],
-        onSelected: (value) {
-          if (value == 'rename') {
-            onRename();
-          } else if (value == 'close') {
-            onClose();
-          }
-        },
+        ),
       ),
-      onTap: onTap,
     );
   }
 
