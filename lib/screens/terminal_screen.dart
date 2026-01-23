@@ -439,7 +439,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       ),
       actions: [
-        // 切换键盘
+        // 切换键盘 - 最高频操作，保留在外面
         IconButton(
           icon: Icon(_terminalFocusNode.hasFocus
               ? Icons.keyboard_hide
@@ -447,49 +447,26 @@ class _TerminalScreenState extends State<TerminalScreen> {
           onPressed: () => _toggleKeyboard(context),
           tooltip: _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
         ),
-        // 任务管理
-        IconButton(
-          icon: const Icon(Icons.play_circle_outline),
-          onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-          tooltip: 'Tasks',
-        ),
-        // 新建会话
-        IconButton(
-          icon: const Icon(Icons.add),
-          onPressed: () => terminalProvider.createSession(),
-          tooltip: 'New session',
-        ),
-        // 更多选项
+        // 其他所有操作收纳进菜单，防止误触
         PopupMenuButton<String>(
           itemBuilder: (context) => [
-            if (_hasSelection)
-              const PopupMenuItem(
-                value: 'copy',
-                child: Row(
-                  children: [
-                    Icon(Icons.copy),
-                    SizedBox(width: 8),
-                    Text('Copy Selection'),
-                  ],
-                ),
-              ),
             const PopupMenuItem(
-              value: 'copy_last_50',
+              value: 'new_session',
               child: Row(
                 children: [
-                  Icon(Icons.history),
+                  Icon(Icons.add),
                   SizedBox(width: 8),
-                  Text('Copy Last 50 Lines'),
+                  Text('New Session'),
                 ],
               ),
             ),
             const PopupMenuItem(
-              value: 'copy_all',
+              value: 'tasks',
               child: Row(
                 children: [
-                  Icon(Icons.copy_all),
+                  Icon(Icons.play_circle_outline),
                   SizedBox(width: 8),
-                  Text('Copy All'),
+                  Text('Tasks'),
                 ],
               ),
             ),
@@ -537,8 +514,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ),
             ),
           ],
-          onSelected: (value) =>
-              _handleMenuAction(context, value, terminalProvider),
+          onSelected: (value) {
+            if (value == 'new_session') {
+              terminalProvider.createSession();
+            } else if (value == 'tasks') {
+              _scaffoldKey.currentState?.openEndDrawer();
+            } else {
+              _handleMenuAction(context, value, terminalProvider);
+            }
+          },
         ),
       ],
     );
