@@ -112,6 +112,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 如果会话数量变化（通常是新建）或者索引变化（切换会话），则请求键盘
     // 这里简单地在任何变化时尝试唤醒，也可以更精细地控制
     if (mounted) {
+       _updateSessionInputTransformer();
        _requestKeyboard();
     }
   }
@@ -338,10 +339,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
         tooltip: 'Clear selection',
       ),
       title: const Text('Selected'),
-      centerTitle: false, // 让标题靠左，给右侧操作留更多空间
+      centerTitle: false,
       actions: [
-        // 主要操作：醒目的复制按钮 (图标 + 文字)
-        // 使用 Container 包裹以调整在 AppBar 中的垂直对齐和边距
+        // 唯一的核心操作：Copy
         Center(
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -350,7 +350,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
               icon: const Icon(Icons.copy, size: 18),
               label: const Text('Copy'),
               style: FilledButton.styleFrom(
-                // 使用半透明的前景色作为背景，保持与主题一致
                 backgroundColor: settings.terminalTheme.foreground.withOpacity(0.15),
                 foregroundColor: settings.terminalTheme.foreground,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -359,7 +358,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ),
           ),
         ),
-        // 更多操作
+        // 其他所有操作收纳进菜单，保持界面极简
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           tooltip: 'More actions',
