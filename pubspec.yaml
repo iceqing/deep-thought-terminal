@@ -32,6 +32,22 @@ flutter:
     - assets/bootstrap-aarch64.zip
     - assets/bootstrap-x86_64.zip
   fonts:
-    - family: JetBrainsMonoNerdFont
+    # Nerd Font MONO variants - all glyphs forced to single-width
+    - family: JetBrainsMonoNerdFontMono
       fonts:
-        - asset: assets/fonts/JetBrainsMonoNerdFont-Regular.ttf
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Regular.ttf
+    - family: FiraCodeNerdFontMono
+      fonts:
+        - asset: assets/fonts/FiraCodeNerdFontMono-Regular.ttf
+    - family: HackNerdFontMono
+      fonts:
+        - asset: assets/fonts/HackNerdFontMono-Regular.ttf
+    - family: SourceCodeProNerdFontMono
+      fonts:
+        - asset: assets/fonts/SauceCodeProNerdFontMono-Regular.ttf
+    - family: UbuntuMonoNerdFontMono
+      fonts:
+        - asset: assets/fonts/UbuntuMonoNerdFontMono-Regular.ttf
+    - family: CascadiaCodeNerdFontMono
+      fonts:
+        - asset: assets/fonts/CaskaydiaCoveNerdFontMono-Regular.ttf

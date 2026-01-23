@@ -60,10 +60,9 @@ class SettingsProvider extends ChangeNotifier {
     if (_customFontLoaded) {
       return AvailableFonts.customFontFamily;
     }
-    // 如果选择的是内置 Nerd Font
-    if (_fontFamily == AvailableFonts.nerdFont ||
-        _fontFamily == AvailableFonts.nerdFontFamily) {
-      return AvailableFonts.nerdFontFamily;
+    // 如果选择的是内置 Nerd Font（支持多种 Nerd Fonts）
+    if (AvailableFonts.isBuiltInNerdFont(_fontFamily)) {
+      return AvailableFonts.getBuiltInFontFamily(_fontFamily) ?? _fontFamily;
     }
     // 否则返回用户选择的字体（用于 Google Fonts）
     return _fontFamily;
@@ -72,8 +71,7 @@ class SettingsProvider extends ChangeNotifier {
   /// 是否使用内置 Nerd Font（而不是 Google Fonts）
   bool get useBuiltInFont {
     if (_customFontLoaded) return true;
-    return _fontFamily == AvailableFonts.nerdFont ||
-           _fontFamily == AvailableFonts.nerdFontFamily;
+    return AvailableFonts.isBuiltInNerdFont(_fontFamily);
   }
   String get colorTheme => _colorTheme;
   ThemeMode get themeMode => _themeMode;

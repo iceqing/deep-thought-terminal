@@ -93,17 +93,29 @@ class DefaultSettings {
 
 /// 可用字体列表
 class AvailableFonts {
-  /// 内置 Nerd Font 名称（用于显示）
+  /// 默认 Nerd Font 名称（用于显示）
   static const String nerdFont = 'JetBrains Mono Nerd';
 
-  /// 内置 Nerd Font 的实际字体族名称
-  static const String nerdFontFamily = 'JetBrainsMonoNerdFont';
+  /// 默认 Nerd Font 的实际字体族名称
+  static const String nerdFontFamily = 'JetBrainsMonoNerdFontMono';
 
   /// 自定义字体族名称（用于 ~/.termux/font.ttf）
   static const String customFontFamily = 'CustomTerminalFont';
 
-  static const List<String> fonts = [
-    'JetBrains Mono Nerd',  // 内置 Nerd Font（支持 p10k 图标）
+  /// 内置 Nerd Fonts MONO 变体（支持 Powerline/p10k 图标）
+  /// 使用 MONO 变体确保所有字符（包括图标）宽度一致，避免重叠
+  /// key: 显示名称, value: Flutter 字体族名称
+  static const Map<String, String> builtInNerdFonts = {
+    'JetBrains Mono Nerd': 'JetBrainsMonoNerdFontMono',
+    'Fira Code Nerd': 'FiraCodeNerdFontMono',
+    'Hack Nerd': 'HackNerdFontMono',
+    'Source Code Pro Nerd': 'SourceCodeProNerdFontMono',
+    'Ubuntu Mono Nerd': 'UbuntuMonoNerdFontMono',
+    'Cascadia Code Nerd': 'CascadiaCodeNerdFontMono',
+  };
+
+  /// Google Fonts（不支持 Powerline 图标）
+  static const List<String> googleFonts = [
     'Roboto Mono',
     'Fira Code',
     'Ubuntu Mono',
@@ -113,10 +125,34 @@ class AvailableFonts {
     'JetBrains Mono',
   ];
 
+  /// 所有可用字体（Nerd Fonts 在前）
+  static List<String> get fonts => [
+    ...builtInNerdFonts.keys,
+    ...googleFonts,
+  ];
+
+  /// 判断是否为内置 Nerd Font
+  static bool isBuiltInNerdFont(String fontFamily) {
+    return builtInNerdFonts.containsKey(fontFamily) ||
+           builtInNerdFonts.containsValue(fontFamily);
+  }
+
+  /// 获取内置字体的 Flutter 字体族名称
+  static String? getBuiltInFontFamily(String displayName) {
+    return builtInNerdFonts[displayName];
+  }
+
   /// 获取字体显示名称
   static String getDisplayName(String fontFamily, {bool hasCustomFont = false}) {
-    if (fontFamily == nerdFont || fontFamily == nerdFontFamily) {
-      return 'JetBrains Mono Nerd (Built-in)';
+    // 检查是否为内置 Nerd Font
+    if (builtInNerdFonts.containsKey(fontFamily)) {
+      return '$fontFamily (Built-in)';
+    }
+    // 检查是否为 Nerd Font 的字体族名称
+    for (final entry in builtInNerdFonts.entries) {
+      if (entry.value == fontFamily) {
+        return '${entry.key} (Built-in)';
+      }
     }
     if (fontFamily == customFontFamily) {
       return 'Custom Font (~/.termux/font.ttf)';

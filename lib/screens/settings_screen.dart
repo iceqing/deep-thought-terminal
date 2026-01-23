@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
 import '../models/mirror.dart';
+import '../utils/wcwidth_debug.dart';
+import '../utils/termux_wcwidth.dart';
 
 /// 设置页面
 /// 参考 termux-app: SettingsActivity.java, TermuxPreferencesFragment.java
@@ -40,6 +43,7 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(title: 'Package Sources'),
           _MirrorSetting(),
           _SectionHeader(title: 'Advanced'),
+          _WcwidthDebugTile(),
           _ResetSettingsTile(),
           SizedBox(height: 32),
         ],
@@ -151,7 +155,10 @@ class _FontFamilySetting extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.font_download),
       title: const Text('Font Family'),
-      subtitle: Text(settings.fontFamily),
+      subtitle: Text(AvailableFonts.getDisplayName(
+        settings.fontFamily,
+        hasCustomFont: settings.customFontLoaded,
+      )),
       onTap: () => _showFontPicker(context, settings),
     );
   }
@@ -159,60 +166,114 @@ class _FontFamilySetting extends StatelessWidget {
   void _showFontPicker(BuildContext context, SettingsProvider settings) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Select Font',
-                style: Theme.of(context).textTheme.titleLarge,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Select Font',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
-            ),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: AvailableFonts.fonts.length,
-                itemBuilder: (context, index) {
-                  final font = AvailableFonts.fonts[index];
-                  final isSelected = font == settings.fontFamily;
-                  final isNerdFont = font == AvailableFonts.nerdFont;
-
-                  // 获取字体样式：内置 Nerd Font 或 Google Fonts
-                  TextStyle fontStyle;
-                  if (isNerdFont) {
-                    fontStyle = const TextStyle(
-                      fontFamily: 'JetBrainsMonoNerdFont',
-                    );
-                  } else {
-                    try {
-                      fontStyle = GoogleFonts.getFont(font);
-                    } catch (e) {
-                      fontStyle = const TextStyle();
-                    }
-                  }
-
-                  return ListTile(
-                    title: Text(
-                      isNerdFont ? '$font (Built-in, supports p10k icons)' : font,
-                      style: fontStyle,
+              // Nerd Fonts section header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.star, size: 16, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Built-in Nerd Fonts (support p10k icons)',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    trailing: isSelected
-                        ? Icon(
-                            Icons.check,
-                            color: Theme.of(context).colorScheme.primary,
-                          )
-                        : null,
-                    onTap: () {
-                      settings.setFontFamily(font);
-                      Navigator.pop(context);
-                    },
-                  );
-                },
+                  ],
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: AvailableFonts.fonts.length,
+                  itemBuilder: (context, index) {
+                    final font = AvailableFonts.fonts[index];
+                    final isSelected = font == settings.fontFamily;
+                    final isBuiltInNerdFont = AvailableFonts.isBuiltInNerdFont(font);
+
+                    // Insert Google Fonts section header
+                    Widget? sectionHeader;
+                    if (index == AvailableFonts.builtInNerdFonts.length) {
+                      sectionHeader = Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                        child: Row(
+                          children: [
+                            Icon(Icons.cloud_download, size: 16, color: Theme.of(context).colorScheme.secondary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Google Fonts (no Powerline icons)',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.secondary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Get font style for preview
+                    TextStyle fontStyle;
+                    if (isBuiltInNerdFont) {
+                      final builtInFamily = AvailableFonts.getBuiltInFontFamily(font);
+                      fontStyle = TextStyle(fontFamily: builtInFamily);
+                    } else {
+                      try {
+                        fontStyle = GoogleFonts.getFont(font);
+                      } catch (e) {
+                        fontStyle = const TextStyle();
+                      }
+                    }
+
+                    final tile = ListTile(
+                      leading: isBuiltInNerdFont
+                          ? const Icon(Icons.terminal, size: 20)
+                          : const Icon(Icons.text_fields, size: 20),
+                      title: Text(font, style: fontStyle),
+                      subtitle: isBuiltInNerdFont
+                          ? Text('Preview: \uE0B0 \uE0B2 \uF113', style: fontStyle.copyWith(fontSize: 12))
+                          : null,
+                      trailing: isSelected
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        settings.setFontFamily(font);
+                        Navigator.pop(context);
+                      },
+                    );
+
+                    if (sectionHeader != null) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [sectionHeader, tile],
+                      );
+                    }
+                    return tile;
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -790,5 +851,366 @@ class _MirrorSetting extends StatelessWidget {
         ),
       );
     }
+  }
+}
+
+/// 字符宽度调试工具
+class _WcwidthDebugTile extends StatelessWidget {
+  const _WcwidthDebugTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.bug_report),
+      title: const Text('Character Width Debug'),
+      subtitle: const Text('Diagnose Powerline/Nerd Font issues'),
+      onTap: () => _showFontTestDialog(context),
+    );
+  }
+
+  void _showFontTestDialog(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final fontFamily = settings.effectiveFontFamily;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Font & Character Test'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Font family: $fontFamily', style: const TextStyle(fontSize: 12)),
+              Text('useBuiltInFont: ${settings.useBuiltInFont}', style: const TextStyle(fontSize: 12)),
+              const SizedBox(height: 16),
+
+              const Text('Powerline Arrows:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                color: Colors.black,
+                child: Text(
+                  '>\uE0B0<  >\uE0B2<  >\uE0A0<',
+                  style: TextStyle(
+                    fontFamily: fontFamily,
+                    fontSize: 24,
+                    color: Colors.greenAccent,
+                  ),
+                ),
+              ),
+              const Text('Should show: >< >< ><', style: TextStyle(fontSize: 10, color: Colors.grey)),
+
+              const SizedBox(height: 12),
+              const Text('Box Drawing:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                color: Colors.black,
+                child: Text(
+                  '┌─────┐\n│test │\n└─────┘',
+                  style: TextStyle(
+                    fontFamily: fontFamily,
+                    fontSize: 18,
+                    color: Colors.greenAccent,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              const Text('Nerd Font Icons:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                color: Colors.black,
+                child: Text(
+                  '\uF07C Folder  \uF113 Git  \uF120 Term',
+                  style: TextStyle(
+                    fontFamily: fontFamily,
+                    fontSize: 18,
+                    color: Colors.greenAccent,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              const Text('Compare monospace vs NerdFont:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                color: Colors.black,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'mono: >\uE0B0< (should show box)',
+                      style: TextStyle(fontFamily: 'monospace', fontSize: 16, color: Colors.yellow),
+                    ),
+                    Text(
+                      'nerd: >\uE0B0< (should show arrow)',
+                      style: TextStyle(fontFamily: fontFamily, fontSize: 16, color: Colors.greenAccent),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'If both lines show empty between ><, the font\n'
+                  'is NOT loading correctly. Try rebuilding the app.',
+                  style: TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showDebugDialog(context);
+            },
+            child: const Text('Analyze Text'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDebugDialog(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Character Width Debug'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Paste your prompt or enter text to analyze:',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                maxLines: 3,
+                style: TextStyle(
+                  fontFamily: settings.effectiveFontFamily,
+                  fontSize: 14,
+                ),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'e.g. ~/path > master  √ < 12:00',
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Quick tests:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _QuickTestButton(
+                    label: 'Powerline',
+                    text: '\uE0B0\uE0B1\uE0B2\uE0B3',
+                    controller: controller,
+                  ),
+                  _QuickTestButton(
+                    label: 'Box Draw',
+                    text: '┌─┬─┐│└─┴─┘',
+                    controller: controller,
+                  ),
+                  _QuickTestButton(
+                    label: 'Block',
+                    text: '▀▄█▌▐░▒▓',
+                    controller: controller,
+                  ),
+                  _QuickTestButton(
+                    label: 'Git Icon',
+                    text: '\uE0A0\uF113\uF126',
+                    controller: controller,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text;
+              if (text.isNotEmpty) {
+                Navigator.pop(context);
+                _showAnalysisResult(context, text, settings);
+              }
+            },
+            child: const Text('Analyze'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAnalysisResult(
+    BuildContext context,
+    String text,
+    SettingsProvider settings,
+  ) {
+    final analysis = analyzeText(text);
+    int totalWidth = 0;
+
+    final buffer = StringBuffer();
+    buffer.writeln('Input: "$text"');
+    buffer.writeln('Codepoints: ${text.runes.length}');
+    buffer.writeln('');
+    buffer.writeln('Idx  Hex      Char  Width  Info');
+    buffer.writeln('───  ───────  ────  ─────  ────');
+
+    for (final item in analysis) {
+      final idx = item['index'].toString().padLeft(3);
+      final hex = item['hex'];
+      final char = item['char'];
+      final width = item['width'] as int;
+      totalWidth += width;
+
+      String flag = '';
+      if (item['isPUA'] == true) flag = '[PUA]';
+      if (item['isBox'] == true) flag = '[BOX]';
+      if (item['isBlock'] == true) flag = '[BLK]';
+
+      final name = item['name'] as String;
+      final info = name.isNotEmpty ? '$name $flag' : flag;
+
+      buffer.writeln('$idx  $hex  $char     $width      $info');
+    }
+
+    buffer.writeln('');
+    buffer.writeln('Total calculated width: $totalWidth');
+    buffer.writeln('');
+    buffer.writeln('--- Potential Issues ---');
+
+    // 检测潜在问题
+    bool hasIssue = false;
+    for (final item in analysis) {
+      final c = item['codepoint'] as int;
+      final w = item['width'] as int;
+      final hex = item['hex'];
+      final char = item['char'];
+
+      // Powerline 字符应该是宽度 1
+      if (c >= 0xE0A0 && c <= 0xE0D4 && w != 1) {
+        buffer.writeln('! $hex ($char): Powerline should be width 1, got $w');
+        hasIssue = true;
+      }
+
+      // Box drawing 字符应该是宽度 1
+      if (c >= 0x2500 && c <= 0x257F && w != 1) {
+        buffer.writeln('! $hex ($char): Box drawing should be width 1, got $w');
+        hasIssue = true;
+      }
+    }
+
+    if (!hasIssue) {
+      buffer.writeln('No width calculation issues detected.');
+      buffer.writeln('');
+      buffer.writeln('If alignment is still wrong, the issue might be:');
+      buffer.writeln('1. Font rendering width != calculated width');
+      buffer.writeln('2. Shell (zsh) uses different wcwidth');
+      buffer.writeln('3. Some characters missing in font');
+    }
+
+    final result = buffer.toString();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Analysis Result'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: SelectableText(
+                  result,
+                  style: TextStyle(
+                    fontFamily: settings.effectiveFontFamily,
+                    fontSize: 11,
+                    color: Colors.greenAccent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: result));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickTestButton extends StatelessWidget {
+  final String label;
+  final String text;
+  final TextEditingController controller;
+
+  const _QuickTestButton({
+    required this.label,
+    required this.text,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: () {
+        controller.text = text;
+      },
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        minimumSize: Size.zero,
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 12)),
+    );
   }
 }
