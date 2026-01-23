@@ -38,6 +38,10 @@ class TerminalSession {
   // 输入修饰符转换器 - 用于处理 Ctrl/Alt 修饰键
   InputModifierTransformer? inputTransformer;
 
+  // 调试信息：最后发送给 shell 的尺寸
+  int? lastShellColumns;
+  int? lastShellRows;
+
   TerminalSession({
     required this.id,
     required this.terminal,
@@ -69,8 +73,12 @@ class TerminalSession {
   }
 
   /// 启动Shell进程
-  Future<void> start({int columns = 80, int rows = 24}) async {
+  Future<void> start({int? columns, int? rows}) async {
     if (_isRunning) return;
+
+    // 使用终端当前的实际尺寸，如果没有则使用默认值
+    final actualColumns = columns ?? terminal.viewWidth;
+    final actualRows = rows ?? terminal.viewHeight;
 
     try {
       // 创建并启动Shell会话
@@ -90,8 +98,14 @@ class TerminalSession {
       // 设置终端大小调整回调 - 将resize信号传递给Shell进程
       // 这样vim等全屏应用才能正确响应屏幕大小变化
       terminal.onResize = (int width, int height, int pixelWidth, int pixelHeight) {
+        debugPrint('[TerminalSession] onResize called: ${width}x$height');
         if (_shellSession != null && _isRunning) {
+          debugPrint('[TerminalSession] Sending resize to shell: ${width}x$height');
           _shellSession!.resize(width, height);
+          lastShellColumns = width;
+          lastShellRows = height;
+        } else {
+          debugPrint('[TerminalSession] Shell not running, resize not sent');
         }
       };
 
@@ -108,9 +122,23 @@ class TerminalSession {
         (_) => _handleExit(),
       );
 
-      // 启动进程
-      await _shellSession!.start(columns: columns, rows: rows);
+      // 启动进程 - 使用实际的终端尺寸
+      debugPrint('[TerminalSession] Starting shell with size: ${actualColumns}x$actualRows');
+      await _shellSession!.start(columns: actualColumns, rows: actualRows);
       _isRunning = true;
+      lastShellColumns = actualColumns;
+      lastShellRows = actualRows;
+
+      // 确保 shell 获取到正确的终端尺寸
+      // 有时候视图布局在 start() 之后才完成，需要额外发送一次 resize
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_shellSession != null && _isRunning) {
+          debugPrint('[TerminalSession] Delayed resize: ${terminal.viewWidth}x${terminal.viewHeight}');
+          _shellSession!.resize(terminal.viewWidth, terminal.viewHeight);
+          lastShellColumns = terminal.viewWidth;
+          lastShellRows = terminal.viewHeight;
+        }
+      });
     } catch (e) {
       _handleError('Failed to start shell: $e');
       rethrow;

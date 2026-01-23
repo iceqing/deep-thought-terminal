@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -38,6 +40,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
   bool _volumeUpCtrlActive = false;
   bool _volumeDownAltActive = false;
 
+  // 调试信息刷新计时器
+  Timer? _debugRefreshTimer;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +82,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
       // 监听会话切换，确保新会话自动获得焦点
       terminalProvider.addListener(_onTerminalProviderChanged);
+    });
+
+    // 启动调试信息刷新计时器
+    _debugRefreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
     });
   }
 
@@ -223,6 +233,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   @override
   void dispose() {
+    // 取消调试信息刷新计时器
+    _debugRefreshTimer?.cancel();
     // 移除监听器
     context.read<TerminalProvider>().removeListener(_onTerminalProviderChanged);
     _terminalFocusNode.dispose();
@@ -263,6 +275,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
               child: Stack(
                 children: [
                   _buildTerminalView(context, terminalProvider, settings),
+                  // 调试信息显示
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: _buildDebugInfo(context, terminalProvider, settings),
+                  ),
                   // 选中文字时显示的浮动操作栏
                   if (_hasSelection)
                     Positioned(
@@ -982,6 +1000,91 @@ class _TerminalScreenState extends State<TerminalScreen> {
     setState(() {
       _hasSelection = false;
     });
+  }
+
+  /// 构建调试信息显示
+  Widget _buildDebugInfo(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) {
+    final session = terminalProvider.currentSession;
+    if (session == null) return const SizedBox.shrink();
+
+    final terminal = session.terminal;
+    final mediaQuery = MediaQuery.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'DEBUG INFO',
+            style: TextStyle(
+              color: Colors.green,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Terminal: ${terminal.viewWidth}x${terminal.viewHeight}',
+            style: const TextStyle(color: Colors.yellow, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            'Shell: ${session.lastShellColumns ?? "?"}x${session.lastShellRows ?? "?"}',
+            style: const TextStyle(color: Colors.lightGreen, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            'Buffer lines: ${terminal.buffer.lines.length}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'Cursor: (${terminal.buffer.cursorX}, ${terminal.buffer.cursorY})',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'AbsCursorY: ${terminal.buffer.absoluteCursorY}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'AltBuffer: ${terminal.isUsingAltBuffer}',
+            style: TextStyle(
+              color: terminal.isUsingAltBuffer ? Colors.orange : Colors.white,
+              fontSize: 10,
+            ),
+          ),
+          const Divider(height: 8, color: Colors.grey),
+          Text(
+            'FontSize: ${settings.fontSize.toStringAsFixed(1)}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'Margin: ${settings.terminalMargin}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'Screen: ${mediaQuery.size.width.toInt()}x${mediaQuery.size.height.toInt()}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+          Text(
+            'ViewInsets.bottom: ${mediaQuery.viewInsets.bottom.toInt()}',
+            style: const TextStyle(color: Colors.cyan, fontSize: 10),
+          ),
+          Text(
+            'Padding: T${mediaQuery.padding.top.toInt()} B${mediaQuery.padding.bottom.toInt()}',
+            style: const TextStyle(color: Colors.white, fontSize: 10),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showRenameDialog(

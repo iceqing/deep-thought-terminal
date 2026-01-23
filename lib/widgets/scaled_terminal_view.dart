@@ -142,7 +142,9 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
           terminal: widget.terminal,
           controller: _controller,
           offset: offset,
-          padding: MediaQuery.of(context).padding,
+          // 不使用 MediaQuery.padding，因为 SafeArea 已经处理了系统 padding
+          // 直接使用 EdgeInsets.zero，让终端使用完整的可用空间
+          padding: EdgeInsets.zero,
           autoResize: widget.autoResize,
           textStyle: widget.textStyle,
           textScaler: widget.textScaler ?? MediaQuery.textScalerOf(context),
@@ -271,9 +273,40 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   }
 
   void _scrollToBottom() {
+    _scrollToCursor();
+  }
+
+  /// 滚动以确保光标可见
+  void _scrollToCursor() {
     final position = _scrollableKey.currentState?.position;
-    if (position != null) {
+    if (position == null) return;
+
+    // 如果使用 alt buffer（vim、htop 等全屏应用），它们自己管理滚动，
+    // 终端视图不应该干预，直接滚动到底部（通常是0）
+    if (widget.terminal.isUsingAltBuffer) {
       position.jumpTo(position.maxScrollExtent);
+      return;
+    }
+
+    // 普通 shell 模式：确保光标可见
+    final render = _viewportKey.currentContext?.findRenderObject();
+    if (render == null || render is! RenderBox) return;
+
+    final cellHeight = _renderTerminal.cellSize.height;
+    final cursorY = widget.terminal.buffer.absoluteCursorY;
+    final cursorTop = cursorY * cellHeight;
+    final cursorBottom = cursorTop + cellHeight;
+
+    final viewportHeight = render.size.height;
+    final currentScroll = position.pixels;
+
+    // 如果光标在可见区域上方，滚动到光标位置
+    if (cursorTop < currentScroll) {
+      position.jumpTo(cursorTop);
+    }
+    // 如果光标在可见区域下方，滚动使光标在底部可见
+    else if (cursorBottom > currentScroll + viewportHeight) {
+      position.jumpTo(cursorBottom - viewportHeight);
     }
   }
 
@@ -783,15 +816,29 @@ class _ScaledRenderTerminal extends RenderBox
       return;
     }
 
-    final viewportSize = _TerminalSize(
-      size.width ~/ _painter.cellSize.width,
-      _viewportHeight ~/ _painter.cellSize.height,
-    );
+    final cellWidth = _painter.cellSize.width;
+    final cellHeight = _painter.cellSize.height;
+
+    // 计算能完整显示的行数，必须确保每一行都能完全显示
+    // 使用 truncate 而不是 floor 来获得能完整显示的行数
+    final cols = (_viewportWidth / cellWidth).truncate();
+    final rows = (_viewportHeight / cellHeight).truncate();
+
+    debugPrint('[Viewport] size: ${size.width.toInt()}x${size.height.toInt()}, '
+        'cell: ${cellWidth.toStringAsFixed(1)}x${cellHeight.toStringAsFixed(1)}, '
+        'viewportH: ${_viewportHeight.toStringAsFixed(1)}, '
+        'rows: $_viewportHeight / $cellHeight = ${_viewportHeight / cellHeight}, truncate = $rows');
+
+    final viewportSize = _TerminalSize(cols, rows);
 
     if (_viewportSize != viewportSize) {
       _viewportSize = viewportSize;
       _resizeTerminalIfNeeded();
     }
+  }
+
+  double get _viewportWidth {
+    return size.width - _padding.horizontal;
   }
 
   void _resizeTerminalIfNeeded() {

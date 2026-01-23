@@ -127,7 +127,8 @@ class PtyShellSession implements ShellSession {
   @override
   void resize(int columns, int rows) {
     if (_pty != null && isRunning) {
-      _pty!.resize(columns, rows);
+      // flutter_pty 的 resize 参数顺序是 (rows, cols)，不是 (cols, rows)
+      _pty!.resize(rows, columns);
     }
   }
 
