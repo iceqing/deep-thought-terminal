@@ -18,7 +18,7 @@ class TaskDrawer extends StatefulWidget {
 }
 
 class _TaskDrawerState extends State<TaskDrawer> {
-  // 移除折叠状态，默认全部展开以提高效率
+  final Set<String> _expandedGroups = {'default'};
 
   @override
   Widget build(BuildContext context) {
@@ -33,23 +33,27 @@ class _TaskDrawerState extends State<TaskDrawer> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+                color: theme.colorScheme.primaryContainer,
               ),
               child: Row(
                 children: [
                   Icon(
-                    Icons.task_alt,
-                    color: theme.colorScheme.primary,
+                    Icons.play_circle_outline,
+                    color: theme.colorScheme.onPrimaryContainer,
                   ),
                   const SizedBox(width: 12),
                   Text(
                     'Tasks',
-                    style: theme.textTheme.titleLarge,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.add),
+                    icon: Icon(
+                      Icons.add,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
                     onPressed: () => _showAddOptions(context, taskProvider),
                     tooltip: 'Add',
                   ),
@@ -62,45 +66,64 @@ class _TaskDrawerState extends State<TaskDrawer> {
               child: taskProvider.allGroups.isEmpty
                   ? _buildEmptyState(context, taskProvider)
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: taskProvider.allGroups.length,
                       itemBuilder: (context, index) {
                         final group = taskProvider.allGroups[index];
                         final tasks = taskProvider.getTasksForGroup(group.id);
-                        
-                        // 如果分组为空且不是默认分组，可以隐藏或者显示空状态
-                        if (tasks.isEmpty && group.id != 'default') return const SizedBox.shrink();
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 分组标题
-                            _GroupHeader(
-                              group: group,
-                              onEdit: group.id != 'default' 
-                                  ? () => _showEditGroupDialog(context, taskProvider, group) 
-                                  : null,
-                              onDelete: group.id != 'default' 
-                                  ? () => _showDeleteGroupDialog(context, taskProvider, group) 
-                                  : null,
-                              onAddTask: () => _showAddTaskDialog(context, taskProvider, group.id),
-                            ),
-                            // 任务列表
-                            ...tasks.map((task) => _TaskTile(
-                                  task: task,
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    widget.onTaskExecute?.call(task);
-                                  },
-                                  onEdit: () => _showEditTaskDialog(context, taskProvider, task),
-                                  onDelete: () => _showDeleteTaskDialog(context, taskProvider, task),
-                                )),
-                            if (index < taskProvider.allGroups.length - 1)
-                              const Divider(height: 24, indent: 16, endIndent: 16),
-                          ],
+                        return _GroupSection(
+                          group: group,
+                          tasks: tasks,
+                          isExpanded: _expandedGroups.contains(group.id),
+                          onToggle: () {
+                            setState(() {
+                              if (_expandedGroups.contains(group.id)) {
+                                _expandedGroups.remove(group.id);
+                              } else {
+                                _expandedGroups.add(group.id);
+                              }
+                            });
+                          },
+                          onTaskTap: (task) {
+                            Navigator.pop(context);
+                            widget.onTaskExecute?.call(task);
+                          },
+                          onTaskEdit: (task) => _showEditTaskDialog(context, taskProvider, task),
+                          onTaskDelete: (task) => _showDeleteTaskDialog(context, taskProvider, task),
+                          onGroupEdit: group.id != 'default'
+                              ? () => _showEditGroupDialog(context, taskProvider, group)
+                              : null,
+                          onGroupDelete: group.id != 'default'
+                              ? () => _showDeleteGroupDialog(context, taskProvider, group)
+                              : null,
+                          onAddTask: () => _showAddTaskDialog(context, taskProvider, group.id),
                         );
                       },
                     ),
+            ),
+
+            // 底部操作
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showAddGroupDialog(context, taskProvider),
+                      icon: const Icon(Icons.create_new_folder),
+                      label: const Text('New Group'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _showAddTaskDialog(context, taskProvider, 'default'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('New Task'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -308,82 +331,152 @@ class _TaskDrawerState extends State<TaskDrawer> {
   }
 }
 
-/// 分组标题组件
-class _GroupHeader extends StatelessWidget {
+/// 分组区块组件
+class _GroupSection extends StatelessWidget {
   final TaskGroup group;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
+  final List<Task> tasks;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final Function(Task) onTaskTap;
+  final Function(Task) onTaskEdit;
+  final Function(Task) onTaskDelete;
+  final VoidCallback? onGroupEdit;
+  final VoidCallback? onGroupDelete;
   final VoidCallback onAddTask;
 
-  const _GroupHeader({
+  const _GroupSection({
     required this.group,
-    this.onEdit,
-    this.onDelete,
+    required this.tasks,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onTaskTap,
+    required this.onTaskEdit,
+    required this.onTaskDelete,
+    this.onGroupEdit,
+    this.onGroupDelete,
     required this.onAddTask,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-      child: Row(
-        children: [
-          Icon(group.icon, size: 18, color: group.color),
-          const SizedBox(width: 8),
-          Text(
-            group.name,
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
+
+    return Column(
+      children: [
+        // 分组头部
+        InkWell(
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            child: Row(
+              children: [
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  group.icon,
+                  size: 20,
+                  color: group.color,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    group.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${tasks.length}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'add_task',
+                      child: Row(
+                        children: [
+                          Icon(Icons.add, size: 20),
+                          SizedBox(width: 8),
+                          Text('Add Task'),
+                        ],
+                      ),
+                    ),
+                    if (onGroupEdit != null)
+                      const PopupMenuItem(
+                        value: 'edit_group',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 20),
+                            SizedBox(width: 8),
+                            Text('Edit Group'),
+                          ],
+                        ),
+                      ),
+                    if (onGroupDelete != null)
+                      const PopupMenuItem(
+                        value: 'delete_group',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 20),
+                            SizedBox(width: 8),
+                            Text('Delete Group'),
+                          ],
+                        ),
+                      ),
+                  ],
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'add_task':
+                        onAddTask();
+                        break;
+                      case 'edit_group':
+                        onGroupEdit?.call();
+                        break;
+                      case 'delete_group':
+                        onGroupDelete?.call();
+                        break;
+                    }
+                  },
+                ),
+              ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.add, size: 20),
-            onPressed: onAddTask,
-            tooltip: 'Add Task',
-            visualDensity: VisualDensity.compact,
-          ),
-          if (onEdit != null || onDelete != null)
-            PopupMenuButton<String>(
-              icon: Icon(
-                Icons.more_vert,
-                size: 18,
+        ),
+
+        // 任务列表
+        if (isExpanded)
+          ...tasks.map((task) => _TaskTile(
+                task: task,
+                onTap: () => onTaskTap(task),
+                onEdit: () => onTaskEdit(task),
+                onDelete: () => onTaskDelete(task),
+              )),
+        if (isExpanded && tasks.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'No tasks in this group',
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-              padding: EdgeInsets.zero,
-              itemBuilder: (context) => [
-                if (onEdit != null)
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit, size: 18),
-                        SizedBox(width: 8),
-                        Text('Edit Group'),
-                      ],
-                    ),
-                  ),
-                if (onDelete != null)
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete, size: 18),
-                        SizedBox(width: 8),
-                        Text('Delete Group'),
-                      ],
-                    ),
-                  ),
-              ],
-              onSelected: (value) {
-                if (value == 'edit') onEdit?.call();
-                if (value == 'delete') onDelete?.call();
-              },
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
