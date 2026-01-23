@@ -25,6 +25,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // 主题设置
   String _colorTheme = DefaultSettings.colorTheme;
+  ThemeMode _themeMode = ThemeMode.system; // 默认为跟随系统
 
   // 光标设置
   String _cursorStyle = DefaultSettings.cursorStyle;
@@ -75,6 +76,7 @@ class SettingsProvider extends ChangeNotifier {
            _fontFamily == AvailableFonts.nerdFontFamily;
   }
   String get colorTheme => _colorTheme;
+  ThemeMode get themeMode => _themeMode;
   String get cursorStyle => _cursorStyle;
   bool get cursorBlink => _cursorBlink;
   bool get keepScreenOn => _keepScreenOn;
@@ -152,6 +154,8 @@ class SettingsProvider extends ChangeNotifier {
     _fontFamily = _prefs.getString('fontFamily') ?? DefaultSettings.fontFamily;
     _fontSize = _prefs.getDouble('fontSize') ?? DefaultSettings.fontSize;
     _colorTheme = _prefs.getString('colorTheme') ?? DefaultSettings.colorTheme;
+    final themeModeIndex = _prefs.getInt('themeMode') ?? 0; // 0: system
+    _themeMode = ThemeMode.values[themeModeIndex];
     _cursorStyle = _prefs.getString('cursorStyle') ?? DefaultSettings.cursorStyle;
     _cursorBlink = _prefs.getBool('cursorBlink') ?? DefaultSettings.cursorBlink;
     _keepScreenOn = _prefs.getBool('keepScreenOn') ?? DefaultSettings.keepScreenOn;
@@ -180,6 +184,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setColorTheme(String value) async {
     _colorTheme = value;
     await _prefs.setString('colorTheme', value);
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode value) async {
+    _themeMode = value;
+    await _prefs.setInt('themeMode', value.index);
     notifyListeners();
   }
 

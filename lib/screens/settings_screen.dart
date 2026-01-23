@@ -20,6 +20,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: const [
           _SectionHeader(title: 'Appearance'),
+          _AppThemeSetting(),
           _FontFamilySetting(),
           _FontSizeSetting(),
           _ColorThemeSetting(),
@@ -65,6 +66,76 @@ class _SectionHeader extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+}
+
+/// 全局主题设置
+class _AppThemeSetting extends StatelessWidget {
+  const _AppThemeSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+
+    return ListTile(
+      leading: const Icon(Icons.brightness_medium),
+      title: const Text('App Theme'),
+      subtitle: Text(_getThemeModeName(settings.themeMode)),
+      onTap: () => _showThemeModePicker(context, settings),
+    );
+  }
+
+  String _getThemeModeName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'System Default';
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+    }
+  }
+
+  void _showThemeModePicker(BuildContext context, SettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select App Theme',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            _buildRadioTile(context, settings, ThemeMode.system, 'System Default'),
+            _buildRadioTile(context, settings, ThemeMode.light, 'Light'),
+            _buildRadioTile(context, settings, ThemeMode.dark, 'Dark'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRadioTile(
+    BuildContext context,
+    SettingsProvider settings,
+    ThemeMode mode,
+    String title,
+  ) {
+    return RadioListTile<ThemeMode>(
+      title: Text(title),
+      value: mode,
+      groupValue: settings.themeMode,
+      onChanged: (value) {
+        if (value != null) {
+          settings.setThemeMode(value);
+          Navigator.pop(context);
+        }
+      },
     );
   }
 }

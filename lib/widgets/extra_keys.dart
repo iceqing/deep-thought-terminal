@@ -433,7 +433,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
             borderRadius: BorderRadius.circular(4),
             child: Center(
               child: Icon(
-                _expanded ? Icons.keyboard_hide : Icons.apps,
+                _expanded ? Icons.keyboard_arrow_down : Icons.apps,
                 size: 18,
                 color: _expanded
                     ? theme.colorScheme.onPrimaryContainer

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/terminal_provider.dart';
 import '../models/terminal_session.dart';
+import '../screens/ssh_manager_screen.dart';
 
 /// 会话列表抽屉
 /// 参考 termux-app: TermuxSessionsListViewController.java
@@ -42,6 +43,22 @@ class SessionDrawer extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
+                  IconButton(
+                    icon: Icon(
+                      Icons.dns,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SSHManagerScreen(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Manage SSH',
+                  ),
                   IconButton(
                     icon: Icon(
                       Icons.settings,
