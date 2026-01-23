@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
+// 使用修改版 Terminal，支持 Termux 兼容的 wcwidth
+import '../core/terminal.dart';
 import '../shell/shell_session.dart';
 import '../services/storage_service.dart';
 import '../utils/constants.dart';
@@ -13,7 +15,8 @@ typedef InputModifierTransformer = String Function(String input);
 /// 参考 termux-app: TerminalSession.java
 class TerminalSession {
   final String id;
-  final Terminal terminal;
+  // 使用 TermuxTerminal 以支持 Termux 兼容的 wcwidth
+  final TermuxTerminal terminal;
   final TerminalController controller;
   String title;
   final DateTime createdAt;
@@ -53,7 +56,8 @@ class TerminalSession {
   /// 创建新的终端会话
   static TerminalSession create({String? title}) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
-    final terminal = Terminal(maxLines: 10000);
+    // 使用 TermuxTerminal 替代 xterm 的 Terminal
+    final terminal = TermuxTerminal(maxLines: 10000);
     final controller = TerminalController();
 
     return TerminalSession(
@@ -80,6 +84,14 @@ class TerminalSession {
               ? inputTransformer!(data)
               : data;
           _shellSession!.write(transformedData);
+        }
+      };
+
+      // 设置终端大小调整回调 - 将resize信号传递给Shell进程
+      // 这样vim等全屏应用才能正确响应屏幕大小变化
+      terminal.onResize = (int width, int height, int pixelWidth, int pixelHeight) {
+        if (_shellSession != null && _isRunning) {
+          _shellSession!.resize(width, height);
         }
       };
 

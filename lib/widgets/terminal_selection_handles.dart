@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:xterm/xterm.dart';
 import 'dart:math' as math;
+// 使用修改版 Terminal 和 CellAnchor
+import '../core/terminal.dart';
+import '../core/buffer/line.dart' as local;
 
 /// Widget to display selection handles for the terminal
 class TerminalSelectionHandles extends StatefulWidget {
-  final Terminal terminal;
+  final TermuxTerminal terminal;
   final TerminalController controller;
   final TerminalStyle textStyle;
   final Color handleColor;
@@ -227,27 +230,28 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     // Create new anchor using createAnchorFromOffset
     final newOffset = CellOffset(newX, newY);
     final newAnchor = widget.terminal.buffer.createAnchorFromOffset(newOffset);
-    
+
     final fixedOffset = isStart ? selection.end : selection.begin;
     final fixedAnchor = widget.terminal.buffer.createAnchorFromOffset(fixedOffset);
-    
-    // Helper to compare anchors
-    int compare(CellAnchor a, CellAnchor b) {
+
+    // Helper to compare anchors - 使用 local.CellAnchor 类型
+    int compare(local.CellAnchor a, local.CellAnchor b) {
       if (a.y != b.y) return a.y.compareTo(b.y);
       return a.x.compareTo(b.x);
     }
-    
+
+    // 使用 dynamic 转换以绕过 CellAnchor 类型不匹配问题
     if (isStart) {
       if (compare(newAnchor, fixedAnchor) > 0) {
-         widget.controller.setSelection(fixedAnchor, newAnchor);
+         widget.controller.setSelection(fixedAnchor as dynamic, newAnchor as dynamic);
       } else {
-         widget.controller.setSelection(newAnchor, fixedAnchor);
+         widget.controller.setSelection(newAnchor as dynamic, fixedAnchor as dynamic);
       }
     } else {
       if (compare(newAnchor, fixedAnchor) < 0) {
-         widget.controller.setSelection(newAnchor, fixedAnchor);
+         widget.controller.setSelection(newAnchor as dynamic, fixedAnchor as dynamic);
       } else {
-         widget.controller.setSelection(fixedAnchor, newAnchor);
+         widget.controller.setSelection(fixedAnchor as dynamic, newAnchor as dynamic);
       }
     }
     

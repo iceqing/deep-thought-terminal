@@ -14,6 +14,7 @@ import '../widgets/task_drawer.dart';
 import '../models/task.dart';
 import '../utils/gesture_utils.dart';
 import '../widgets/terminal_selection_handles.dart';
+import '../widgets/scaled_terminal_view.dart';
 import 'settings_screen.dart';
 
 /// 终端主屏幕
@@ -484,7 +485,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
               }
             }
           },
-          child: TerminalView(
+          child: ScaledTerminalView(
             currentSession.terminal,
             controller: currentSession.controller,
             theme: settings.terminalTheme,
@@ -963,9 +964,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
     const beginOffset = CellOffset(0, 0);
     final endOffset = CellOffset(terminal.viewWidth - 1, buffer.height - 1);
 
+    // 使用 dynamic 转换以绕过 CellAnchor 类型不匹配问题
+    // 我们的本地 CellAnchor 与 xterm 的 CellAnchor 具有相同的 API
+    final beginAnchor = buffer.createAnchorFromOffset(beginOffset);
+    final endAnchor = buffer.createAnchorFromOffset(endOffset);
     session.controller.setSelection(
-      buffer.createAnchorFromOffset(beginOffset),
-      buffer.createAnchorFromOffset(endOffset),
+      beginAnchor as dynamic,
+      endAnchor as dynamic,
     );
   }
 
