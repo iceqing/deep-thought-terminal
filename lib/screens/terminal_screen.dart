@@ -10,6 +10,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../providers/settings_provider.dart';
 import '../providers/terminal_provider.dart';
 import '../providers/ssh_provider.dart';
+import '../providers/task_provider.dart';
 import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
@@ -267,6 +268,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final terminalProvider = context.watch<TerminalProvider>();
+    final taskProvider = context.watch<TaskProvider>();
 
     // 更新屏幕常亮状态
     if (settings.keepScreenOn) {
@@ -319,6 +321,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 altPressed: _volumeDownAltActive,
                 onCtrlToggle: () => setState(() => _volumeUpCtrlActive = !_volumeUpCtrlActive),
                 onAltToggle: () => setState(() => _volumeDownAltActive = !_volumeDownAltActive),
+                customCommands: taskProvider.tasks.map((t) => QuickCommand(
+                  label: t.name,
+                  command: t.script.endsWith('\n') ? t.script : '${t.script}\n',
+                  icon: Icons.play_arrow,
+                )).toList(),
               ),
           ],
         ),

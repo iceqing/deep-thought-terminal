@@ -217,7 +217,10 @@ class ScaledTerminalPainter {
     // 检测字体宽度不匹配 - 参考 Termux TerminalRenderer.java
     // 检查实际宽度与预期宽度的偏差是否超过 1%
     // 注意：需要同时处理过宽和过窄的情况
-    if (actualWidth > 0 && expectedWidth > 0) {
+    // 修复：对于 Powerline 符号（E000-F8FF），不进行缩放，避免变形和缝隙
+    final isPowerlineSymbol = charCode >= 0xE000 && charCode <= 0xF8FF;
+
+    if (actualWidth > 0 && expectedWidth > 0 && !isPowerlineSymbol) {
       final ratio = actualWidth / expectedWidth;
       final hasWidthMismatch = (ratio - 1.0).abs() > 0.01;
 
