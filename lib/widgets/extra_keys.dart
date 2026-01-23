@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
@@ -182,6 +184,11 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   bool _expanded = false;
   int _expandedTab = 0; // 0: 符号, 1: 功能键, 2: 快捷命令, 3: 导航, 4: Termux
 
+  // 长按重复计时器
+  Timer? _repeatTimer;
+  static const _repeatDelay = Duration(milliseconds: 400); // 首次延迟
+  static const _repeatInterval = Duration(milliseconds: 50); // 重复间隔
+
   // 使用外部状态或本地状态
   bool get _ctrlPressed => widget.ctrlPressed || _localCtrlPressed;
   bool get _altPressed => widget.altPressed || _localAltPressed;
@@ -249,6 +256,31 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
       HapticFeedback.lightImpact();
     }
     widget.onTextKeyTap(cmd.command);
+  }
+
+  @override
+  void dispose() {
+    _stopRepeat();
+    super.dispose();
+  }
+
+  /// 开始长按重复
+  void _startRepeat(ExtraKey key) {
+    _stopRepeat();
+    // 首次按下立即触发
+    _handleKeyTap(key);
+    // 延迟后开始重复
+    _repeatTimer = Timer(_repeatDelay, () {
+      _repeatTimer = Timer.periodic(_repeatInterval, (_) {
+        _handleKeyTap(key);
+      });
+    });
+  }
+
+  /// 停止长按重复
+  void _stopRepeat() {
+    _repeatTimer?.cancel();
+    _repeatTimer = null;
   }
 
   @override
@@ -343,16 +375,17 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
     );
   }
 
-  /// 方向键按钮 (自适应宽度)
+  /// 方向键按钮 (自适应宽度，支持长按重复)
   Widget _buildArrowKey(ExtraKey key, ThemeData theme) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(2),
-        child: Material(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: () => _handleKeyTap(key),
+        child: GestureDetector(
+          onTapDown: (_) => _startRepeat(key),
+          onTapUp: (_) => _stopRepeat(),
+          onTapCancel: () => _stopRepeat(),
+          child: Material(
+            color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(4),
             child: Center(
               child: key.icon != null
