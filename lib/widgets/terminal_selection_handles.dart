@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:xterm/xterm.dart';
+import 'package:xterm/xterm.dart' hide TerminalController;
 import 'dart:math' as math;
 // 使用修改版 Terminal 和 CellAnchor
 import '../core/terminal.dart';
+import '../core/terminal_controller.dart';
 import '../core/buffer/line.dart' as local;
 
 /// Widget to display selection handles for the terminal
 class TerminalSelectionHandles extends StatefulWidget {
   final TermuxTerminal terminal;
-  final TerminalController controller;
+  final TermuxTerminalController controller;
+  final ScrollController scrollController;
   final TerminalStyle textStyle;
   final Color handleColor;
   final VoidCallback? onSelectionChanged;
@@ -17,6 +19,7 @@ class TerminalSelectionHandles extends StatefulWidget {
     super.key,
     required this.terminal,
     required this.controller,
+    required this.scrollController,
     required this.textStyle,
     required this.handleColor,
     this.onSelectionChanged,
@@ -36,12 +39,15 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     widget.terminal.addListener(_onTerminalUpdate);
     // 监听控制器变化（选择范围更新）
     widget.controller.addListener(_onSelectionUpdate);
+    // 监听滚动变化
+    widget.scrollController.addListener(_onScrollUpdate);
   }
 
   @override
   void dispose() {
     widget.terminal.removeListener(_onTerminalUpdate);
     widget.controller.removeListener(_onSelectionUpdate);
+    widget.scrollController.removeListener(_onScrollUpdate);
     super.dispose();
   }
 
@@ -50,6 +56,10 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
   }
 
   void _onSelectionUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  void _onScrollUpdate() {
     if (mounted) setState(() {});
   }
   
@@ -63,6 +73,10 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onSelectionUpdate);
       widget.controller.addListener(_onSelectionUpdate);
+    }
+    if (oldWidget.scrollController != widget.scrollController) {
+      oldWidget.scrollController.removeListener(_onScrollUpdate);
+      widget.scrollController.addListener(_onScrollUpdate);
     }
     if (oldWidget.textStyle.fontSize != widget.textStyle.fontSize || 
         oldWidget.textStyle.fontFamily != widget.textStyle.fontFamily) {
@@ -95,16 +109,15 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
 
     final charSize = _measureCharSize(context);
     
-    // We assume we are at the bottom or ignore scroll offset for now 
-    // as we couldn't resolve the accessor.
-    // Handles might be misaligned if scrolled up.
-    // In a future update, we should find the correct scroll offset property (e.g. scrollOffset, viewY).
-    const int viewOffset = 0; 
-    
-    final int bufferHeight = widget.terminal.buffer.height;
+    // Calculate first visible row based on scroll offset
+    // Scroll offset is in pixels.
+    final double scrollOffset = widget.scrollController.hasClients 
+        ? widget.scrollController.offset 
+        : 0.0;
+        
+    final int firstVisibleRow = (scrollOffset / charSize.height).floor();
+
     final int viewHeight = widget.terminal.viewHeight;
-    
-    final int firstVisibleRow = math.max(0, bufferHeight - viewHeight - viewOffset);
 
     final CellOffset begin = selection.begin;
     final CellOffset end = selection.end;
@@ -121,28 +134,11 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     final startHandlePos = Offset(startX, startY + charSize.height);
     final endHandlePos = Offset(endX, endY + charSize.height);
 
-    // Touch target is 48x48. Center is 24, 24.
-    // Handle visual part:
-    // Left: Top-Right of visual part matches cursor. Visual part is below line.
-    // Right: Top-Left of visual part matches cursor.
-    // 
-    // We want the 'point' of the teardrop to align with (startX, startY + lineHeight)
-    // 
-    // If widget is 48x48:
-    // CenterX = 24.
-    // We draw handle such that its 'point' is at (24, 0) relative to widget?
-    // 
-    // In _HandlePainter:
-    // We assume the handle hangs down from top center.
-    // 
-    // So Positioned 'top' should be startY + lineHeight.
-    // Positioned 'left' should center the widget horizontally on startX.
-    // left = startX - 24.
-    
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        if (startVisualRow >= -1 && startVisualRow <= viewHeight)
+        // Only show if visible in viewport (adding some buffer)
+        if (startVisualRow >= -2 && startVisualRow <= viewHeight + 1)
           Positioned(
             left: startHandlePos.dx - 24, 
             top: startHandlePos.dy,
@@ -153,7 +149,7 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
             ),
           ),
           
-        if (endVisualRow >= -1 && endVisualRow <= viewHeight)
+        if (endVisualRow >= -2 && endVisualRow <= viewHeight + 1)
           Positioned(
             left: endHandlePos.dx - 24,
             top: endHandlePos.dy,
@@ -240,18 +236,17 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
       return a.x.compareTo(b.x);
     }
 
-    // 使用 dynamic 转换以绕过 CellAnchor 类型不匹配问题
     if (isStart) {
       if (compare(newAnchor, fixedAnchor) > 0) {
-         widget.controller.setSelection(fixedAnchor as dynamic, newAnchor as dynamic);
+         widget.controller.setSelection(fixedAnchor, newAnchor);
       } else {
-         widget.controller.setSelection(newAnchor as dynamic, fixedAnchor as dynamic);
+         widget.controller.setSelection(newAnchor, fixedAnchor);
       }
     } else {
       if (compare(newAnchor, fixedAnchor) < 0) {
-         widget.controller.setSelection(newAnchor as dynamic, fixedAnchor as dynamic);
+         widget.controller.setSelection(newAnchor, fixedAnchor);
       } else {
-         widget.controller.setSelection(fixedAnchor as dynamic, newAnchor as dynamic);
+         widget.controller.setSelection(fixedAnchor, newAnchor);
       }
     }
     

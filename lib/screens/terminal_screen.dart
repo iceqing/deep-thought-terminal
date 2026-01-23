@@ -278,7 +278,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: settings.terminalTheme.background,
-      appBar: _buildAppBar(context, terminalProvider, settings),
+      appBar: _hasSelection 
+          ? _buildSelectionAppBar(context, terminalProvider, settings)
+          : _buildAppBar(context, terminalProvider, settings),
       drawer: SessionDrawer(
         onSettingsTap: () => _openSettings(context),
       ),
@@ -300,14 +302,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
                       right: 8,
                       child: _buildDebugInfo(context, terminalProvider, settings),
                     ),
-                  // 选中文字时显示的浮动操作栏
-                  if (_hasSelection)
-                    Positioned(
-                      bottom: 16,
-                      left: 0,
-                      right: 0,
-                      child: _buildSelectionToolbar(context, terminalProvider, settings),
-                    ),
                 ],
               ),
             ),
@@ -326,6 +320,94 @@ class _TerminalScreenState extends State<TerminalScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildSelectionAppBar(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) {
+    return AppBar(
+      backgroundColor: settings.terminalTheme.background,
+      foregroundColor: settings.terminalTheme.foreground,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.close),
+        onPressed: () => _clearSelection(terminalProvider),
+        tooltip: 'Clear selection',
+      ),
+      title: const Text('Selected'),
+      centerTitle: false, // 让标题靠左，给右侧操作留更多空间
+      actions: [
+        // 主要操作：醒目的复制按钮 (图标 + 文字)
+        // 使用 Container 包裹以调整在 AppBar 中的垂直对齐和边距
+        Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: FilledButton.icon(
+              onPressed: () => _copySelection(terminalProvider),
+              icon: const Icon(Icons.copy, size: 18),
+              label: const Text('Copy'),
+              style: FilledButton.styleFrom(
+                // 使用半透明的前景色作为背景，保持与主题一致
+                backgroundColor: settings.terminalTheme.foreground.withOpacity(0.15),
+                foregroundColor: settings.terminalTheme.foreground,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ),
+        // 更多操作
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          tooltip: 'More actions',
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'select_all',
+              child: Row(
+                children: [
+                  Icon(Icons.select_all),
+                  SizedBox(width: 8),
+                  Text('Select All'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'copy_all',
+              child: Row(
+                children: [
+                  Icon(Icons.copy_all),
+                  SizedBox(width: 8),
+                  Text('Copy All Output'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'copy_last_50',
+              child: Row(
+                children: [
+                  Icon(Icons.history),
+                  SizedBox(width: 8),
+                  Text('Copy Last 50 Lines'),
+                ],
+              ),
+            ),
+          ],
+          onSelected: (value) {
+            if (value == 'select_all') {
+              _selectAll(terminalProvider);
+            } else if (value == 'copy_all') {
+              _copyAllContent(terminalProvider);
+            } else if (value == 'copy_last_50') {
+              _copyLastLines(terminalProvider, 50);
+            }
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 
@@ -546,6 +628,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
           child: ScaledTerminalView(
             currentSession.terminal,
             controller: currentSession.controller,
+            scrollController: currentSession.scrollController,
             theme: settings.terminalTheme,
             textStyle: TerminalStyle(
               fontFamily: _getTerminalFontFamily(settings),
@@ -568,6 +651,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             TerminalSelectionHandles(
               terminal: currentSession.terminal,
               controller: currentSession.controller,
+              scrollController: currentSession.scrollController,
               textStyle: TerminalStyle(
                 fontFamily: _getTerminalFontFamily(settings),
                 fontSize: settings.fontSize,
@@ -871,151 +955,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
     });
   }
 
-  Widget _buildSelectionToolbar(
-    BuildContext context,
-    TerminalProvider terminalProvider,
-    SettingsProvider settings,
-  ) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        decoration: BoxDecoration(
-          color: settings.terminalTheme.background,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: settings.terminalTheme.foreground.withOpacity(0.4),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 复制选中内容 - 主要按钮
-            _buildToolbarPrimaryButton(
-              icon: Icons.copy,
-              label: 'Copy',
-              onTap: () => _copySelection(terminalProvider),
-              settings: settings,
-            ),
-            _buildToolbarDivider(settings),
-            // 复制全部
-            _buildToolbarButton(
-              icon: Icons.copy_all,
-              label: 'All',
-              onTap: () => _copyAllContent(terminalProvider),
-              settings: settings,
-            ),
-            _buildToolbarDivider(settings),
-            // 全选
-            _buildToolbarButton(
-              icon: Icons.select_all,
-              label: 'Select All',
-              onTap: () => _selectAll(terminalProvider),
-              settings: settings,
-            ),
-            _buildToolbarDivider(settings),
-            // 清除选择
-            _buildToolbarButton(
-              icon: Icons.close,
-              label: '',
-              onTap: () => _clearSelection(terminalProvider),
-              settings: settings,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToolbarPrimaryButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required SettingsProvider settings,
-  }) {
-    return Material(
-      color: settings.terminalTheme.foreground.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: settings.terminalTheme.foreground,
-              ),
-              if (label.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: settings.terminalTheme.foreground,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToolbarButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required SettingsProvider settings,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: settings.terminalTheme.foreground,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: settings.terminalTheme.foreground,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToolbarDivider(SettingsProvider settings) {
-    return Container(
-      width: 1,
-      height: 20,
-      color: settings.terminalTheme.foreground.withOpacity(0.2),
-    );
-  }
-
   void _selectAll(TerminalProvider terminalProvider) {
     final session = terminalProvider.currentSession;
     if (session == null) return;
@@ -1028,13 +967,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
     const beginOffset = CellOffset(0, 0);
     final endOffset = CellOffset(terminal.viewWidth - 1, buffer.height - 1);
 
-    // 使用 dynamic 转换以绕过 CellAnchor 类型不匹配问题
     // 我们的本地 CellAnchor 与 xterm 的 CellAnchor 具有相同的 API
     final beginAnchor = buffer.createAnchorFromOffset(beginOffset);
     final endAnchor = buffer.createAnchorFromOffset(endOffset);
     session.controller.setSelection(
-      beginAnchor as dynamic,
-      endAnchor as dynamic,
+      beginAnchor,
+      endAnchor,
     );
   }
 

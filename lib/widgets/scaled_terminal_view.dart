@@ -4,9 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:xterm/xterm.dart';
+import 'package:xterm/xterm.dart' hide TerminalController;
 // 使用修改版 Terminal，支持 Termux 兼容的 wcwidth
 import '../core/terminal.dart';
+import '../core/terminal_controller.dart';
 
 import 'scaled_terminal_painter.dart';
 
@@ -45,7 +46,7 @@ class ScaledTerminalView extends StatefulWidget {
   });
 
   final TermuxTerminal terminal;
-  final TerminalController? controller;
+  final TermuxTerminalController? controller;
   final TerminalTheme theme;
   final TerminalStyle textStyle;
   final TextScaler? textScaler;
@@ -76,8 +77,11 @@ class ScaledTerminalView extends StatefulWidget {
 
 class ScaledTerminalViewState extends State<ScaledTerminalView> {
   late FocusNode _focusNode;
-  late TerminalController _controller;
+  late TermuxTerminalController _controller;
   late ScrollController _scrollController;
+  
+  // Selection pivot point for drag selection
+  CellOffset? _selectionPivot;
 
   final _viewportKey = GlobalKey();
   final _scrollableKey = GlobalKey<ScrollableState>();
@@ -89,7 +93,7 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   @override
   void initState() {
     _focusNode = widget.focusNode ?? FocusNode();
-    _controller = widget.controller ?? TerminalController();
+    _controller = widget.controller ?? TermuxTerminalController();
     _scrollController = widget.scrollController ?? ScrollController();
     super.initState();
   }
@@ -106,7 +110,7 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
       if (oldWidget.controller == null) {
         _controller.dispose();
       }
-      _controller = widget.controller ?? TerminalController();
+      _controller = widget.controller ?? TermuxTerminalController();
     }
     if (oldWidget.scrollController != widget.scrollController) {
       if (oldWidget.scrollController == null) {
@@ -165,6 +169,33 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
         } else if (!widget.hardwareKeyboardOnly) {
           requestKeyboard();
         }
+      },
+      onLongPressStart: (details) {
+        final offset = _renderTerminal.getCellOffset(details.localPosition);
+        _selectionPivot = offset;
+
+        // Try to select word to give immediate visual feedback
+        final wordRange = widget.terminal.buffer.getWordBoundary(offset);
+        if (wordRange != null) {
+          final startAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.begin);
+          final endAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.end);
+          _controller.setSelection(startAnchor, endAnchor);
+        } else {
+          final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+          _controller.setSelection(anchor, anchor);
+        }
+      },
+      onLongPressMoveUpdate: (details) {
+        if (_selectionPivot == null) return;
+        final offset = _renderTerminal.getCellOffset(details.localPosition);
+
+        final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
+        final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+
+        _controller.setSelection(startAnchor, endAnchor);
+      },
+      onLongPressEnd: (details) {
+        _selectionPivot = null;
       },
       onTapUp: widget.onTapUp != null
           ? (details) {
@@ -567,7 +598,7 @@ class _ScaledTerminalViewport extends LeafRenderObjectWidget {
   });
 
   final TermuxTerminal terminal;
-  final TerminalController controller;
+  final TermuxTerminalController controller;
   final ViewportOffset offset;
   final EdgeInsets padding;
   final bool autoResize;
@@ -618,7 +649,7 @@ class _ScaledRenderTerminal extends RenderBox
     with RelayoutWhenSystemFontsChangeMixin {
   _ScaledRenderTerminal({
     required TermuxTerminal terminal,
-    required TerminalController controller,
+    required TermuxTerminalController controller,
     required ViewportOffset offset,
     required EdgeInsets padding,
     required bool autoResize,
@@ -652,8 +683,8 @@ class _ScaledRenderTerminal extends RenderBox
     markNeedsLayout();
   }
 
-  TerminalController _controller;
-  set controller(TerminalController controller) {
+  TermuxTerminalController _controller;
+  set controller(TermuxTerminalController controller) {
     if (_controller == controller) return;
     if (attached) _controller.removeListener(_onControllerUpdate);
     _controller = controller;

@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:xterm/xterm.dart';
+import 'package:flutter/widgets.dart';
 // 使用修改版 Terminal，支持 Termux 兼容的 wcwidth
 import '../core/terminal.dart';
+import '../core/terminal_controller.dart';
 import '../shell/shell_session.dart';
 import '../services/storage_service.dart';
 import '../utils/constants.dart';
@@ -17,7 +17,8 @@ class TerminalSession {
   final String id;
   // 使用 TermuxTerminal 以支持 Termux 兼容的 wcwidth
   final TermuxTerminal terminal;
-  final TerminalController controller;
+  final TermuxTerminalController controller;
+  final ScrollController scrollController;
   String title;
   final DateTime createdAt;
   bool _isActive = false;
@@ -46,6 +47,7 @@ class TerminalSession {
     required this.id,
     required this.terminal,
     required this.controller,
+    required this.scrollController,
     this.title = 'Terminal',
   }) : createdAt = DateTime.now();
 
@@ -62,12 +64,14 @@ class TerminalSession {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     // 使用 TermuxTerminal 替代 xterm 的 Terminal
     final terminal = TermuxTerminal(maxLines: 10000);
-    final controller = TerminalController();
+    final controller = TermuxTerminalController();
+    final scrollController = ScrollController();
 
     return TerminalSession(
       id: id,
       terminal: terminal,
       controller: controller,
+      scrollController: scrollController,
       title: title ?? 'Terminal',
     );
   }
