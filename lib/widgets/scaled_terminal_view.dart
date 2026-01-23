@@ -820,14 +820,8 @@ class _ScaledRenderTerminal extends RenderBox
     final cellHeight = _painter.cellSize.height;
 
     // 计算能完整显示的行数，必须确保每一行都能完全显示
-    // 使用 truncate 而不是 floor 来获得能完整显示的行数
     final cols = (_viewportWidth / cellWidth).truncate();
     final rows = (_viewportHeight / cellHeight).truncate();
-
-    debugPrint('[Viewport] size: ${size.width.toInt()}x${size.height.toInt()}, '
-        'cell: ${cellWidth.toStringAsFixed(1)}x${cellHeight.toStringAsFixed(1)}, '
-        'viewportH: ${_viewportHeight.toStringAsFixed(1)}, '
-        'rows: $_viewportHeight / $cellHeight = ${_viewportHeight / cellHeight}, truncate = $rows');
 
     final viewportSize = _TerminalSize(cols, rows);
 
@@ -1034,3 +1028,4 @@ TerminalKey? _charToTerminalKey(String char) {
       return null;
   }
 }
+

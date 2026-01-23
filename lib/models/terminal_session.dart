@@ -98,14 +98,10 @@ class TerminalSession {
       // 设置终端大小调整回调 - 将resize信号传递给Shell进程
       // 这样vim等全屏应用才能正确响应屏幕大小变化
       terminal.onResize = (int width, int height, int pixelWidth, int pixelHeight) {
-        debugPrint('[TerminalSession] onResize called: ${width}x$height');
         if (_shellSession != null && _isRunning) {
-          debugPrint('[TerminalSession] Sending resize to shell: ${width}x$height');
           _shellSession!.resize(width, height);
           lastShellColumns = width;
           lastShellRows = height;
-        } else {
-          debugPrint('[TerminalSession] Shell not running, resize not sent');
         }
       };
 
@@ -123,7 +119,6 @@ class TerminalSession {
       );
 
       // 启动进程 - 使用实际的终端尺寸
-      debugPrint('[TerminalSession] Starting shell with size: ${actualColumns}x$actualRows');
       await _shellSession!.start(columns: actualColumns, rows: actualRows);
       _isRunning = true;
       lastShellColumns = actualColumns;
@@ -133,7 +128,6 @@ class TerminalSession {
       // 有时候视图布局在 start() 之后才完成，需要额外发送一次 resize
       Future.delayed(const Duration(milliseconds: 100), () {
         if (_shellSession != null && _isRunning) {
-          debugPrint('[TerminalSession] Delayed resize: ${terminal.viewWidth}x${terminal.viewHeight}');
           _shellSession!.resize(terminal.viewWidth, terminal.viewHeight);
           lastShellColumns = terminal.viewWidth;
           lastShellRows = terminal.viewHeight;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +44,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
   // 调试信息刷新计时器
   Timer? _debugRefreshTimer;
 
+  // 是否显示调试信息
+  bool _showDebugInfo = false;
+
   @override
   void initState() {
     super.initState();
@@ -84,9 +88,23 @@ class _TerminalScreenState extends State<TerminalScreen> {
       terminalProvider.addListener(_onTerminalProviderChanged);
     });
 
-    // 启动调试信息刷新计时器
-    _debugRefreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (mounted) setState(() {});
+    // 调试信息刷新计时器在需要时启动
+  }
+
+  void _toggleDebugInfo() {
+    setState(() {
+      _showDebugInfo = !_showDebugInfo;
+      if (_showDebugInfo) {
+        // 启动刷新计时器
+        _debugRefreshTimer?.cancel();
+        _debugRefreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+          if (mounted && _showDebugInfo) setState(() {});
+        });
+      } else {
+        // 停止刷新计时器
+        _debugRefreshTimer?.cancel();
+        _debugRefreshTimer = null;
+      }
     });
   }
 
@@ -276,11 +294,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 children: [
                   _buildTerminalView(context, terminalProvider, settings),
                   // 调试信息显示
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: _buildDebugInfo(context, terminalProvider, settings),
-                  ),
+                  if (_showDebugInfo)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: _buildDebugInfo(context, terminalProvider, settings),
+                    ),
                   // 选中文字时显示的浮动操作栏
                   if (_hasSelection)
                     Positioned(
@@ -412,6 +431,27 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   Icon(Icons.settings),
                   SizedBox(width: 8),
                   Text('Settings'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'debug',
+              child: Row(
+                children: [
+                  Icon(_showDebugInfo ? Icons.bug_report : Icons.bug_report_outlined),
+                  const SizedBox(width: 8),
+                  Text(_showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'copy_ssh_key',
+              child: Row(
+                children: [
+                  Icon(Icons.key),
+                  SizedBox(width: 8),
+                  Text('Copy SSH Public Key'),
                 ],
               ),
             ),
@@ -617,6 +657,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
         break;
       case 'settings':
         _openSettings(context);
+        break;
+      case 'debug':
+        _toggleDebugInfo();
+        break;
+      case 'copy_ssh_key':
+        _copySshPublicKey();
         break;
     }
   }
@@ -990,6 +1036,66 @@ class _TerminalScreenState extends State<TerminalScreen> {
       beginAnchor as dynamic,
       endAnchor as dynamic,
     );
+  }
+
+  /// 复制 SSH 公钥到剪贴板
+  Future<void> _copySshPublicKey() async {
+    final sshDir = '${TermuxConstants.homeDir}/.ssh';
+    final keyFiles = [
+      'id_ed25519.pub',
+      'id_rsa.pub',
+      'id_ecdsa.pub',
+      'id_dsa.pub',
+    ];
+
+    for (final keyFile in keyFiles) {
+      final file = File('$sshDir/$keyFile');
+      if (await file.exists()) {
+        try {
+          final content = await file.readAsString();
+          await Clipboard.setData(ClipboardData(text: content.trim()));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Copied $keyFile to clipboard'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to read $keyFile: $e'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
+      }
+    }
+
+    // 没有找到任何公钥文件
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No SSH public key found. Run: ssh-keygen'),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Generate',
+            onPressed: () {
+              final terminalProvider = context.read<TerminalProvider>();
+              final session = terminalProvider.currentSession;
+              if (session != null) {
+                session.write('ssh-keygen -t ed25519\n');
+              }
+            },
+          ),
+        ),
+      );
+    }
   }
 
   void _clearSelection(TerminalProvider terminalProvider) {
