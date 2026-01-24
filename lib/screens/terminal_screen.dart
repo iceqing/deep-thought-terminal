@@ -20,6 +20,7 @@ import '../models/task.dart';
 import '../utils/gesture_utils.dart';
 import '../widgets/terminal_selection_handles.dart';
 import '../widgets/scaled_terminal_view.dart';
+import '../widgets/history_viewer.dart';
 import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
 
@@ -46,9 +47,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   // 调试信息刷新计时器
   Timer? _debugRefreshTimer;
-
-  // 是否显示调试信息
-  bool _showDebugInfo = false;
 
   @override
   void initState() {
@@ -89,26 +87,26 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
       // 监听会话切换，确保新会话自动获得焦点
       terminalProvider.addListener(_onTerminalProviderChanged);
-    });
 
-    // 调试信息刷新计时器在需要时启动
+      // 监听设置变化，管理调试信息刷新计时器
+      settings.addListener(() => _updateDebugRefreshTimer(settings));
+      _updateDebugRefreshTimer(settings);
+    });
   }
 
-  void _toggleDebugInfo() {
-    setState(() {
-      _showDebugInfo = !_showDebugInfo;
-      if (_showDebugInfo) {
-        // 启动刷新计时器
-        _debugRefreshTimer?.cancel();
+  void _updateDebugRefreshTimer(SettingsProvider settings) {
+    if (settings.showDebugInfo) {
+      // 启动刷新计时器
+      if (_debugRefreshTimer == null) {
         _debugRefreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-          if (mounted && _showDebugInfo) setState(() {});
+          if (mounted && settings.showDebugInfo) setState(() {});
         });
-      } else {
-        // 停止刷新计时器
-        _debugRefreshTimer?.cancel();
-        _debugRefreshTimer = null;
       }
-    });
+    } else {
+      // 停止刷新计时器
+      _debugRefreshTimer?.cancel();
+      _debugRefreshTimer = null;
+    }
   }
 
   void _onTerminalProviderChanged() {
@@ -301,7 +299,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 children: [
                   _buildTerminalView(context, terminalProvider, settings),
                   // 调试信息显示
-                  if (_showDebugInfo)
+                  if (settings.showDebugInfo)
                     Positioned(
                       top: 8,
                       right: 8,
@@ -594,6 +592,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 ],
               ),
             ),
+            const PopupMenuItem(
+              value: 'history',
+              child: Row(
+                children: [
+                  Icon(Icons.history),
+                  SizedBox(width: 8),
+                  Text('Command History'),
+                ],
+              ),
+            ),
             const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'paste',
@@ -613,16 +621,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   Icon(Icons.settings),
                   SizedBox(width: 8),
                   Text('Settings'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'debug',
-              child: Row(
-                children: [
-                  Icon(_showDebugInfo ? Icons.bug_report : Icons.bug_report_outlined),
-                  const SizedBox(width: 8),
-                  Text(_showDebugInfo ? 'Hide Debug Info' : 'Show Debug Info'),
                 ],
               ),
             ),
@@ -828,6 +826,19 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
+  void _showHistoryViewer(BuildContext context, TerminalProvider terminalProvider) {
+    HistoryViewer.show(
+      context,
+      onCommandSelected: (command) {
+        // 将命令发送到终端
+        final session = terminalProvider.currentSession;
+        if (session != null) {
+          session.write('$command\n');
+        }
+      },
+    );
+  }
+
   void _handleMenuAction(
     BuildContext context,
     String action,
@@ -849,8 +860,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
       case 'settings':
         _openSettings(context);
         break;
-      case 'debug':
-        _toggleDebugInfo();
+      case 'history':
+        _showHistoryViewer(context, terminalProvider);
         break;
       case 'copy_ssh_key':
         _copySshPublicKey();

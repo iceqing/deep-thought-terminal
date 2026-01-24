@@ -382,6 +382,9 @@ class TermuxBootstrap {
 
     // 创建 bashrc 配置文件
     await _createBashrc();
+
+    // 创建 zshrc 配置文件
+    await _createZshrc();
   }
 
   /// 创建 bashrc 配置文件
@@ -426,9 +429,16 @@ alias h='history'
 alias q='exit'
 
 # 历史记录配置
-export HISTSIZE=1000
-export HISTFILESIZE=2000
-export HISTCONTROL=ignoredups:erasedups
+export HISTFILE="\$HOME/.bash_history"
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoredups:ignorespace:erasedups
+
+# 追加历史而不是覆盖（需要在交互式 bash 中执行）
+shopt -s histappend 2>/dev/null
+
+# 每条命令后保存历史（防止异常退出丢失历史）
+PROMPT_COMMAND="history -a; \$PROMPT_COMMAND"
 
 # 让 less 支持颜色
 export LESS='-R'
@@ -449,6 +459,72 @@ export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quo
       debugPrint('Created bashrc at $bashrcPath');
     } catch (e) {
       debugPrint('Failed to create bashrc: $e');
+    }
+  }
+
+  /// 创建 zshrc 配置文件
+  static Future<void> _createZshrc() async {
+    final zshrcPath = '${TermuxConstants.homeDir}/.zshrc';
+    final zshrcFile = File(zshrcPath);
+
+    // 如果已存在则不覆盖用户配置
+    if (await zshrcFile.exists()) {
+      return;
+    }
+
+    final zshrcContent = '''
+# ~/.zshrc - Deep Thought Terminal Configuration for Zsh
+
+# 历史记录配置
+export HISTFILE="\$HOME/.zsh_history"
+export HISTSIZE=10000
+export SAVEHIST=20000
+
+# 历史记录选项
+setopt APPEND_HISTORY        # 追加历史而不是覆盖
+setopt INC_APPEND_HISTORY    # 每条命令后立即追加
+setopt SHARE_HISTORY         # 多个终端共享历史
+setopt HIST_IGNORE_DUPS      # 忽略连续重复命令
+setopt HIST_IGNORE_SPACE     # 忽略以空格开头的命令
+setopt HIST_REDUCE_BLANKS    # 删除多余空格
+setopt EXTENDED_HISTORY      # 保存时间戳
+
+# 提示符设置 - 绿色路径
+PROMPT='%F{green}%~%f %# '
+
+# 启用颜色支持
+export CLICOLOR=1
+export CLICOLOR_FORCE=1
+
+# LS_COLORS 配置
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.7z=1;31:*.rar=1;31:*.jpg=1;35:*.jpeg=1;35:*.png=1;35:*.gif=1;35:*.bmp=1;35:*.mp3=1;36:*.mp4=1;36:*.mkv=1;36:*.avi=1;36:*.pdf=1;33:*.doc=1;33:*.txt=0;37'
+
+# 常用命令别名 - 启用颜色
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias l='ls -CF --color=auto'
+alias grep='grep --color=auto'
+
+# 便捷别名
+alias ..='cd ..'
+alias ...='cd ../..'
+alias c='clear'
+alias h='history'
+alias q='exit'
+
+# 让 less 支持颜色
+export LESS='-R'
+
+# GCC 颜色
+export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+''';
+
+    try {
+      await zshrcFile.writeAsString(zshrcContent);
+      debugPrint('Created zshrc at $zshrcPath');
+    } catch (e) {
+      debugPrint('Failed to create zshrc: $e');
     }
   }
 
@@ -2173,6 +2249,45 @@ chmod 600 "\$SHELL_CONFIG"
 # Also update .bashrc to exec the new shell (for compatibility)
 SHELL_NAME=\$(basename "\$SHELL_PATH")
 if [ "\$SHELL_NAME" != "bash" ]; then
+    # Create shell config file if it doesn't exist
+    if [ "\$SHELL_NAME" = "zsh" ] && [ ! -f "$homeDir/.zshrc" ]; then
+        echo "Creating default .zshrc..."
+        cat > "$homeDir/.zshrc" << 'ZSHRC_EOF'
+# ~/.zshrc - Deep Thought Terminal Configuration for Zsh
+
+# 历史记录配置
+export HISTFILE="\$HOME/.zsh_history"
+export HISTSIZE=10000
+export SAVEHIST=20000
+
+# 历史记录选项
+setopt APPEND_HISTORY
+setopt INC_APPEND_HISTORY
+setopt SHARE_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_REDUCE_BLANKS
+setopt EXTENDED_HISTORY
+
+# 提示符设置
+PROMPT='%F{green}%~%f %# '
+
+# 颜色支持
+export CLICOLOR=1
+export CLICOLOR_FORCE=1
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33'
+
+# 别名
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias grep='grep --color=auto'
+alias ..='cd ..'
+alias c='clear'
+alias h='history'
+ZSHRC_EOF
+    fi
+
     # Check if exec line already exists
     if ! grep -q "^exec.*\$SHELL_NAME" "\$BASHRC" 2>/dev/null; then
         # Remove any existing exec lines for other shells

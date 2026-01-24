@@ -44,6 +44,9 @@ class SettingsProvider extends ChangeNotifier {
   bool _pinchZoomEnabled = DefaultSettings.pinchZoomEnabled;
   bool _volumeKeysEnabled = DefaultSettings.volumeKeysEnabled;
 
+  // 调试设置
+  bool _showDebugInfo = false;
+
   // 镜像源设置
   String _mirrorId = 'default';
 
@@ -84,6 +87,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get bellEnabled => _bellEnabled;
   bool get pinchZoomEnabled => _pinchZoomEnabled;
   bool get volumeKeysEnabled => _volumeKeysEnabled;
+  bool get showDebugInfo => _showDebugInfo;
 
   // 镜像源 Getters
   String get mirrorId => _mirrorId;
@@ -163,6 +167,7 @@ class SettingsProvider extends ChangeNotifier {
     _bellEnabled = _prefs.getBool('bellEnabled') ?? DefaultSettings.bellEnabled;
     _pinchZoomEnabled = _prefs.getBool('pinchZoomEnabled') ?? DefaultSettings.pinchZoomEnabled;
     _volumeKeysEnabled = _prefs.getBool('volumeKeysEnabled') ?? DefaultSettings.volumeKeysEnabled;
+    _showDebugInfo = _prefs.getBool('showDebugInfo') ?? false;
     _mirrorId = _prefs.getString('mirrorId') ?? 'default';
   }
 
@@ -242,6 +247,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setVolumeKeysEnabled(bool value) async {
     _volumeKeysEnabled = value;
     await _prefs.setBool('volumeKeysEnabled', value);
+    notifyListeners();
+  }
+
+  Future<void> setShowDebugInfo(bool value) async {
+    _showDebugInfo = value;
+    await _prefs.setBool('showDebugInfo', value);
     notifyListeners();
   }
 

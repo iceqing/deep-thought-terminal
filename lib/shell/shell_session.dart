@@ -183,8 +183,11 @@ class ShellSessionFactory {
       if (await isBashInstalled()) {
         final cmd = _buildBashLaunchCommand();
         debugPrint('Bash installed, using wrapper approach');
+        debugPrint('Shell command length: ${cmd.length}');
         debugPrint('Shell command: $cmd');
         debugPrint('Lib dir: ${TermuxConstants.libDir}');
+        debugPrint('Home dir: ${TermuxConstants.homeDir}');
+        debugPrint('Expected HISTFILE: ${TermuxConstants.homeDir}/.bash_history');
 
         // 验证库文件存在
         final libReadline = File('${TermuxConstants.libDir}/libreadline.so.8');
@@ -243,9 +246,10 @@ class ShellSessionFactory {
     final aptConfigPath = '$etcPath/apt/apt.conf';
     // CA 证书路径
     final caCertPath = '$etcPath/tls/cert.pem';
-
     // 使用export确保环境变量被正确设置
-    // 使用 --noprofile --norc 跳过所有系统配置文件（bash二进制中硬编码了com.termux路径）
+    // 必须使用 --noprofile --norc 跳过所有配置文件
+    // 因为 bash 二进制中硬编码了 /data/data/com.termux/ 路径
+    // --rcfile 只替换 ~/.bashrc，但 bash 仍会尝试读取 /etc/bash.bashrc
     return 'export LD_LIBRARY_PATH="$libPath"; '
         'export HOME="$homePath"; '
         'export PREFIX="$prefixPath"; '
@@ -272,9 +276,14 @@ class ShellSessionFactory {
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
         // less 颜色
         'export LESS="-R"; '
-        // 历史记录
-        'export HISTSIZE=1000; '
-        'export HISTCONTROL=ignoredups; '
+        // 历史记录配置 - 必须在启动命令中设置，因为 --norc 跳过了所有配置文件
+        'export HISTFILE="\$HOME/.bash_history"; '
+        'export HISTSIZE=10000; '
+        'export HISTFILESIZE=20000; '
+        'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
+        // PROMPT_COMMAND: 首次提示符时读取历史(history -r)，之后每次命令后保存历史(history -a)
+        // _DPTERM_HIST_INIT 标志用于确保 history -r 只执行一次
+        'export PROMPT_COMMAND=\'[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; history -a\'; '
         // PS1 提示符 - 绿色路径
         r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '

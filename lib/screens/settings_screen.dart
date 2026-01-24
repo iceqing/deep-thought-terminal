@@ -1,13 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
 import '../models/mirror.dart';
 import '../utils/wcwidth_debug.dart';
 import '../utils/termux_wcwidth.dart';
+import '../services/history_service.dart';
+import '../widgets/history_viewer.dart';
 
 /// 设置页面
 /// 参考 termux-app: SettingsActivity.java, TermuxPreferencesFragment.java
@@ -40,9 +45,16 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(title: 'Gestures'),
           _PinchZoomSetting(),
           _VolumeKeysSetting(),
+          _SectionHeader(title: 'Command History'),
+          _HistoryStatsTile(),
+          _HistoryViewerTile(),
+          _ClearHistoryTile(),
+          _ExportHistoryTile(),
+          _ImportHistoryTile(),
           _SectionHeader(title: 'Package Sources'),
           _MirrorSetting(),
           _SectionHeader(title: 'Advanced'),
+          _ShowDebugInfoSetting(),
           _WcwidthDebugTile(),
           _ResetSettingsTile(),
           SizedBox(height: 32),
@@ -854,6 +866,24 @@ class _MirrorSetting extends StatelessWidget {
   }
 }
 
+/// 显示调试信息开关
+class _ShowDebugInfoSetting extends StatelessWidget {
+  const _ShowDebugInfoSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+
+    return SwitchListTile(
+      secondary: const Icon(Icons.bug_report_outlined),
+      title: const Text('Show Debug Info'),
+      subtitle: const Text('Display terminal debug overlay'),
+      value: settings.showDebugInfo,
+      onChanged: (value) => settings.setShowDebugInfo(value),
+    );
+  }
+}
+
 /// 字符宽度调试工具
 class _WcwidthDebugTile extends StatelessWidget {
   const _WcwidthDebugTile();
@@ -1212,5 +1242,333 @@ class _QuickTestButton extends StatelessWidget {
       ),
       child: Text(label, style: const TextStyle(fontSize: 12)),
     );
+  }
+}
+
+/// 历史记录统计
+class _HistoryStatsTile extends StatefulWidget {
+  const _HistoryStatsTile();
+
+  @override
+  State<_HistoryStatsTile> createState() => _HistoryStatsTileState();
+}
+
+class _HistoryStatsTileState extends State<_HistoryStatsTile> {
+  final _historyService = HistoryService();
+  Map<String, int>? _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final stats = await _historyService.getHistoryStats();
+    if (mounted) {
+      setState(() => _stats = stats);
+    }
+  }
+
+  Future<void> _showDebugInfo() async {
+    final info = await _historyService.debugInfo();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('History Debug Info'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            const JsonEncoder.withIndent('  ').convert(info),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(
+                text: const JsonEncoder.withIndent('  ').convert(info),
+              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied to clipboard')),
+              );
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.analytics_outlined),
+      title: const Text('History Statistics'),
+      subtitle: _stats == null
+          ? const Text('Loading...')
+          : Text('${_stats!['total']} commands (Bash: ${_stats!['bash']}, Zsh: ${_stats!['zsh']})'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.bug_report, size: 20),
+            onPressed: _showDebugInfo,
+            tooltip: 'Debug Info',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadStats,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      onTap: _showDebugInfo,
+    );
+  }
+}
+
+/// 查看历史记录
+class _HistoryViewerTile extends StatelessWidget {
+  const _HistoryViewerTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.history),
+      title: const Text('View History'),
+      subtitle: const Text('Browse and search command history'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => HistoryViewer.show(context),
+    );
+  }
+}
+
+/// 清除历史记录
+class _ClearHistoryTile extends StatelessWidget {
+  const _ClearHistoryTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.delete_outline),
+      title: const Text('Clear History'),
+      subtitle: const Text('Delete all command history'),
+      onTap: () => _showClearConfirmation(context),
+    );
+  }
+
+  void _showClearConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear History'),
+        content: const Text(
+          'Are you sure you want to clear all command history? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              final historyService = HistoryService();
+              await historyService.clearHistory();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('History cleared')),
+                );
+              }
+            },
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 导出历史记录
+class _ExportHistoryTile extends StatelessWidget {
+  const _ExportHistoryTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.file_upload_outlined),
+      title: const Text('Export History'),
+      subtitle: const Text('Backup history to JSON file'),
+      onTap: () => _exportHistory(context),
+    );
+  }
+
+  Future<void> _exportHistory(BuildContext context) async {
+    try {
+      final historyService = HistoryService();
+
+      // 获取下载目录
+      Directory? dir;
+      if (Platform.isAndroid) {
+        dir = await getExternalStorageDirectory();
+        dir ??= await getApplicationDocumentsDirectory();
+      } else {
+        dir = await getDownloadsDirectory();
+        dir ??= await getApplicationDocumentsDirectory();
+      }
+
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')[0];
+      final fileName = 'history_backup_$timestamp.json';
+      final path = '${dir.path}/$fileName';
+
+      final file = await historyService.exportHistory(path);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported to: ${file.path}'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Copy Path',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: file.path));
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+}
+
+/// 导入历史记录
+class _ImportHistoryTile extends StatelessWidget {
+  const _ImportHistoryTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.file_download_outlined),
+      title: const Text('Import History'),
+      subtitle: const Text('Restore history from JSON file'),
+      onTap: () => _showImportDialog(context),
+    );
+  }
+
+  void _showImportDialog(BuildContext context) {
+    final pathController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import History'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the path to the backup JSON file:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pathController,
+              decoration: const InputDecoration(
+                hintText: '/path/to/history_backup.json',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Choose import mode:',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _importHistory(context, pathController.text, append: false);
+            },
+            child: const Text('Replace'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _importHistory(context, pathController.text, append: true);
+            },
+            child: const Text('Append'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importHistory(
+    BuildContext context,
+    String path,
+    {required bool append}
+  ) async {
+    if (path.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a file path'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final historyService = HistoryService();
+      final count = await historyService.importHistory(path, append: append);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              append
+                  ? 'Appended $count commands to history'
+                  : 'Imported $count commands (replaced existing)',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
