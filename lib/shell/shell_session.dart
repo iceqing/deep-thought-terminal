@@ -231,25 +231,21 @@ class ShellSessionFactory {
   }
 
   /// 构建启动bash的命令
-  /// 设置LD_LIBRARY_PATH来覆盖硬编码的RUNPATH
+  /// 使用 --norc 跳过系统 bashrc（bash 中硬编码了 /data/data/com.termux 路径）
+  /// 用户配置通过 ~/.bashrc 加载
   static String _buildBashLaunchCommand() {
     final libPath = TermuxConstants.libDir;
     final bashPath = TermuxConstants.bashPath;
-    // 使用bash-real直接启动，绕过wrapper脚本
-    final bashRealPath = '${TermuxConstants.binDir}/bash-real';
     final homePath = TermuxConstants.homeDir;
     final prefixPath = TermuxConstants.prefixDir;
     final binPath = TermuxConstants.binDir;
     final tmpPath = TermuxConstants.tmpDir;
     final etcPath = TermuxConstants.etcDir;
-    // APT 配置文件路径
     final aptConfigPath = '$etcPath/apt/apt.conf';
-    // CA 证书路径
     final caCertPath = '$etcPath/tls/cert.pem';
-    // 使用export确保环境变量被正确设置
-    // 必须使用 --noprofile --norc 跳过所有配置文件
-    // 因为 bash 二进制中硬编码了 /data/data/com.termux/ 路径
-    // --rcfile 只替换 ~/.bashrc，但 bash 仍会尝试读取 /etc/bash.bashrc
+
+    // 设置环境变量并启动 bash
+    // 使用 --norc 跳过系统级 bashrc（bash 中硬编码了 /data/data/com.termux 路径）
     return 'export LD_LIBRARY_PATH="$libPath"; '
         'export HOME="$homePath"; '
         'export PREFIX="$prefixPath"; '
@@ -259,37 +255,27 @@ class ShellSessionFactory {
         'export TERMINFO="$prefixPath/share/terminfo"; '
         'export LANG="en_US.UTF-8"; '
         'export SHELL="$bashPath"; '
-        // APT 配置
         'export APT_CONFIG="$aptConfigPath"; '
-        // SSL/TLS 证书配置
         'export SSL_CERT_FILE="$caCertPath"; '
         'export CURL_CA_BUNDLE="$caCertPath"; '
         'export GIT_SSL_CAINFO="$caCertPath"; '
-        // Deep Thought 版本标识（类似 TERMUX_VERSION）
         'export DPTERM_VERSION="0.0.1"; '
-        // 颜色支持
         'export CLICOLOR=1; '
         'export CLICOLOR_FORCE=1; '
-        // LS_COLORS - 文件类型颜色
         r"export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.jpg=1;35:*.png=1;35:*.mp3=1;36:*.mp4=1;36'; "
-        // GCC 颜色
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
-        // less 颜色
         'export LESS="-R"; '
-        // 历史记录配置 - 必须在启动命令中设置，因为 --norc 跳过了所有配置文件
+        // 历史记录配置
         'export HISTFILE="\$HOME/.bash_history"; '
         'export HISTSIZE=10000; '
         'export HISTFILESIZE=20000; '
         'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
-        // PROMPT_COMMAND: 首次提示符时读取历史(history -r)，之后每次命令后保存历史(history -a)
-        // _DPTERM_HIST_INIT 标志用于确保 history -r 只执行一次
+        // PROMPT_COMMAND: 首次提示符时读取历史，之后每次命令后保存历史
         'export PROMPT_COMMAND=\'[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; history -a\'; '
-        // PS1 提示符 - 绿色路径
         r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
-        // 使用 --noprofile --norc 跳过所有硬编码路径的配置文件
-        'if [ -x "$bashRealPath" ]; then exec "$bashRealPath" --noprofile --norc; '
-        'else exec "$bashPath" --noprofile --norc; fi';
+        'if [ -f "\$HOME/.bashrc" ]; then exec "$bashPath" --rcfile "\$HOME/.bashrc"; '
+        'else exec "$bashPath" --norc; fi';
   }
 
   /// 获取桌面平台的默认shell
