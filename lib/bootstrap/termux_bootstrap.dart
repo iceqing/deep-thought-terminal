@@ -414,6 +414,92 @@ export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quo
     } catch (e) {
       debugPrint('Failed to create bashrc: $e');
     }
+
+    // 同时创建 .zshrc
+    await _createZshrc();
+  }
+
+  /// 创建 zshrc 配置文件
+  static Future<void> _createZshrc() async {
+    final zshrcPath = '${TermuxConstants.homeDir}/.zshrc';
+    final zshrcFile = File(zshrcPath);
+
+    // 如果已存在则不覆盖用户配置
+    if (await zshrcFile.exists()) {
+      return;
+    }
+
+    final homeDir = TermuxConstants.homeDir;
+
+    final zshrcContent = '''
+# ~/.zshrc - Deep Thought Terminal ZSH Configuration
+
+# ===== 历史记录配置 =====
+HISTFILE="$homeDir/.zsh_history"
+HISTSIZE=10000
+SAVEHIST=10000
+
+# 历史记录选项
+setopt EXTENDED_HISTORY          # 记录时间戳
+setopt HIST_EXPIRE_DUPS_FIRST    # 优先删除重复
+setopt HIST_IGNORE_DUPS          # 忽略连续重复
+setopt HIST_IGNORE_SPACE         # 忽略空格开头的命令
+setopt HIST_VERIFY               # 展开历史后先确认
+setopt SHARE_HISTORY             # 多终端共享历史
+setopt APPEND_HISTORY            # 追加而非覆盖
+setopt INC_APPEND_HISTORY        # 立即追加
+
+# ===== 提示符设置 =====
+PS1='%F{green}%~%f \$ '
+
+# ===== 颜色支持 =====
+export CLICOLOR=1
+export CLICOLOR_FORCE=1
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.7z=1;31:*.rar=1;31:*.jpg=1;35:*.jpeg=1;35:*.png=1;35:*.gif=1;35:*.bmp=1;35:*.mp3=1;36:*.mp4=1;36:*.mkv=1;36:*.avi=1;36:*.pdf=1;33:*.doc=1;33:*.txt=0;37'
+
+# ===== 别名 =====
+alias ls='ls --color=auto'
+alias ll='ls -lah --color=auto'
+alias la='ls -A --color=auto'
+alias l='ls -CF --color=auto'
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+alias diff='diff --color=auto'
+
+alias ..='cd ..'
+alias ...='cd ../..'
+alias c='clear'
+alias h='history'
+alias q='exit'
+
+# ===== 补全系统 =====
+autoload -Uz compinit
+compinit -d "$homeDir/.zcompdump"
+
+# ===== 按键绑定 =====
+bindkey -e
+bindkey '^[[A' history-search-backward
+bindkey '^[[B' history-search-forward
+bindkey '^R' history-incremental-search-backward
+
+# ===== Less 颜色 =====
+export LESS='-R'
+export LESS_TERMCAP_mb=\$'\\e[1;31m'
+export LESS_TERMCAP_md=\$'\\e[1;36m'
+export LESS_TERMCAP_me=\$'\\e[0m'
+export LESS_TERMCAP_so=\$'\\e[1;44;33m'
+export LESS_TERMCAP_se=\$'\\e[0m'
+export LESS_TERMCAP_us=\$'\\e[1;32m'
+export LESS_TERMCAP_ue=\$'\\e[0m'
+''';
+
+    try {
+      await zshrcFile.writeAsString(zshrcContent);
+      debugPrint('Created zshrc at \$zshrcPath');
+    } catch (e) {
+      debugPrint('Failed to create zshrc: \$e');
+    }
   }
 
   /// 安装 GPG 密钥环
