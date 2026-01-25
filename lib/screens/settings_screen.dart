@@ -13,6 +13,7 @@ import '../utils/wcwidth_debug.dart';
 import '../utils/termux_wcwidth.dart';
 import '../services/history_service.dart';
 import '../widgets/history_viewer.dart';
+import '../l10n/app_localizations.dart';
 
 /// 设置页面
 /// 参考 termux-app: SettingsActivity.java, TermuxPreferencesFragment.java
@@ -27,6 +28,8 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         children: const [
+          _SectionHeader(title: 'Language'),
+          _LanguageSetting(),
           _SectionHeader(title: 'Appearance'),
           _AppThemeSetting(),
           _FontFamilySetting(),
@@ -82,6 +85,82 @@ class _SectionHeader extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
+    );
+  }
+}
+
+/// 语言设置
+class _LanguageSetting extends StatelessWidget {
+  const _LanguageSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
+
+    return ListTile(
+      leading: const Icon(Icons.language),
+      title: Text(l10n.language),
+      subtitle: Text(_getLocaleName(settings.locale)),
+      onTap: () => _showLanguagePicker(context, settings),
+    );
+  }
+
+  String _getLocaleName(Locale? locale) {
+    if (locale == null) return 'System Default';
+    switch ('${locale.languageCode}_${locale.countryCode ?? ''}') {
+      case 'en_':
+        return 'English';
+      case 'zh_CN':
+        return '简体中文';
+      case 'zh_TW':
+        return '繁體中文';
+      default:
+        return locale.toString();
+    }
+  }
+
+  void _showLanguagePicker(BuildContext context, SettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select Language',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            _buildRadioTile(context, settings, null, 'System Default'),
+            _buildRadioTile(context, settings, const Locale('en'), 'English'),
+            _buildRadioTile(context, settings, const Locale('zh', 'CN'), '简体中文'),
+            _buildRadioTile(context, settings, const Locale('zh', 'TW'), '繁體中文'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRadioTile(
+    BuildContext context,
+    SettingsProvider settings,
+    Locale? locale,
+    String name,
+  ) {
+    final isSelected = settings.locale == locale ||
+        (settings.locale == null && locale == null);
+
+    return RadioListTile<Locale?>(
+      title: Text(name),
+      value: locale,
+      groupValue: settings.locale,
+      onChanged: (value) {
+        settings.setLocale(value);
+        Navigator.pop(context);
+      },
     );
   }
 }

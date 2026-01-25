@@ -50,6 +50,9 @@ class SettingsProvider extends ChangeNotifier {
   // 镜像源设置
   String _mirrorId = 'default';
 
+  // 语言设置
+  Locale? _locale; // null 表示跟随系统
+
   // Getters
   bool get initialized => _initialized;
   String get fontFamily => _fontFamily;
@@ -93,6 +96,9 @@ class SettingsProvider extends ChangeNotifier {
   String get mirrorId => _mirrorId;
   TermuxMirror get currentMirror =>
       AvailableMirrors.getById(_mirrorId) ?? AvailableMirrors.defaultMirror;
+
+  // 语言 Getters
+  Locale? get locale => _locale;
 
   TerminalTheme get terminalTheme => AppTerminalThemes.getTheme(_colorTheme);
 
@@ -169,6 +175,19 @@ class SettingsProvider extends ChangeNotifier {
     _volumeKeysEnabled = _prefs.getBool('volumeKeysEnabled') ?? DefaultSettings.volumeKeysEnabled;
     _showDebugInfo = _prefs.getBool('showDebugInfo') ?? false;
     _mirrorId = _prefs.getString('mirrorId') ?? 'default';
+
+    // 加载语言设置
+    final localeCode = _prefs.getString('locale');
+    if (localeCode != null && localeCode.isNotEmpty) {
+      final parts = localeCode.split('_');
+      if (parts.length == 2) {
+        _locale = Locale(parts[0], parts[1]);
+      } else {
+        _locale = Locale(parts[0]);
+      }
+    } else {
+      _locale = null; // 跟随系统
+    }
   }
 
   // Setters
@@ -256,6 +275,21 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 设置语言
+  /// locale 为 null 表示跟随系统
+  Future<void> setLocale(Locale? locale) async {
+    _locale = locale;
+    if (locale == null) {
+      await _prefs.remove('locale');
+    } else {
+      final localeCode = locale.countryCode != null
+          ? '${locale.languageCode}_${locale.countryCode}'
+          : locale.languageCode;
+      await _prefs.setString('locale', localeCode);
+    }
+    notifyListeners();
+  }
+
   /// 设置镜像源
   /// 会自动更新 sources.list 文件
   Future<bool> setMirror(String mirrorId) async {
@@ -328,6 +362,7 @@ class SettingsProvider extends ChangeNotifier {
     await setBellEnabled(DefaultSettings.bellEnabled);
     await setPinchZoomEnabled(DefaultSettings.pinchZoomEnabled);
     await setVolumeKeysEnabled(DefaultSettings.volumeKeysEnabled);
+    await setLocale(null); // 重置为跟随系统
   }
 
   // ==================== termux-reload-settings 支持 ====================

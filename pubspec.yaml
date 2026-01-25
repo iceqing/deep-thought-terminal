@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
   xterm: ^4.0.0
   flutter_pty: ^0.4.1
   google_fonts: ^6.1.0

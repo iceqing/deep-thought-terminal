@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'bootstrap/termux_bootstrap.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/settings_provider.dart';
 import 'providers/terminal_provider.dart';
 import 'providers/ssh_provider.dart';
@@ -33,6 +35,15 @@ class DeepThoughtApp extends StatelessWidget {
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,
+            // 本地化配置
+            locale: settings.locale,
+            supportedLocales: L10n.all,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
             themeMode: settings.themeMode,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
