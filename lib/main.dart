@@ -63,12 +63,19 @@ class DeepThoughtApp extends StatelessWidget {
     final primary = Color(terminalTheme.blue.value);
     final secondary = Color(terminalTheme.cursor.value);
 
+    // Calculate a slightly different surface color for contrast
+    // In dark mode, make it slightly lighter. In light mode, slightly darker.
+    final isDark = brightness == Brightness.dark;
+    final surface = isDark 
+        ? Color.alphaBlend(Colors.white.withOpacity(0.05), bg)
+        : Color.alphaBlend(Colors.black.withOpacity(0.05), bg);
+
     final colorScheme = ColorScheme.fromSeed(
       seedColor: primary,
       brightness: brightness,
     ).copyWith(
       background: bg,
-      surface: bg,
+      surface: surface,
       onBackground: fg,
       onSurface: fg,
       primary: primary,
@@ -85,19 +92,26 @@ class DeepThoughtApp extends StatelessWidget {
         elevation: 0,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: bg,
+        backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
       ),
       drawerTheme: DrawerThemeData(
-        backgroundColor: bg,
+        backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
+        // Add a subtle border to the right side of the drawer
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+          ),
+        ),
       ),
       cardTheme: CardThemeData(
-        color: bg,
+        color: surface,
         surfaceTintColor: Colors.transparent,
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: bg,
+        backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
       ),
     );

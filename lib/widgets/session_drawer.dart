@@ -22,127 +22,138 @@ class SessionDrawer extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          children: [
-            // 头部
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.terminal,
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    l10n.sessions,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(
-                      Icons.dns,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SSHManagerScreen(),
-                        ),
-                      );
-                    },
-                    tooltip: l10n.manageSSH,
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.settings,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onSettingsTap?.call();
-                    },
-                    tooltip: l10n.settings,
-                  ),
-                ],
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(
+              color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+              width: 1,
             ),
-
-            // 会话列表
-            Expanded(
-              child: terminalProvider.sessions.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.layers_clear,
-                            size: 48,
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            l10n.noSessions,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // 头部
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.terminal,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      l10n.sessions,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: terminalProvider.sessions.length,
-                      itemBuilder: (context, index) {
-                        final session = terminalProvider.sessions[index];
-                        return _SessionTile(
-                          session: session,
-                          isSelected: index == terminalProvider.currentIndex,
-                          onTap: () {
-                            terminalProvider.switchToSession(index);
-                            Navigator.pop(context);
-                          },
-                          onClose: () {
-                            _showCloseConfirmation(
-                              context,
-                              terminalProvider,
-                              index,
-                            );
-                          },
-                          onRename: () {
-                            _showRenameDialog(
-                              context,
-                              terminalProvider,
-                              index,
-                              session.title,
-                            );
-                          },
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        Icons.dns,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SSHManagerScreen(),
+                          ),
                         );
                       },
+                      tooltip: l10n.manageSSH,
                     ),
-            ),
-            
-            // 底部信息栏 (可选)
-            Divider(height: 1, color: theme.colorScheme.outlineVariant),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                l10n.activeSessionsCount(terminalProvider.sessions.length),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                    IconButton(
+                      icon: Icon(
+                        Icons.settings,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onSettingsTap?.call();
+                      },
+                      tooltip: l10n.settings,
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+
+              // 会话列表
+              Expanded(
+                child: terminalProvider.sessions.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.layers_clear,
+                              size: 48,
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              l10n.noSessions,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: terminalProvider.sessions.length,
+                        itemBuilder: (context, index) {
+                          final session = terminalProvider.sessions[index];
+                          return _SessionTile(
+                            session: session,
+                            isSelected: index == terminalProvider.currentIndex,
+                            onTap: () {
+                              terminalProvider.switchToSession(index);
+                              Navigator.pop(context);
+                            },
+                            onClose: () {
+                              _showCloseConfirmation(
+                                context,
+                                terminalProvider,
+                                index,
+                              );
+                            },
+                            onRename: () {
+                              _showRenameDialog(
+                                context,
+                                terminalProvider,
+                                index,
+                                session.title,
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+
+              // 底部信息栏 (可选)
+              Divider(height: 1, color: theme.colorScheme.outlineVariant),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  l10n.activeSessionsCount(terminalProvider.sessions.length),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -154,13 +165,12 @@ class SessionDrawer extends StatelessWidget {
     int index,
   ) {
     final l10n = AppLocalizations.of(context);
-    // 只有一个会话时，或者用户通过滑动删除时，可能不需要确认？
-    // 为了防止误触，保留确认是个好习惯，尤其是终端内容可能很重要。
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.closeSession),
-        content: Text('${l10n.close} "${provider.sessions[index].displayName}"?'),
+        content:
+            Text('${l10n.close} "${provider.sessions[index].displayName}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -247,9 +257,8 @@ class _SessionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     // 使用 Dismissible 实现滑动删除
-    // 注意：Dismissible 需要唯一的 key。session.id 是唯一的。
     return Dismissible(
       key: Key(session.id),
       direction: DismissDirection.endToStart,
@@ -263,33 +272,29 @@ class _SessionTile extends StatelessWidget {
         ),
       ),
       confirmDismiss: (direction) async {
-        // 复用 onClose 逻辑（这会弹窗）。
-        // 如果想让滑动直接删除不确认，可以直接返回 true 并调用逻辑。
-        // 为了安全起见，这里触发确认弹窗。
         onClose();
-        // 因为 onClose 是 void 且内部弹窗是异步的，这里 Dismissible 需要 Future<bool>
-        // 这种写法不太好适配 Dismissible 的 confirmDismiss。
-        // 简单起见，我们暂不支持滑动直接触发 Dismissible 的动画删除，
-        // 而是滑动后触发 onClose，然后由 Provider 更新列表来重建 UI。
-        return false; 
+        return false;
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected ? theme.colorScheme.secondaryContainer : null,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected ? null : Border.all(color: Colors.transparent), // 占位保持布局稳定
+          border: isSelected
+              ? null
+              : Border.all(color: Colors.transparent), // 占位保持布局稳定
         ),
         child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onTap: onTap,
           onLongPress: onRename, // 长按重命名
           leading: CircleAvatar(
-            backgroundColor: isSelected 
-                ? theme.colorScheme.primary 
+            backgroundColor: isSelected
+                ? theme.colorScheme.primary
                 : theme.colorScheme.surfaceContainerHighest,
-            foregroundColor: isSelected 
-                ? theme.colorScheme.onPrimary 
+            foregroundColor: isSelected
+                ? theme.colorScheme.onPrimary
                 : theme.colorScheme.onSurfaceVariant,
             child: const Icon(Icons.terminal, size: 20),
           ),
@@ -297,7 +302,8 @@ class _SessionTile extends StatelessWidget {
             session.displayName,
             style: TextStyle(
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? theme.colorScheme.onSecondaryContainer : null,
+              color:
+                  isSelected ? theme.colorScheme.onSecondaryContainer : null,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -305,8 +311,8 @@ class _SessionTile extends StatelessWidget {
           subtitle: Text(
             _formatTime(session.createdAt),
             style: theme.textTheme.bodySmall?.copyWith(
-              color: isSelected 
-                  ? theme.colorScheme.onSecondaryContainer.withOpacity(0.7) 
+              color: isSelected
+                  ? theme.colorScheme.onSecondaryContainer.withOpacity(0.7)
                   : theme.colorScheme.onSurfaceVariant,
             ),
           ),
@@ -315,8 +321,8 @@ class _SessionTile extends StatelessWidget {
             onPressed: onClose,
             tooltip: 'Close Session',
             style: IconButton.styleFrom(
-              foregroundColor: isSelected 
-                  ? theme.colorScheme.onSecondaryContainer 
+              foregroundColor: isSelected
+                  ? theme.colorScheme.onSecondaryContainer
                   : theme.colorScheme.onSurfaceVariant,
             ),
           ),
