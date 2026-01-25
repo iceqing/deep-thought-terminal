@@ -1,7 +1,7 @@
 name: deep_thought
 description: A terminal emulator application inspired by Termux, built with Flutter.
 publish_to: 'none'
-version: 1.0.0+1
+version: 0.1.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,6 +34,7 @@ flutter:
   assets:
     - assets/bootstrap-aarch64.zip
     - assets/bootstrap-x86_64.zip
+    - assets/icon/
   fonts:
     # Nerd Font MONO variants - all glyphs forced to single-width
     - family: JetBrainsMonoNerdFontMono

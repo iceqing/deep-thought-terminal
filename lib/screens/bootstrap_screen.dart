@@ -16,10 +16,6 @@ class BootstrapScreen extends StatefulWidget {
 }
 
 class _BootstrapScreenState extends State<BootstrapScreen> {
-  BootstrapStatus _status = BootstrapStatus.notInstalled;
-  double _progress = 0.0;
-  String _message = 'Checking installation status...';
-  bool _isInstalling = false;
   bool _hasError = false;
 
   @override
@@ -30,37 +26,33 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
   }
 
   Future<void> _startInstallation() async {
-    if (_isInstalling) return;
-
     setState(() {
-      _isInstalling = true;
       _hasError = false;
-      _message = 'Starting installation...';
-      _progress = 0.0;
     });
 
+    // 可以在这里静默请求权限，或者让 TermuxBootstrap 内部处理
+    // 为了不打扰用户，我们只显示一个简单的加载动画
+    
     final success = await TermuxBootstrap.initialize(
       onProgress: (status, progress, message) {
-        if (mounted) {
-          setState(() {
-            _status = status;
-            _progress = progress;
-            _message = message;
-            _hasError = status == BootstrapStatus.error;
-          });
-        }
+        // 我们不再更新 UI 显示具体的进度消息，保持界面简洁
+        // 只在后台记录日志
+        debugPrint('Bootstrap: $status - $message ($progress)');
       },
     );
 
     if (success) {
       // 延迟一下让用户看到完成状态
       await Future.delayed(const Duration(milliseconds: 500));
-      widget.onComplete();
+      if (mounted) {
+        widget.onComplete();
+      }
     } else {
-      setState(() {
-        _isInstalling = false;
-        _hasError = true;
-      });
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -69,148 +61,85 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo/图标
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withAlpha(30),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Icon(
-                  Icons.terminal,
-                  size: 64,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // 标题
-              Text(
-                'Deep Thought Terminal',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Text(
-                'A Termux-like terminal for Android',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 48),
-
-              // 状态消息
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _hasError
-                      ? Colors.red.withAlpha(30)
-                      : Colors.white.withAlpha(10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    if (_isInstalling) ...[
-                      // 进度条
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _progress,
-                          backgroundColor: Colors.white.withAlpha(20),
-                          minHeight: 8,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Branded Loading View
+                if (!_hasError) ...[
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: theme.colorScheme.primary.withAlpha(150),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // 状态图标
-                    if (_hasError)
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 48,
-                      )
-                    else if (_status == BootstrapStatus.installed)
-                      const Icon(
-                        Icons.check_circle_outline,
-                        color: Colors.green,
-                        size: 48,
-                      )
-                    else if (_isInstalling)
-                      const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: CircularProgressIndicator(strokeWidth: 3),
-                      ),
-
-                    const SizedBox(height: 16),
-
-                    // 消息文本
-                    Text(
-                      _message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _hasError ? Colors.red[300] : Colors.white70,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    if (_isInstalling) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        '${(_progress * 100).toInt()}%',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          image: const DecorationImage(
+                            image: AssetImage('assets/icon/playstore_icon.png'),
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // 按钮
-              if (!_isInstalling) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _startInstallation,
-                    icon: Icon(_hasError ? Icons.refresh : Icons.download),
-                    label: Text(_hasError ? 'Retry Installation' : 'Install Environment'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  const SizedBox(height: 48),
+                  Text(
+                    'Initializing environment...',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-
+                  const SizedBox(height: 12),
+                  Text(
+                    'Preparing your powerful terminal',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ] else ...[
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Initialization failed',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Please check your storage permissions and try again.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: _startInstallation,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
               ],
-
-              const Spacer(),
-
-              // 底部说明
-              Text(
-                'Extract ~30MB of Linux tools\nincluding bash, apt, ssh, and more.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withAlpha(100),
-                  fontSize: 12,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

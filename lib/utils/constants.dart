@@ -4,7 +4,7 @@
 class AppConstants {
   static const String appName = 'Deep Thought';
   static const String packageName = 'com.dpterm';
-  static const String version = '1.0.0';
+  static const String version = '0.1.0';
 }
 
 /// Termux 文件系统路径常量
