@@ -68,7 +68,7 @@ class ExtraKeys {
       ExtraKey(label: 'FORWARD_DEL', displayLabel: 'DEL', terminalKey: TerminalKey.delete);
 
   // 常用符号
-  static const dash = ExtraKey(label: '-', text: '-');
+  static const minus = ExtraKey(label: '-', text: '-');
   static const slash = ExtraKey(label: '/', text: '/');
   static const pipe = ExtraKey(label: '|', text: '|');
   static const backslash = ExtraKey(label: '\\', text: '\\');
@@ -92,6 +92,8 @@ class ExtraKeys {
   static const question = ExtraKey(label: '?', text: '?');
   static const lessThan = ExtraKey(label: '<', text: '<');
   static const greaterThan = ExtraKey(label: '>', text: '>');
+  static const append = ExtraKey(label: '>>', text: '>>');
+  static const and = ExtraKey(label: '&&', text: '&&');
 
   // 括号
   static const leftParen = ExtraKey(label: '(', text: '(');
@@ -341,7 +343,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                       _buildKey(ExtraKeys.esc, theme),
                       _buildKey(ExtraKeys.ctrl, theme),
                       _buildKey(ExtraKeys.alt, theme),
-                      _buildKey(ExtraKeys.dash, theme),
+                      _buildKey(ExtraKeys.minus, theme),
                     ],
                   ),
                 ),
@@ -596,7 +598,18 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   /// 符号面板
   Widget _buildSymbolsPanel(ThemeData theme) {
     final symbols = [
-      // 第一行
+      // 第一行: 核心终端符号
+      [
+        ExtraKeys.pipe,
+        ExtraKeys.greaterThan,
+        ExtraKeys.append,
+        ExtraKeys.ampersand,
+        ExtraKeys.and,
+        ExtraKeys.semicolon,
+        ExtraKeys.backslash,
+        ExtraKeys.slash,
+      ],
+      // 第二行: 基础符号
       [
         ExtraKeys.tilde,
         ExtraKeys.backtick,
@@ -607,31 +620,25 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         ExtraKeys.percent,
         ExtraKeys.caret,
       ],
-      // 第二行
+      // 第三行: 数学与逻辑
       [
-        ExtraKeys.ampersand,
         ExtraKeys.asterisk,
+        ExtraKeys.plus,
+        ExtraKeys.minus,
+        ExtraKeys.equals,
+        ExtraKeys.underscore,
+        ExtraKeys.colon,
+        ExtraKeys.lessThan,
+        ExtraKeys.question,
+      ],
+      // 第四行: 括号与引号
+      [
         ExtraKeys.leftParen,
         ExtraKeys.rightParen,
-        ExtraKeys.underscore,
-        ExtraKeys.plus,
-        ExtraKeys.equals,
-        ExtraKeys.backslash,
-      ],
-      // 第三行
-      [
         ExtraKeys.leftBracket,
         ExtraKeys.rightBracket,
         ExtraKeys.leftBrace,
         ExtraKeys.rightBrace,
-        ExtraKeys.lessThan,
-        ExtraKeys.greaterThan,
-        ExtraKeys.question,
-        ExtraKeys.colon,
-      ],
-      // 第四行
-      [
-        ExtraKeys.semicolon,
         ExtraKeys.quote,
         ExtraKeys.doubleQuote,
       ],
