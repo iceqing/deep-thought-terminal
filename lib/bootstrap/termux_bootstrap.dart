@@ -6,6 +6,65 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import '../utils/constants.dart';
 
+/// 耗时统计工具
+class BootstrapProfiler {
+  static final Map<String, int> _timings = {};
+  static final Map<String, Stopwatch> _stopwatches = {};
+  static bool enabled = true;  // 设置为 false 可禁用统计
+
+  static void start(String name) {
+    if (!enabled) return;
+    _stopwatches[name] = Stopwatch()..start();
+  }
+
+  static void end(String name) {
+    if (!enabled) return;
+    final sw = _stopwatches[name];
+    if (sw != null) {
+      sw.stop();
+      _timings[name] = sw.elapsedMilliseconds;
+    }
+  }
+
+  static void reset() {
+    _timings.clear();
+    _stopwatches.clear();
+  }
+
+  static String getReport() {
+    if (_timings.isEmpty) return 'No profiling data';
+
+    final buffer = StringBuffer();
+    buffer.writeln('');
+    buffer.writeln('╔══════════════════════════════════════════════════════════════╗');
+    buffer.writeln('║           Bootstrap 初始化耗时分析报告                        ║');
+    buffer.writeln('╠══════════════════════════════════════════════════════════════╣');
+
+    // 按耗时排序
+    final sorted = _timings.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    int total = 0;
+    for (final entry in sorted) {
+      total += entry.value;
+      final name = entry.key.padRight(40);
+      final time = '${entry.value} ms'.padLeft(10);
+      buffer.writeln('║ $name $time    ║');
+    }
+
+    buffer.writeln('╠══════════════════════════════════════════════════════════════╣');
+    final totalStr = '$total ms'.padLeft(10);
+    buffer.writeln('║ ${'总计'.padRight(40)} $totalStr    ║');
+    buffer.writeln('╚══════════════════════════════════════════════════════════════╝');
+
+    return buffer.toString();
+  }
+
+  static void printReport() {
+    debugPrint(getReport());
+  }
+}
+
 /// Bootstrap 安装状态
 enum BootstrapStatus {
   notInstalled,
@@ -48,9 +107,16 @@ class TermuxBootstrap {
   static Future<bool> initialize({
     BootstrapProgressCallback? onProgress,
   }) async {
+    BootstrapProfiler.reset();
+    BootstrapProfiler.start('总初始化时间');
+
     try {
       // 检查是否已安装
-      if (await isInstalled()) {
+      BootstrapProfiler.start('检查是否已安装');
+      final alreadyInstalled = await isInstalled();
+      BootstrapProfiler.end('检查是否已安装');
+
+      if (alreadyInstalled) {
         _status = BootstrapStatus.configuring;
         onProgress?.call(_status, 0.9, 'Updating configuration...');
 
@@ -59,18 +125,25 @@ class TermuxBootstrap {
 
         _status = BootstrapStatus.installed;
         onProgress?.call(_status, 1.0, 'Bootstrap ready');
+
+        BootstrapProfiler.end('总初始化时间');
+        BootstrapProfiler.printReport();
         return true;
       }
 
       // 创建基础目录结构
       _status = BootstrapStatus.configuring;
       onProgress?.call(_status, 0.05, 'Creating directories...');
+      BootstrapProfiler.start('创建目录结构');
       await _createDirectories();
+      BootstrapProfiler.end('创建目录结构');
 
       // 从assets加载Bootstrap包
       _status = BootstrapStatus.loading;
       onProgress?.call(_status, 0.1, 'Loading bootstrap from assets...');
+      BootstrapProfiler.start('加载 bootstrap 到内存');
       final archiveData = await _loadBootstrapFromAssets();
+      BootstrapProfiler.end('加载 bootstrap 到内存');
       if (archiveData == null) {
         throw Exception('Failed to load bootstrap package');
       }
@@ -87,12 +160,18 @@ class TermuxBootstrap {
 
       _status = BootstrapStatus.installed;
       onProgress?.call(_status, 1.0, 'Bootstrap installation complete');
+
+      BootstrapProfiler.end('总初始化时间');
+      BootstrapProfiler.printReport();
       return true;
     } catch (e) {
       _status = BootstrapStatus.error;
       _errorMessage = e.toString();
       onProgress?.call(_status, 0.0, 'Error: $_errorMessage');
       debugPrint('Bootstrap initialization failed: $e');
+
+      BootstrapProfiler.end('总初始化时间');
+      BootstrapProfiler.printReport();
       return false;
     }
   }
@@ -162,12 +241,16 @@ class TermuxBootstrap {
     BootstrapProgressCallback? onProgress,
   ) async {
     try {
+      BootstrapProfiler.start('ZIP 解码 (decodeBytes)');
       final archive = ZipDecoder().decodeBytes(archiveData);
+      BootstrapProfiler.end('ZIP 解码 (decodeBytes)');
+
       final totalFiles = archive.files.length;
       var extractedFiles = 0;
       final symlinks = <String, String>{};
       final executableFiles = <String>[];
 
+      BootstrapProfiler.start('写入文件 ($totalFiles 个)');
       for (final file in archive.files) {
         final filename = file.name;
 
@@ -204,6 +287,7 @@ class TermuxBootstrap {
           );
         }
       }
+      BootstrapProfiler.end('写入文件 ($totalFiles 个)');
 
       // 批量设置可执行权限
       onProgress?.call(
@@ -212,10 +296,14 @@ class TermuxBootstrap {
         'Setting permissions for ${executableFiles.length} files...',
       );
 
+      BootstrapProfiler.start('chmod (${executableFiles.length} 个文件)');
       await _setExecutablePermissions(executableFiles);
+      BootstrapProfiler.end('chmod (${executableFiles.length} 个文件)');
 
       // 创建符号链接
+      BootstrapProfiler.start('创建符号链接 (${symlinks.length} 个)');
       await _createSymlinks(symlinks);
+      BootstrapProfiler.end('创建符号链接 (${symlinks.length} 个)');
     } catch (e) {
       debugPrint('Extraction failed: $e');
       rethrow;
@@ -223,15 +311,28 @@ class TermuxBootstrap {
   }
 
   /// 批量设置可执行权限
+  /// 优化：使用 chmod -R 对目录批量设置，而不是逐个文件调用
   static Future<void> _setExecutablePermissions(List<String> files) async {
-    for (final filePath in files) {
-      try {
-        final result = await Process.run('chmod', ['700', filePath]);
-        if (result.exitCode != 0) {
-          debugPrint('chmod failed for $filePath: ${result.stderr}');
+    // 使用目录级别的批量 chmod，大幅减少进程调用次数
+    final binDir = TermuxConstants.binDir;
+    final libexecDir = '${TermuxConstants.prefixDir}/libexec';
+    final aptMethodsDir = '${TermuxConstants.libDir}/apt/methods';
+
+    final dirsToChmod = [binDir, libexecDir, aptMethodsDir];
+
+    for (final dir in dirsToChmod) {
+      if (await Directory(dir).exists()) {
+        try {
+          // chmod -R 700 对整个目录设置权限
+          final result = await Process.run('chmod', ['-R', '700', dir]);
+          if (result.exitCode != 0) {
+            debugPrint('chmod -R failed for $dir: ${result.stderr}');
+          } else {
+            debugPrint('chmod -R 700 $dir - success');
+          }
+        } catch (e) {
+          debugPrint('Failed to chmod directory $dir: $e');
         }
-      } catch (e) {
-        debugPrint('Failed to set permission for $filePath: $e');
       }
     }
 
@@ -305,48 +406,78 @@ class TermuxBootstrap {
 
   /// 配置环境
   static Future<void> _configureEnvironment() async {
+    BootstrapProfiler.start('配置环境 (总计)');
+
     // 创建环境变量文件
+    BootstrapProfiler.start('  writeEnvironmentFile');
     await TermuxEnvironment.writeEnvironmentFile();
+    BootstrapProfiler.end('  writeEnvironmentFile');
 
     // 设置tmp目录权限
+    BootstrapProfiler.start('  chmod tmp');
     try {
       await Process.run('chmod', ['1777', TermuxConstants.tmpDir]);
     } catch (e) {
       debugPrint('Failed to set tmp permissions: $e');
     }
+    BootstrapProfiler.end('  chmod tmp');
 
     // 确保关键库文件有正确的链接
+    BootstrapProfiler.start('  _ensureCriticalLibraries');
     await _ensureCriticalLibraries();
+    BootstrapProfiler.end('  _ensureCriticalLibraries');
 
     // 配置APT包管理器
+    BootstrapProfiler.start('  _configureApt');
     await _configureApt();
+    BootstrapProfiler.end('  _configureApt');
 
     // 创建工具脚本
+    BootstrapProfiler.start('  createSetupStorageScript');
     await createSetupStorageScript();
+    BootstrapProfiler.end('  createSetupStorageScript');
 
     // 创建 chsh 替代脚本
+    BootstrapProfiler.start('  _createChshScript');
     await _createChshScript();
+    BootstrapProfiler.end('  _createChshScript');
 
     // 创建 termux-reload-settings 替代脚本
+    BootstrapProfiler.start('  _createTermuxReloadSettingsScript');
     await _createTermuxReloadSettingsScript();
+    BootstrapProfiler.end('  _createTermuxReloadSettingsScript');
 
     // 创建 bashrc 配置文件
+    BootstrapProfiler.start('  _createBashrc');
     await _createBashrc();
+    BootstrapProfiler.end('  _createBashrc');
 
     // 创建 pkg 脚本
+    BootstrapProfiler.start('  _createPkgScript');
     await _createPkgScript();
+    BootstrapProfiler.end('  _createPkgScript');
 
     // 创建 bash 包装脚本（必须在其他包装脚本之前）
+    BootstrapProfiler.start('  _createBashWrapper');
     await _createBashWrapper();
+    BootstrapProfiler.end('  _createBashWrapper');
 
     // 创建关键二进制包装脚本（apt-key、gpg 等）
+    BootstrapProfiler.start('  _createBinaryWrappers');
     await _createBinaryWrappers();
+    BootstrapProfiler.end('  _createBinaryWrappers');
 
     // 确保 sh 符号链接存在（指向 bash-real，必须在 bash 包装之后）
+    BootstrapProfiler.start('  _ensureShSymlink');
     await _ensureShSymlink();
+    BootstrapProfiler.end('  _ensureShSymlink');
 
     // 创建 APT method 包装脚本（解决 https 方法问题）
+    BootstrapProfiler.start('  _createAptMethodWrappers');
     await _createAptMethodWrappers();
+    BootstrapProfiler.end('  _createAptMethodWrappers');
+
+    BootstrapProfiler.end('配置环境 (总计)');
   }
 
   /// 创建 bashrc 配置文件
