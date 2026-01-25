@@ -1,7 +1,7 @@
 # Deep Thought
 
 <p align="center">
-  <img src="assets/icon/icon.png" alt="Deep Thought Logo" width="128" height="128">
+  <img src="assets/icon/app_icon_pure.svg" alt="Deep Thought Logo" width="128" height="128">
 </p>
 
 <p align="center">
