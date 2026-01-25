@@ -22,45 +22,46 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(l10n.settings),
       ),
       body: ListView(
-        children: const [
-          _SectionHeader(title: 'Language'),
-          _LanguageSetting(),
-          _SectionHeader(title: 'Appearance'),
-          _AppThemeSetting(),
-          _FontFamilySetting(),
-          _FontSizeSetting(),
-          _ColorThemeSetting(),
-          _SectionHeader(title: 'Cursor'),
-          _CursorStyleSetting(),
-          _CursorBlinkSetting(),
-          _SectionHeader(title: 'Display'),
-          _KeepScreenOnSetting(),
-          _ShowExtraKeysSetting(),
-          _TerminalMarginSetting(),
-          _SectionHeader(title: 'Input'),
-          _VibrationSetting(),
-          _BellSetting(),
-          _SectionHeader(title: 'Gestures'),
-          _PinchZoomSetting(),
-          _VolumeKeysSetting(),
-          _SectionHeader(title: 'Command History'),
-          _HistoryStatsTile(),
-          _HistoryViewerTile(),
-          _ClearHistoryTile(),
-          _ExportHistoryTile(),
-          _ImportHistoryTile(),
-          _SectionHeader(title: 'Package Sources'),
-          _MirrorSetting(),
-          _SectionHeader(title: 'Advanced'),
-          _ShowDebugInfoSetting(),
-          _WcwidthDebugTile(),
-          _ResetSettingsTile(),
-          SizedBox(height: 32),
+        children: [
+          _SectionHeader(title: l10n.language),
+          const _LanguageSetting(),
+          _SectionHeader(title: l10n.appearance),
+          const _AppThemeSetting(),
+          const _FontFamilySetting(),
+          const _FontSizeSetting(),
+          const _ColorThemeSetting(),
+          _SectionHeader(title: l10n.cursor),
+          const _CursorStyleSetting(),
+          const _CursorBlinkSetting(),
+          _SectionHeader(title: l10n.display),
+          const _KeepScreenOnSetting(),
+          const _ShowExtraKeysSetting(),
+          const _TerminalMarginSetting(),
+          _SectionHeader(title: l10n.input),
+          const _VibrationSetting(),
+          const _BellSetting(),
+          _SectionHeader(title: l10n.gestures),
+          const _PinchZoomSetting(),
+          const _VolumeKeysSetting(),
+          _SectionHeader(title: l10n.history),
+          const _HistoryStatsTile(),
+          const _HistoryViewerTile(),
+          const _ClearHistoryTile(),
+          const _ExportHistoryTile(),
+          const _ImportHistoryTile(),
+          _SectionHeader(title: l10n.packageSources),
+          const _MirrorSetting(),
+          _SectionHeader(title: l10n.advanced),
+          const _ShowDebugInfoSetting(),
+          const _WcwidthDebugTile(),
+          const _ResetSettingsTile(),
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -150,16 +151,30 @@ class _LanguageSetting extends StatelessWidget {
     Locale? locale,
     String name,
   ) {
-    final isSelected = settings.locale == locale ||
-        (settings.locale == null && locale == null);
+    // 检查是否选中
+    bool isSelected;
+    if (locale == null && settings.locale == null) {
+      isSelected = true;
+    } else if (locale != null && settings.locale != null) {
+      isSelected = locale.languageCode == settings.locale!.languageCode &&
+          locale.countryCode == settings.locale!.countryCode;
+    } else {
+      isSelected = false;
+    }
 
-    return RadioListTile<Locale?>(
+    debugPrint('Building radio tile: $name, locale=$locale, isSelected=$isSelected, current=${settings.locale}');
+
+    return ListTile(
+      leading: Icon(
+        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: isSelected ? Theme.of(context).colorScheme.primary : null,
+      ),
       title: Text(name),
-      value: locale,
-      groupValue: settings.locale,
-      onChanged: (value) {
-        settings.setLocale(value);
-        Navigator.pop(context);
+      onTap: () async {
+        debugPrint('Language tile tapped: $name, locale=$locale');
+        Navigator.pop(context);  // 先关闭弹窗
+        await settings.setLocale(locale);  // 再设置语言
+        debugPrint('setLocale completed');
       },
     );
   }
@@ -172,27 +187,30 @@ class _AppThemeSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.brightness_medium),
-      title: const Text('App Theme'),
-      subtitle: Text(_getThemeModeName(settings.themeMode)),
+      title: Text(l10n.appTheme),
+      subtitle: Text(_getThemeModeName(context, settings.themeMode)),
       onTap: () => _showThemeModePicker(context, settings),
     );
   }
 
-  String _getThemeModeName(ThemeMode mode) {
+  String _getThemeModeName(BuildContext context, ThemeMode mode) {
+    final l10n = AppLocalizations.of(context);
     switch (mode) {
       case ThemeMode.system:
-        return 'System Default';
+        return l10n.themeSystem;
       case ThemeMode.light:
-        return 'Light';
+        return l10n.themeLight;
       case ThemeMode.dark:
-        return 'Dark';
+        return l10n.themeDark;
     }
   }
 
   void _showThemeModePicker(BuildContext context, SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -202,13 +220,13 @@ class _AppThemeSetting extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Select App Theme',
+                l10n.selectAppTheme,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            _buildRadioTile(context, settings, ThemeMode.system, 'System Default'),
-            _buildRadioTile(context, settings, ThemeMode.light, 'Light'),
-            _buildRadioTile(context, settings, ThemeMode.dark, 'Dark'),
+            _buildRadioTile(context, settings, ThemeMode.system, l10n.themeSystem),
+            _buildRadioTile(context, settings, ThemeMode.light, l10n.themeLight),
+            _buildRadioTile(context, settings, ThemeMode.dark, l10n.themeDark),
           ],
         ),
       ),
@@ -242,10 +260,11 @@ class _FontFamilySetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.font_download),
-      title: const Text('Font Family'),
+      title: Text(l10n.fontFamily),
       subtitle: Text(AvailableFonts.getDisplayName(
         settings.fontFamily,
         hasCustomFont: settings.customFontLoaded,
@@ -269,7 +288,7 @@ class _FontFamilySetting extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Select Font',
+                  AppLocalizations.of(context).selectFont,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
@@ -378,10 +397,11 @@ class _FontSizeSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.format_size),
-      title: const Text('Font Size'),
+      title: Text(l10n.fontSize),
       subtitle: Text('${settings.fontSize.round()} pt'),
       trailing: SizedBox(
         width: 200,
@@ -405,16 +425,18 @@ class _ColorThemeSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.palette),
-      title: const Text('Color Theme'),
+      title: Text(l10n.colorTheme),
       subtitle: Text(ThemeDisplayNames.getName(settings.colorTheme)),
       onTap: () => _showThemePicker(context, settings),
     );
   }
 
   void _showThemePicker(BuildContext context, SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -424,7 +446,7 @@ class _ColorThemeSetting extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Select Theme',
+                l10n.selectTheme,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
@@ -487,10 +509,11 @@ class _CursorStyleSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.edit),
-      title: const Text('Cursor Style'),
+      title: Text(l10n.cursorStyle),
       subtitle: Text(_getCursorStyleName(settings.cursorStyle)),
       onTap: () => _showCursorStylePicker(context, settings),
     );
@@ -510,6 +533,7 @@ class _CursorStyleSetting extends StatelessWidget {
   }
 
   void _showCursorStylePicker(BuildContext context, SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -519,7 +543,7 @@ class _CursorStyleSetting extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'Select Cursor Style',
+                l10n.selectCursorStyle,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
@@ -591,11 +615,12 @@ class _CursorBlinkSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.flash_on),
-      title: const Text('Cursor Blink'),
-      subtitle: const Text('Animate cursor blinking'),
+      title: Text(l10n.cursorBlink),
+      subtitle: Text(l10n.cursorBlinkDesc),
       value: settings.cursorBlink,
       onChanged: (value) => settings.setCursorBlink(value),
     );
@@ -609,11 +634,12 @@ class _KeepScreenOnSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.light_mode),
-      title: const Text('Keep Screen On'),
-      subtitle: const Text('Prevent screen from turning off'),
+      title: Text(l10n.keepScreenOn),
+      subtitle: Text(l10n.keepScreenOnDesc),
       value: settings.keepScreenOn,
       onChanged: (value) => settings.setKeepScreenOn(value),
     );
@@ -627,11 +653,12 @@ class _ShowExtraKeysSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.keyboard),
-      title: const Text('Show Extra Keys'),
-      subtitle: const Text('Show additional keyboard row'),
+      title: Text(l10n.showExtraKeys),
+      subtitle: Text(l10n.showExtraKeysDesc),
       value: settings.showExtraKeys,
       onChanged: (value) => settings.setShowExtraKeys(value),
     );
@@ -645,10 +672,11 @@ class _TerminalMarginSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.margin),
-      title: const Text('Terminal Margin'),
+      title: Text(l10n.terminalMargin),
       subtitle: Text('${settings.terminalMargin} px'),
       trailing: SizedBox(
         width: 200,
@@ -672,11 +700,12 @@ class _VibrationSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.vibration),
-      title: const Text('Vibration'),
-      subtitle: const Text('Haptic feedback on key press'),
+      title: Text(l10n.vibration),
+      subtitle: Text(l10n.vibrationDesc),
       value: settings.vibrationEnabled,
       onChanged: (value) => settings.setVibrationEnabled(value),
     );
@@ -690,11 +719,12 @@ class _BellSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.notifications),
-      title: const Text('Bell'),
-      subtitle: const Text('Play sound on bell character'),
+      title: Text(l10n.bellSound),
+      subtitle: Text(l10n.bellSoundDesc),
       value: settings.bellEnabled,
       onChanged: (value) => settings.setBellEnabled(value),
     );
@@ -708,11 +738,12 @@ class _PinchZoomSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.pinch),
-      title: const Text('Pinch to Zoom'),
-      subtitle: const Text('Use two fingers to resize text'),
+      title: Text(l10n.pinchZoom),
+      subtitle: Text(l10n.pinchZoomDesc),
       value: settings.pinchZoomEnabled,
       onChanged: (value) => settings.setPinchZoomEnabled(value),
     );
@@ -726,11 +757,12 @@ class _VolumeKeysSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.volume_up),
-      title: const Text('Volume Keys as Modifiers'),
-      subtitle: const Text('Vol+ = Ctrl, Vol- = Alt'),
+      title: Text(l10n.volumeKeys),
+      subtitle: Text(l10n.volumeKeysDesc),
       value: settings.volumeKeysEnabled,
       onChanged: (value) => settings.setVolumeKeysEnabled(value),
     );
@@ -744,37 +776,37 @@ class _ResetSettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.read<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.restore),
-      title: const Text('Reset to Defaults'),
-      subtitle: const Text('Restore all settings to default values'),
+      title: Text(l10n.resetToDefaults),
+      subtitle: Text(l10n.resetToDefaultsDesc),
       onTap: () => _showResetConfirmation(context, settings),
     );
   }
 
   void _showResetConfirmation(BuildContext context, SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Settings'),
-        content: const Text(
-          'Are you sure you want to reset all settings to their default values?',
-        ),
+        title: Text(l10n.resetSettings),
+        content: Text(l10n.resetSettingsConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
               settings.resetToDefaults();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings reset to defaults')),
+                SnackBar(content: Text(l10n.resetToDefaults)),
               );
             },
-            child: const Text('Reset'),
+            child: Text(l10n.confirm),
           ),
         ],
       ),
@@ -790,10 +822,11 @@ class _MirrorSetting extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final currentMirror = settings.currentMirror;
+    final l10n = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.cloud_download),
-      title: const Text('Package Mirror'),
+      title: Text(l10n.packageMirror),
       subtitle: Text('${currentMirror.name} (${currentMirror.region})'),
       onTap: () => _showMirrorPicker(context, settings),
     );
@@ -802,6 +835,7 @@ class _MirrorSetting extends StatelessWidget {
   void _showMirrorPicker(BuildContext context, SettingsProvider settings) {
     final mirrorsByRegion = AvailableMirrors.byRegion;
     final regions = mirrorsByRegion.keys.toList();
+    final l10n = AppLocalizations.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -817,7 +851,7 @@ class _MirrorSetting extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'Select Package Mirror',
+                  l10n.selectMirror,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
@@ -952,11 +986,12 @@ class _ShowDebugInfoSetting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
 
     return SwitchListTile(
       secondary: const Icon(Icons.bug_report_outlined),
-      title: const Text('Show Debug Info'),
-      subtitle: const Text('Display terminal debug overlay'),
+      title: Text(l10n.showDebugInfo),
+      subtitle: Text(l10n.showDebugInfoDesc),
       value: settings.showDebugInfo,
       onChanged: (value) => settings.setShowDebugInfo(value),
     );
@@ -969,10 +1004,11 @@ class _WcwidthDebugTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.bug_report),
-      title: const Text('Character Width Debug'),
-      subtitle: const Text('Diagnose Powerline/Nerd Font issues'),
+      title: Text(l10n.charWidthDebug),
+      subtitle: Text(l10n.charWidthDebugDesc),
       onTap: () => _showFontTestDialog(context),
     );
   }
@@ -1386,11 +1422,12 @@ class _HistoryStatsTileState extends State<_HistoryStatsTile> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.analytics_outlined),
-      title: const Text('History Statistics'),
+      title: Text(l10n.historyStats),
       subtitle: _stats == null
-          ? const Text('Loading...')
+          ? Text(l10n.loading)
           : Text('${_stats!['total']} commands (Bash: ${_stats!['bash']}, Zsh: ${_stats!['zsh']})'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1398,7 +1435,7 @@ class _HistoryStatsTileState extends State<_HistoryStatsTile> {
           IconButton(
             icon: const Icon(Icons.bug_report, size: 20),
             onPressed: _showDebugInfo,
-            tooltip: 'Debug Info',
+            tooltip: l10n.historyDebugInfo,
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -1418,10 +1455,11 @@ class _HistoryViewerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.history),
-      title: const Text('View History'),
-      subtitle: const Text('Browse and search command history'),
+      title: Text(l10n.historyView),
+      subtitle: Text(l10n.historyViewDesc),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => HistoryViewer.show(context),
     );
@@ -1434,26 +1472,26 @@ class _ClearHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.delete_outline),
-      title: const Text('Clear History'),
-      subtitle: const Text('Delete all command history'),
+      title: Text(l10n.historyClear),
+      subtitle: Text(l10n.historyClearDesc),
       onTap: () => _showClearConfirmation(context),
     );
   }
 
   void _showClearConfirmation(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear History'),
-        content: const Text(
-          'Are you sure you want to clear all command history? This action cannot be undone.',
-        ),
+        title: Text(l10n.historyClear),
+        content: Text(l10n.historyClearConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -1465,11 +1503,11 @@ class _ClearHistoryTile extends StatelessWidget {
               await historyService.clearHistory();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('History cleared')),
+                  SnackBar(content: Text(l10n.historyCleared)),
                 );
               }
             },
-            child: const Text('Clear'),
+            child: Text(l10n.historyClear),
           ),
         ],
       ),
@@ -1483,10 +1521,11 @@ class _ExportHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.file_upload_outlined),
-      title: const Text('Export History'),
-      subtitle: const Text('Backup history to JSON file'),
+      title: Text(l10n.historyExport),
+      subtitle: Text(l10n.historyExportDesc),
       onTap: () => _exportHistory(context),
     );
   }
@@ -1547,21 +1586,23 @@ class _ImportHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.file_download_outlined),
-      title: const Text('Import History'),
-      subtitle: const Text('Restore history from JSON file'),
+      title: Text(l10n.historyImport),
+      subtitle: Text(l10n.historyImportDesc),
       onTap: () => _showImportDialog(context),
     );
   }
 
   void _showImportDialog(BuildContext context) {
     final pathController = TextEditingController();
+    final l10n = AppLocalizations.of(context);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Import History'),
+        title: Text(l10n.historyImport),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

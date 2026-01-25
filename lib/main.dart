@@ -32,6 +32,7 @@ class DeepThoughtApp extends StatelessWidget {
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
+          debugPrint('MaterialApp rebuilding with locale: ${settings.locale}');
           return MaterialApp(
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,

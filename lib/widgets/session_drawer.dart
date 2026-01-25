@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/terminal_provider.dart';
 import '../models/terminal_session.dart';
 import '../screens/ssh_manager_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// 会话列表抽屉
 /// 参考 termux-app: TermuxSessionsListViewController.java
@@ -18,6 +19,7 @@ class SessionDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final terminalProvider = context.watch<TerminalProvider>();
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Drawer(
       child: SafeArea(
@@ -37,7 +39,7 @@ class SessionDrawer extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Sessions',
+                    l10n.sessions,
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: theme.colorScheme.onPrimaryContainer,
                     ),
@@ -57,7 +59,7 @@ class SessionDrawer extends StatelessWidget {
                         ),
                       );
                     },
-                    tooltip: 'Manage SSH',
+                    tooltip: l10n.manageSSH,
                   ),
                   IconButton(
                     icon: Icon(
@@ -68,7 +70,7 @@ class SessionDrawer extends StatelessWidget {
                       Navigator.pop(context);
                       onSettingsTap?.call();
                     },
-                    tooltip: 'Settings',
+                    tooltip: l10n.settings,
                   ),
                 ],
               ),
@@ -88,7 +90,7 @@ class SessionDrawer extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'No active sessions',
+                            l10n.noSessions,
                             style: theme.textTheme.bodyLarge?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -133,7 +135,7 @@ class SessionDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                '${terminalProvider.sessions.length} active session(s)',
+                l10n.activeSessionsCount(terminalProvider.sessions.length),
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -151,17 +153,18 @@ class SessionDrawer extends StatelessWidget {
     TerminalProvider provider,
     int index,
   ) {
+    final l10n = AppLocalizations.of(context);
     // 只有一个会话时，或者用户通过滑动删除时，可能不需要确认？
     // 为了防止误触，保留确认是个好习惯，尤其是终端内容可能很重要。
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Close Session'),
-        content: Text('Close "${provider.sessions[index].displayName}"?'),
+        title: Text(l10n.closeSession),
+        content: Text('${l10n.close} "${provider.sessions[index].displayName}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -171,7 +174,7 @@ class SessionDrawer extends StatelessWidget {
                 Navigator.pop(context); // Close drawer if empty
               }
             },
-            child: const Text('Close'),
+            child: Text(l10n.close),
           ),
         ],
       ),
@@ -185,16 +188,17 @@ class SessionDrawer extends StatelessWidget {
     String currentTitle,
   ) {
     final controller = TextEditingController(text: currentTitle);
+    final l10n = AppLocalizations.of(context);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rename Session'),
+        title: Text(l10n.renameSession),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Session name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.sessions,
+            border: const OutlineInputBorder(),
           ),
           autofocus: true,
           onSubmitted: (value) {
@@ -207,7 +211,7 @@ class SessionDrawer extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -216,7 +220,7 @@ class SessionDrawer extends StatelessWidget {
               }
               Navigator.pop(context);
             },
-            child: const Text('Rename'),
+            child: Text(l10n.rename),
           ),
         ],
       ),

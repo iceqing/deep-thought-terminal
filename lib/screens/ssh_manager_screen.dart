@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/ssh_host.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/terminal_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class SSHManagerScreen extends StatelessWidget {
   const SSHManagerScreen({super.key});
@@ -10,6 +11,7 @@ class SSHManagerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sshProvider = context.watch<SSHProvider>();
+    final l10n = AppLocalizations.of(context);
 
     // Determine colors based on theme if possible, otherwise fallback to Material colors
     // We can use the theme.foreground/background for a custom feel or standard Scaffold colors.
@@ -17,7 +19,7 @@ class SSHManagerScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SSH Connections'),
+        title: Text(l10n.sshConnections),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -32,12 +34,12 @@ class SSHManagerScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.computer, size: 64, color: Colors.grey.withOpacity(0.5)),
                   const SizedBox(height: 16),
-                  const Text('No SSH hosts saved'),
+                  Text(l10n.sshNoHosts),
                   const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: () => _showEditDialog(context, null),
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Host'),
+                    label: Text(l10n.addHost),
                   ),
                 ],
               ),
@@ -59,20 +61,23 @@ class SSHManagerScreen extends StatelessWidget {
                   confirmDismiss: (direction) async {
                     return await showDialog(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Delete Host'),
-                        content: Text('Are you sure you want to delete ${host.displayName}?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                          ),
-                        ],
-                      ),
+                      builder: (context) {
+                        final l10n = AppLocalizations.of(context);
+                        return AlertDialog(
+                          title: Text(l10n.deleteHost),
+                          content: Text(l10n.deleteHostConfirm.replaceAll('{name}', host.displayName)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: Text(l10n.cancel),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                   onDismissed: (direction) {
@@ -171,18 +176,19 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text(widget.host == null ? 'Add SSH Host' : 'Edit SSH Host'),
+      title: Text(widget.host == null ? l10n.addHost : l10n.editHost),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _aliasController,
-              decoration: const InputDecoration(
-                labelText: 'Alias (Optional)',
+              decoration: InputDecoration(
+                labelText: '${l10n.displayName} (${l10n.optional})',
                 hintText: 'My Server',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               textCapitalization: TextCapitalization.sentences,
             ),
@@ -193,10 +199,10 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
                   flex: 3,
                   child: TextField(
                     controller: _hostController,
-                    decoration: const InputDecoration(
-                      labelText: 'Host',
+                    decoration: InputDecoration(
+                      labelText: l10n.sshHost,
                       hintText: '192.168.1.1 or example.com',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress, // for better keyboard
                     autocorrect: false,
@@ -207,9 +213,9 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
                   flex: 1,
                   child: TextField(
                     controller: _portController,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: l10n.sshPort,
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -219,20 +225,20 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: 'Username',
+              decoration: InputDecoration(
+                labelText: l10n.sshUsername,
                 hintText: 'root',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               autocorrect: false,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _argsController,
-              decoration: const InputDecoration(
-                labelText: 'Extra Args (Optional)',
+              decoration: InputDecoration(
+                labelText: 'Extra Args (${l10n.optional})',
                 hintText: '-i /path/to/key.pem',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
               autocorrect: false,
             ),
@@ -242,21 +248,22 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _save,
-          child: const Text('Save'),
+          child: Text(l10n.save),
         ),
       ],
     );
   }
 
   void _save() {
+    final l10n = AppLocalizations.of(context);
     final hostStr = _hostController.text.trim();
     if (hostStr.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Host is required')),
+        SnackBar(content: Text(l10n.hostRequired)),
       );
       return;
     }

@@ -23,6 +23,7 @@ import '../widgets/scaled_terminal_view.dart';
 import '../widgets/history_viewer.dart';
 import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
+import '../l10n/app_localizations.dart';
 
 /// 终端主屏幕
 /// 参考 termux-app: TermuxActivity.java
@@ -336,6 +337,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     TerminalProvider terminalProvider,
     SettingsProvider settings,
   ) {
+    final l10n = AppLocalizations.of(context);
     return AppBar(
       backgroundColor: settings.terminalTheme.background,
       foregroundColor: settings.terminalTheme.foreground,
@@ -343,9 +345,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
       leading: IconButton(
         icon: const Icon(Icons.close),
         onPressed: () => _clearSelection(terminalProvider),
-        tooltip: 'Clear selection',
+        tooltip: l10n.clearSelection,
       ),
-      title: const Text('Selected'),
+      title: Text(l10n.selected),
       centerTitle: false,
       actions: [
         // 唯一的核心操作：Copy
@@ -355,7 +357,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             child: FilledButton.icon(
               onPressed: () => _copySelection(terminalProvider),
               icon: const Icon(Icons.copy, size: 18),
-              label: const Text('Copy'),
+              label: Text(l10n.copy),
               style: FilledButton.styleFrom(
                 backgroundColor: settings.terminalTheme.foreground.withOpacity(0.15),
                 foregroundColor: settings.terminalTheme.foreground,
@@ -368,40 +370,43 @@ class _TerminalScreenState extends State<TerminalScreen> {
         // 其他所有操作收纳进菜单，保持界面极简
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
-          tooltip: 'More actions',
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'select_all',
-              child: Row(
-                children: [
-                  Icon(Icons.select_all),
-                  SizedBox(width: 8),
-                  Text('Select All'),
-                ],
+          tooltip: l10n.moreActions,
+          itemBuilder: (context) {
+            final l10n = AppLocalizations.of(context);
+            return [
+              PopupMenuItem(
+                value: 'select_all',
+                child: Row(
+                  children: [
+                    const Icon(Icons.select_all),
+                    const SizedBox(width: 8),
+                    Text(l10n.selectAll),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'copy_all',
-              child: Row(
-                children: [
-                  Icon(Icons.copy_all),
-                  SizedBox(width: 8),
-                  Text('Copy All Output'),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'copy_all',
+                child: Row(
+                  children: [
+                    const Icon(Icons.copy_all),
+                    const SizedBox(width: 8),
+                    Text(l10n.copyAllOutput),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuItem(
-              value: 'copy_last_50',
-              child: Row(
-                children: [
-                  Icon(Icons.history),
-                  SizedBox(width: 8),
-                  Text('Copy Last 50 Lines'),
-                ],
+              PopupMenuItem(
+                value: 'copy_last_50',
+                child: Row(
+                  children: [
+                    const Icon(Icons.history),
+                    const SizedBox(width: 8),
+                    Text(l10n.copyLastLines),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ];
+          },
           onSelected: (value) {
             if (value == 'select_all') {
               _selectAll(terminalProvider);
@@ -426,6 +431,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       ),
       builder: (context) {
         final sshProvider = context.watch<SSHProvider>();
+        final l10n = AppLocalizations.of(context);
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
@@ -449,7 +455,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   child: Row(
                     children: [
                       Text(
-                        'New Session',
+                        l10n.newSession,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const Spacer(),
@@ -462,7 +468,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                           );
                         },
                         icon: const Icon(Icons.settings),
-                        label: const Text('Manage SSH'),
+                        label: Text(l10n.manageSSH),
                       ),
                     ],
                   ),
@@ -477,19 +483,19 @@ class _TerminalScreenState extends State<TerminalScreen> {
                         leading: const CircleAvatar(
                           child: Icon(Icons.terminal),
                         ),
-                        title: const Text('Local Terminal'),
-                        subtitle: const Text('Start a new local shell session'),
+                        title: Text(l10n.localTerminal),
+                        subtitle: Text(l10n.localTerminalDesc),
                         onTap: () {
                           Navigator.pop(context);
                           terminalProvider.createSession();
                         },
                       ),
                       if (sshProvider.hosts.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Text(
-                            'SSH Connections',
-                            style: TextStyle(
+                            l10n.ssh,
+                            style: const TextStyle(
                               color: Colors.grey,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
@@ -539,6 +545,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   ) {
     final currentSession = terminalProvider.currentSession;
     final sessionCount = terminalProvider.sessionCount;
+    final l10n = AppLocalizations.of(context);
 
     return AppBar(
       backgroundColor: settings.terminalTheme.background.withOpacity(0.9),
@@ -551,12 +558,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
           child: const Icon(Icons.menu),
         ),
         onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-        tooltip: 'Sessions',
+        tooltip: l10n.sessions,
       ),
       title: GestureDetector(
         onTap: () => _showRenameDialog(context, terminalProvider),
         child: Text(
-          currentSession?.displayName ?? 'Terminal',
+          currentSession?.displayName ?? l10n.terminal,
           style: const TextStyle(fontSize: 16),
         ),
       ),
@@ -571,71 +578,74 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
         // 其他所有操作收纳进菜单，防止误触
         PopupMenuButton<String>(
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'new_session',
-              child: Row(
-                children: [
-                  Icon(Icons.add),
-                  SizedBox(width: 8),
-                  Text('New Session'),
-                ],
+          itemBuilder: (context) {
+            final l10n = AppLocalizations.of(context);
+            return [
+              PopupMenuItem(
+                value: 'new_session',
+                child: Row(
+                  children: [
+                    const Icon(Icons.add),
+                    const SizedBox(width: 8),
+                    Text(l10n.newSession),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuItem(
-              value: 'tasks',
-              child: Row(
-                children: [
-                  Icon(Icons.play_circle_outline),
-                  SizedBox(width: 8),
-                  Text('Tasks'),
-                ],
+              PopupMenuItem(
+                value: 'tasks',
+                child: Row(
+                  children: [
+                    const Icon(Icons.play_circle_outline),
+                    const SizedBox(width: 8),
+                    Text(l10n.tasks),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuItem(
-              value: 'history',
-              child: Row(
-                children: [
-                  Icon(Icons.history),
-                  SizedBox(width: 8),
-                  Text('Command History'),
-                ],
+              PopupMenuItem(
+                value: 'history',
+                child: Row(
+                  children: [
+                    const Icon(Icons.history),
+                    const SizedBox(width: 8),
+                    Text(l10n.history),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'paste',
-              child: Row(
-                children: [
-                  Icon(Icons.paste),
-                  SizedBox(width: 8),
-                  Text('Paste'),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'paste',
+                child: Row(
+                  children: [
+                    const Icon(Icons.paste),
+                    const SizedBox(width: 8),
+                    Text(l10n.paste),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(Icons.settings),
-                  SizedBox(width: 8),
-                  Text('Settings'),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    const Icon(Icons.settings),
+                    const SizedBox(width: 8),
+                    Text(l10n.settings),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'copy_ssh_key',
-              child: Row(
-                children: [
-                  Icon(Icons.key),
-                  SizedBox(width: 8),
-                  Text('Copy SSH Public Key'),
-                ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'copy_ssh_key',
+                child: Row(
+                  children: [
+                    const Icon(Icons.key),
+                    const SizedBox(width: 8),
+                    Text(l10n.copySSHPublicKey),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ];
+          },
           onSelected: (value) {
             if (value == 'new_session') {
               _showNewSessionSheet(context, terminalProvider);
@@ -656,6 +666,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     SettingsProvider settings,
   ) {
     final currentSession = terminalProvider.currentSession;
+    final l10n = AppLocalizations.of(context);
 
     if (currentSession == null) {
       return Center(
@@ -669,7 +680,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No active session',
+              l10n.noSessions,
               style: TextStyle(
                 color: settings.terminalTheme.foreground.withOpacity(0.7),
               ),
@@ -678,7 +689,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             FilledButton.icon(
               onPressed: () => terminalProvider.createSession(),
               icon: const Icon(Icons.add),
-              label: const Text('Create Session'),
+              label: Text(l10n.createSession),
             ),
           ],
         ),
@@ -1257,16 +1268,17 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (currentSession == null) return;
 
     final controller = TextEditingController(text: currentSession.title);
+    final l10n = AppLocalizations.of(context);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rename Session'),
+        title: Text(l10n.renameSession),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Session name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: l10n.sessions,
+            border: const OutlineInputBorder(),
           ),
           autofocus: true,
           onSubmitted: (value) {
@@ -1279,7 +1291,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -1288,7 +1300,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
               }
               Navigator.pop(context);
             },
-            child: const Text('Rename'),
+            child: Text(l10n.rename),
           ),
         ],
       ),

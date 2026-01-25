@@ -178,6 +178,7 @@ class SettingsProvider extends ChangeNotifier {
 
     // 加载语言设置
     final localeCode = _prefs.getString('locale');
+    debugPrint('Loading locale from prefs: $localeCode');
     if (localeCode != null && localeCode.isNotEmpty) {
       final parts = localeCode.split('_');
       if (parts.length == 2) {
@@ -185,8 +186,10 @@ class SettingsProvider extends ChangeNotifier {
       } else {
         _locale = Locale(parts[0]);
       }
+      debugPrint('Loaded locale: $_locale');
     } else {
       _locale = null; // 跟随系统
+      debugPrint('No locale saved, using system default');
     }
   }
 
@@ -278,15 +281,19 @@ class SettingsProvider extends ChangeNotifier {
   /// 设置语言
   /// locale 为 null 表示跟随系统
   Future<void> setLocale(Locale? locale) async {
+    debugPrint('setLocale called with: $locale');
     _locale = locale;
     if (locale == null) {
       await _prefs.remove('locale');
+      debugPrint('Removed locale from prefs');
     } else {
       final localeCode = locale.countryCode != null
           ? '${locale.languageCode}_${locale.countryCode}'
           : locale.languageCode;
       await _prefs.setString('locale', localeCode);
+      debugPrint('Saved locale to prefs: $localeCode');
     }
+    debugPrint('Calling notifyListeners...');
     notifyListeners();
   }
 
