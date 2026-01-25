@@ -46,25 +46,59 @@ class DeepThoughtApp extends StatelessWidget {
               GlobalCupertinoLocalizations.delegate,
             ],
             themeMode: settings.themeMode,
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blue,
-                brightness: Brightness.light,
-              ),
-              useMaterial3: true,
-            ),
-            darkTheme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: Colors.blue,
-                brightness: Brightness.dark,
-              ),
-              useMaterial3: true,
-            ),
+            theme: _buildTheme(settings.terminalTheme, Brightness.light),
+            darkTheme: _buildTheme(settings.terminalTheme, Brightness.dark),
             home: settings.initialized
                 ? const _AppContent()
                 : const _LoadingScreen(),
           );
         },
+      ),
+    );
+  }
+
+  ThemeData _buildTheme(dynamic terminalTheme, Brightness brightness) {
+    final bg = Color(terminalTheme.background.value);
+    final fg = Color(terminalTheme.foreground.value);
+    final primary = Color(terminalTheme.blue.value);
+    final secondary = Color(terminalTheme.cursor.value);
+
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      brightness: brightness,
+    ).copyWith(
+      background: bg,
+      surface: bg,
+      onBackground: fg,
+      onSurface: fg,
+      primary: primary,
+      secondary: secondary,
+    );
+
+    return ThemeData(
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: bg,
+      useMaterial3: true,
+      appBarTheme: AppBarTheme(
+        backgroundColor: bg,
+        foregroundColor: fg,
+        elevation: 0,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: bg,
+        surfaceTintColor: Colors.transparent,
+      ),
+      drawerTheme: DrawerThemeData(
+        backgroundColor: bg,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        color: bg,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: bg,
+        surfaceTintColor: Colors.transparent,
       ),
     );
   }

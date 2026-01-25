@@ -32,7 +32,6 @@ class SettingsScreen extends StatelessWidget {
           _SectionHeader(title: l10n.language),
           const _LanguageSetting(),
           _SectionHeader(title: l10n.appearance),
-          const _AppThemeSetting(),
           const _FontFamilySetting(),
           const _FontSizeSetting(),
           const _ColorThemeSetting(),
@@ -175,79 +174,6 @@ class _LanguageSetting extends StatelessWidget {
         Navigator.pop(context);  // 先关闭弹窗
         await settings.setLocale(locale);  // 再设置语言
         debugPrint('setLocale completed');
-      },
-    );
-  }
-}
-
-/// 全局主题设置
-class _AppThemeSetting extends StatelessWidget {
-  const _AppThemeSetting();
-
-  @override
-  Widget build(BuildContext context) {
-    final settings = context.watch<SettingsProvider>();
-    final l10n = AppLocalizations.of(context);
-
-    return ListTile(
-      leading: const Icon(Icons.brightness_medium),
-      title: Text(l10n.appTheme),
-      subtitle: Text(_getThemeModeName(context, settings.themeMode)),
-      onTap: () => _showThemeModePicker(context, settings),
-    );
-  }
-
-  String _getThemeModeName(BuildContext context, ThemeMode mode) {
-    final l10n = AppLocalizations.of(context);
-    switch (mode) {
-      case ThemeMode.system:
-        return l10n.themeSystem;
-      case ThemeMode.light:
-        return l10n.themeLight;
-      case ThemeMode.dark:
-        return l10n.themeDark;
-    }
-  }
-
-  void _showThemeModePicker(BuildContext context, SettingsProvider settings) {
-    final l10n = AppLocalizations.of(context);
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                l10n.selectAppTheme,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            _buildRadioTile(context, settings, ThemeMode.system, l10n.themeSystem),
-            _buildRadioTile(context, settings, ThemeMode.light, l10n.themeLight),
-            _buildRadioTile(context, settings, ThemeMode.dark, l10n.themeDark),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRadioTile(
-    BuildContext context,
-    SettingsProvider settings,
-    ThemeMode mode,
-    String title,
-  ) {
-    return RadioListTile<ThemeMode>(
-      title: Text(title),
-      value: mode,
-      groupValue: settings.themeMode,
-      onChanged: (value) {
-        if (value != null) {
-          settings.setThemeMode(value);
-          Navigator.pop(context);
-        }
       },
     );
   }

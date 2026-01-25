@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
+import '../l10n/app_localizations.dart';
 
 /// 额外按键组件
 /// 参考 termux-app: ExtraKeysView.java, ExtraKeyButton.java
@@ -194,6 +195,25 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   // 使用外部状态或本地状态
   bool get _ctrlPressed => widget.ctrlPressed || _localCtrlPressed;
   bool get _altPressed => widget.altPressed || _localAltPressed;
+
+  String _getLocalizedKeyLabel(BuildContext context, ExtraKey key) {
+    final l10n = AppLocalizations.of(context);
+    switch (key.label) {
+      case 'ESC': return l10n.keyEsc;
+      case 'TAB': return l10n.keyTab;
+      case 'CTRL': return l10n.keyCtrl;
+      case 'ALT': return l10n.keyAlt;
+      case 'HOME': return l10n.keyHome;
+      case 'END': return l10n.keyEnd;
+      case 'PGUP': return l10n.keyPgUp;
+      case 'PGDN': return l10n.keyPgDn;
+      case 'INS': return l10n.keyIns;
+      case 'FORWARD_DEL': return l10n.keyDel;
+      case 'ENTER': return l10n.keyEnter;
+      case 'DEL': return l10n.keyBackspace;
+      default: return key.displayLabel ?? key.label;
+    }
+  }
 
   void _handleKeyTap(ExtraKey key) {
     if (widget.vibrationEnabled) {
@@ -435,7 +455,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                   : FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        key.displayLabel ?? key.label,
+                        _getLocalizedKeyLabel(context, key),
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: 10,
@@ -503,11 +523,11 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
             height: 32,
             child: Row(
               children: [
-                _buildTabButton('符号', 0, theme),
-                _buildTabButton('F键', 1, theme),
-                _buildTabButton('命令', 2, theme),
-                _buildTabButton('导航', 3, theme),
-                _buildTabButton('Termux', 4, theme),
+                _buildTabButton(AppLocalizations.of(context).categorySymbols, 0, theme),
+                _buildTabButton(AppLocalizations.of(context).categoryFKeys, 1, theme),
+                _buildTabButton(AppLocalizations.of(context).categoryCommands, 2, theme),
+                _buildTabButton(AppLocalizations.of(context).categoryNav, 3, theme),
+                _buildTabButton(AppLocalizations.of(context).categoryTermux, 4, theme),
               ],
             ),
           ),
@@ -814,7 +834,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                   : FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        key.display,
+                        _getLocalizedKeyLabel(context, key),
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: fontSize,

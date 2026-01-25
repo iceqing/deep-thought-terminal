@@ -214,6 +214,25 @@ class AppLocalizations {
   String get permissionStorageDesc => _translate('permissionStorageDesc');
   String get permissionDenied => _translate('permissionDenied');
   String get permissionGrant => _translate('permissionGrant');
+
+  // ===== 键盘与命令 =====
+  String get keyEsc => _translate('keyEsc');
+  String get keyTab => _translate('keyTab');
+  String get keyCtrl => _translate('keyCtrl');
+  String get keyAlt => _translate('keyAlt');
+  String get keyHome => _translate('keyHome');
+  String get keyEnd => _translate('keyEnd');
+  String get keyPgUp => _translate('keyPgUp');
+  String get keyPgDn => _translate('keyPgDn');
+  String get keyIns => _translate('keyIns');
+  String get keyDel => _translate('keyDel');
+  String get keyEnter => _translate('keyEnter');
+  String get keyBackspace => _translate('keyBackspace');
+  String get categorySymbols => _translate('categorySymbols');
+  String get categoryFKeys => _translate('categoryFKeys');
+  String get categoryCommands => _translate('categoryCommands');
+  String get categoryNav => _translate('categoryNav');
+  String get categoryTermux => _translate('categoryTermux');
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -396,6 +415,25 @@ const Map<String, String> _enTranslations = {
   'permissionStorageDesc': 'Required to access files and storage',
   'permissionDenied': 'Permission denied',
   'permissionGrant': 'Grant Permission',
+
+  // 键盘与命令
+  'keyEsc': 'ESC',
+  'keyTab': 'TAB',
+  'keyCtrl': 'CTRL',
+  'keyAlt': 'ALT',
+  'keyHome': 'HOME',
+  'keyEnd': 'END',
+  'keyPgUp': 'PGUP',
+  'keyPgDn': 'PGDN',
+  'keyIns': 'INS',
+  'keyDel': 'DEL',
+  'keyEnter': 'ENTER',
+  'keyBackspace': 'DEL',
+  'categorySymbols': 'Symbols',
+  'categoryFKeys': 'F-Keys',
+  'categoryCommands': 'Cmds',
+  'categoryNav': 'Nav',
+  'categoryTermux': 'Termux',
 };
 
 // ===== 简体中文翻译 =====
@@ -561,6 +599,25 @@ const Map<String, String> _zhCNTranslations = {
   'permissionStorageDesc': '需要访问文件和存储',
   'permissionDenied': '权限被拒绝',
   'permissionGrant': '授予权限',
+
+  // 键盘与命令
+  'keyEsc': 'ESC',
+  'keyTab': 'TAB',
+  'keyCtrl': 'CTRL',
+  'keyAlt': 'ALT',
+  'keyHome': 'HOME',
+  'keyEnd': 'END',
+  'keyPgUp': '上翻',
+  'keyPgDn': '下翻',
+  'keyIns': '插入',
+  'keyDel': '删除',
+  'keyEnter': '回车',
+  'keyBackspace': '退格',
+  'categorySymbols': '符号',
+  'categoryFKeys': 'F键',
+  'categoryCommands': '命令',
+  'categoryNav': '导航',
+  'categoryTermux': 'Termux',
 };
 
 // ===== 繁體中文翻译 =====
@@ -726,4 +783,23 @@ const Map<String, String> _zhTWTranslations = {
   'permissionStorageDesc': '需要存取檔案和儲存空間',
   'permissionDenied': '權限被拒絕',
   'permissionGrant': '授予權限',
+
+  // 鍵盤與命令
+  'keyEsc': 'ESC',
+  'keyTab': 'TAB',
+  'keyCtrl': 'CTRL',
+  'keyAlt': 'ALT',
+  'keyHome': 'HOME',
+  'keyEnd': 'END',
+  'keyPgUp': '上翻',
+  'keyPgDn': '下翻',
+  'keyIns': '插入',
+  'keyDel': '刪除',
+  'keyEnter': 'Enter',
+  'keyBackspace': '退格',
+  'categorySymbols': '符號',
+  'categoryFKeys': 'F鍵',
+  'categoryCommands': '命令',
+  'categoryNav': '導航',
+  'categoryTermux': 'Termux',
 };

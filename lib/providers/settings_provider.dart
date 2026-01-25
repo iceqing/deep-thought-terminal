@@ -25,7 +25,19 @@ class SettingsProvider extends ChangeNotifier {
 
   // 主题设置
   String _colorTheme = DefaultSettings.colorTheme;
-  ThemeMode _themeMode = ThemeMode.system; // 默认为跟随系统
+
+  // 根据当前终端主题背景亮度推导应用主题模式
+  ThemeMode get themeMode {
+    final theme = AppTerminalThemes.getTheme(_colorTheme);
+    // 计算背景亮度 (Perceived brightness)
+    // Formula: 0.299*R + 0.587*G + 0.114*B
+    final luminance = (0.299 * theme.background.red +
+        0.587 * theme.background.green +
+        0.114 * theme.background.blue) / 255;
+    
+    // 如果背景很亮 (>0.5)，则使用浅色主题，否则使用深色主题
+    return luminance > 0.5 ? ThemeMode.light : ThemeMode.dark;
+  }
 
   // 光标设置
   String _cursorStyle = DefaultSettings.cursorStyle;
@@ -80,7 +92,6 @@ class SettingsProvider extends ChangeNotifier {
     return AvailableFonts.isBuiltInNerdFont(_fontFamily);
   }
   String get colorTheme => _colorTheme;
-  ThemeMode get themeMode => _themeMode;
   String get cursorStyle => _cursorStyle;
   bool get cursorBlink => _cursorBlink;
   bool get keepScreenOn => _keepScreenOn;
@@ -162,8 +173,6 @@ class SettingsProvider extends ChangeNotifier {
     _fontFamily = _prefs.getString('fontFamily') ?? DefaultSettings.fontFamily;
     _fontSize = _prefs.getDouble('fontSize') ?? DefaultSettings.fontSize;
     _colorTheme = _prefs.getString('colorTheme') ?? DefaultSettings.colorTheme;
-    final themeModeIndex = _prefs.getInt('themeMode') ?? 0; // 0: system
-    _themeMode = ThemeMode.values[themeModeIndex];
     _cursorStyle = _prefs.getString('cursorStyle') ?? DefaultSettings.cursorStyle;
     _cursorBlink = _prefs.getBool('cursorBlink') ?? DefaultSettings.cursorBlink;
     _keepScreenOn = _prefs.getBool('keepScreenOn') ?? DefaultSettings.keepScreenOn;
@@ -209,12 +218,6 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setColorTheme(String value) async {
     _colorTheme = value;
     await _prefs.setString('colorTheme', value);
-    notifyListeners();
-  }
-
-  Future<void> setThemeMode(ThemeMode value) async {
-    _themeMode = value;
-    await _prefs.setInt('themeMode', value.index);
     notifyListeners();
   }
 
