@@ -1,5 +1,7 @@
 # Deep Thought
 
+[中文文档](README_zh.md)
+
 <p align="center">
   <img src="assets/icon/app_icon_pure.svg" alt="Deep Thought Logo" width="128" height="128">
 </p>
@@ -215,16 +217,14 @@ This project follows the [Dart style guide](https://dart.dev/guides/language/eff
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0 (GPLv3) - see the [LICENSE](LICENSE) file for details.
 
 ## Bootstrap & Licensing
 
 This application uses the **Termux bootstrap packages** to provide the underlying Linux environment.
 
-*   **Deep Thought App**: The application code (Flutter/Dart) is licensed under **Apache 2.0**. It is a clean-room implementation of a terminal emulator interface that interacts with the underlying environment.
-*   **Termux Packages**: The binary bootstrap environment downloaded/extracted by this app is derived from the [Termux](https://termux.dev/) project and its package ecosystem. These components retain their original licenses (primarily GPLv3 for the Termux build tools and various open-source licenses for the individual Linux packages).
-
-This project aggregates the Termux environment binaries with a distinct UI, respecting the "mere aggregation" clause of the GPL.
+*   **Deep Thought App**: The application code (Flutter/Dart) is licensed under **GPLv3**, sharing the same license as the upstream Termux application to ensure full compatibility and freedom.
+*   **Termux Packages**: The binary bootstrap environment downloaded/extracted by this app is derived from the [Termux](https://termux.dev/) project and its package ecosystem, which are governed by their respective open-source licenses (primarily GPLv3).
 
 ## Acknowledgments
 
