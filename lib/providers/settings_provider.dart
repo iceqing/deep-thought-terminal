@@ -62,6 +62,9 @@ class SettingsProvider extends ChangeNotifier {
   // 镜像源设置
   String _mirrorId = 'default';
 
+  // Shell 设置
+  String _defaultShell = AvailableShells.defaultShell;
+
   // 语言设置
   Locale? _locale; // null 表示跟随系统
 
@@ -107,6 +110,11 @@ class SettingsProvider extends ChangeNotifier {
   String get mirrorId => _mirrorId;
   TermuxMirror get currentMirror =>
       AvailableMirrors.getById(_mirrorId) ?? AvailableMirrors.defaultMirror;
+
+  // Shell Getters
+  String get defaultShell => _defaultShell;
+  String get defaultShellPath => AvailableShells.getFullPath(_defaultShell);
+  String get defaultShellDisplayName => AvailableShells.getDisplayName(_defaultShell);
 
   // 语言 Getters
   Locale? get locale => _locale;
@@ -184,6 +192,7 @@ class SettingsProvider extends ChangeNotifier {
     _volumeKeysEnabled = _prefs.getBool('volumeKeysEnabled') ?? DefaultSettings.volumeKeysEnabled;
     _showDebugInfo = _prefs.getBool('showDebugInfo') ?? false;
     _mirrorId = _prefs.getString('mirrorId') ?? 'default';
+    _defaultShell = _prefs.getString('defaultShell') ?? AvailableShells.defaultShell;
 
     // 加载语言设置
     final localeCode = _prefs.getString('locale');
@@ -278,6 +287,15 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setShowDebugInfo(bool value) async {
     _showDebugInfo = value;
     await _prefs.setBool('showDebugInfo', value);
+    notifyListeners();
+  }
+
+  /// 设置默认 Shell
+  /// shellName 是 shell 的名称（如 'bash', 'zsh', 'fish'）
+  Future<void> setDefaultShell(String shellName) async {
+    _defaultShell = shellName;
+    await _prefs.setString('defaultShell', shellName);
+    debugPrint('Default shell set to: $shellName');
     notifyListeners();
   }
 

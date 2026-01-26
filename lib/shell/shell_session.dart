@@ -160,8 +160,52 @@ class ShellSessionFactory {
     return await bashFile.exists();
   }
 
+  /// 检查指定的 shell 是否存在
+  static Future<bool> isShellInstalled(String shellPath) async {
+    final shellFile = File(shellPath);
+    return await shellFile.exists();
+  }
+
+  /// 获取用户配置的默认 shell
+  /// 优先级: 参数 > ~/.shell 文件 > bash
+  static Future<String> getConfiguredShell({String? preferredShell}) async {
+    // 1. 如果指定了 shell，检查是否存在
+    if (preferredShell != null) {
+      final shellPath = preferredShell.startsWith('/')
+          ? preferredShell
+          : '${TermuxConstants.binDir}/$preferredShell';
+      if (await isShellInstalled(shellPath)) {
+        debugPrint('Using preferred shell: $shellPath');
+        return shellPath;
+      }
+    }
+
+    // 2. 读取 ~/.shell 文件（chsh 创建的）
+    try {
+      final shellConfigFile = File('${TermuxConstants.homeDir}/.shell');
+      if (await shellConfigFile.exists()) {
+        final configuredShell = (await shellConfigFile.readAsString()).trim();
+        if (configuredShell.isNotEmpty) {
+          final shellPath = configuredShell.startsWith('/')
+              ? configuredShell
+              : '${TermuxConstants.binDir}/$configuredShell';
+          if (await isShellInstalled(shellPath)) {
+            debugPrint('Using shell from ~/.shell: $shellPath');
+            return shellPath;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error reading ~/.shell: $e');
+    }
+
+    // 3. 默认使用 bash
+    debugPrint('Using default shell: ${TermuxConstants.bashPath}');
+    return TermuxConstants.bashPath;
+  }
+
   /// 创建交互式Shell会话
-  /// 在Android上，使用系统shell来启动bash，确保LD_LIBRARY_PATH正确设置
+  /// 在Android上，使用系统shell来启动配置的shell，确保LD_LIBRARY_PATH正确设置
   static Future<PtyShellSession> createInteractiveSession({
     String? shellPath,
     String? workingDirectory,
@@ -179,24 +223,16 @@ class ShellSessionFactory {
     }
 
     if (Platform.isAndroid) {
-      // 检查bash是否安装
+      // 检查 bootstrap 是否已安装
       if (await isBashInstalled()) {
-        final cmd = _buildBashLaunchCommand();
-        debugPrint('Bash installed, using wrapper approach');
+        // 获取用户配置的 shell
+        final configuredShell = await getConfiguredShell(preferredShell: shellPath);
+        final cmd = _buildShellLaunchCommand(configuredShell);
+        debugPrint('Using configured shell: $configuredShell');
         debugPrint('Shell command length: ${cmd.length}');
-        debugPrint('Shell command: $cmd');
-        debugPrint('Lib dir: ${TermuxConstants.libDir}');
-        debugPrint('Home dir: ${TermuxConstants.homeDir}');
-        debugPrint('Expected HISTFILE: ${TermuxConstants.homeDir}/.bash_history');
 
-        // 验证库文件存在
-        final libReadline = File('${TermuxConstants.libDir}/libreadline.so.8');
-        final libReadline83 = File('${TermuxConstants.libDir}/libreadline.so.8.3');
-        debugPrint('libreadline.so.8 exists: ${await libReadline.exists()}');
-        debugPrint('libreadline.so.8.3 exists: ${await libReadline83.exists()}');
-
-        // 使用系统shell来启动bash，这样可以确保环境变量正确设置
-        // 因为Termux的bash二进制文件有硬编码的RUNPATH指向/data/data/com.termux/
+        // 使用系统shell来启动用户配置的shell
+        // 因为Termux的二进制文件有硬编码的RUNPATH指向/data/data/com.termux/
         // 我们需要通过LD_LIBRARY_PATH覆盖它
         return PtyShellSession(
           shellPath: '/system/bin/sh',
@@ -205,7 +241,7 @@ class ShellSessionFactory {
           environment: environment,
         );
       } else {
-        debugPrint('Bash not found, using system shell');
+        debugPrint('Bootstrap not found, using system shell');
         return PtyShellSession(
           shellPath: '/system/bin/sh',
           arguments: [],
@@ -230,12 +266,10 @@ class ShellSessionFactory {
     );
   }
 
-  /// 构建启动bash的命令
-  /// 使用 --norc 跳过系统 bashrc（bash 中硬编码了 /data/data/com.termux 路径）
-  /// 用户配置通过 ~/.bashrc 加载
-  static String _buildBashLaunchCommand() {
+  /// 构建启动 shell 的命令
+  /// 支持 bash, zsh, fish 等不同 shell
+  static String _buildShellLaunchCommand(String shellPath) {
     final libPath = TermuxConstants.libDir;
-    final bashPath = TermuxConstants.bashPath;
     final homePath = TermuxConstants.homeDir;
     final prefixPath = TermuxConstants.prefixDir;
     final binPath = TermuxConstants.binDir;
@@ -244,9 +278,11 @@ class ShellSessionFactory {
     final aptConfigPath = '$etcPath/apt/apt.conf';
     final caCertPath = '$etcPath/tls/cert.pem';
 
-    // 设置环境变量并启动 bash
-    // 使用 --norc 跳过系统级 bashrc（bash 中硬编码了 /data/data/com.termux 路径）
-    return 'export LD_LIBRARY_PATH="$libPath"; '
+    // 获取 shell 名称
+    final shellName = shellPath.split('/').last;
+
+    // 基础环境变量（所有 shell 通用）
+    final baseEnv = 'export LD_LIBRARY_PATH="$libPath"; '
         'export HOME="$homePath"; '
         'export PREFIX="$prefixPath"; '
         'export PATH="$binPath:/system/bin:/system/xbin"; '
@@ -254,7 +290,7 @@ class ShellSessionFactory {
         'export TERM="xterm-256color"; '
         'export TERMINFO="$prefixPath/share/terminfo"; '
         'export LANG="en_US.UTF-8"; '
-        'export SHELL="$bashPath"; '
+        'export SHELL="$shellPath"; '
         'export APT_CONFIG="$aptConfigPath"; '
         'export SSL_CERT_FILE="$caCertPath"; '
         'export CURL_CA_BUNDLE="$caCertPath"; '
@@ -265,17 +301,36 @@ class ShellSessionFactory {
         r"export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.jpg=1;35:*.png=1;35:*.mp3=1;36:*.mp4=1;36'; "
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
         'export LESS="-R"; '
-        // 历史记录配置
-        'export HISTFILE="\$HOME/.bash_history"; '
-        'export HISTSIZE=10000; '
-        'export HISTFILESIZE=20000; '
-        'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
-        // PROMPT_COMMAND: 首次提示符时读取历史，之后每次命令后保存历史
-        'export PROMPT_COMMAND=\'[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; history -a\'; '
-        r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
-        'cd "\$HOME" 2>/dev/null || cd /sdcard; '
-        'if [ -f "\$HOME/.bashrc" ]; then exec "$bashPath" --rcfile "\$HOME/.bashrc"; '
-        'else exec "$bashPath" --norc; fi';
+        'cd "\$HOME" 2>/dev/null || cd /sdcard; ';
+
+    // 根据不同 shell 构建启动命令
+    switch (shellName) {
+      case 'zsh':
+        // Zsh: 使用 ZDOTDIR 或默认配置
+        return baseEnv +
+            'export ZDOTDIR="\$HOME"; '
+            'if [ -f "\$HOME/.zshrc" ]; then exec "$shellPath"; '
+            'else exec "$shellPath" --no-rcs; fi';
+
+      case 'fish':
+        // Fish: 配置文件在 ~/.config/fish/config.fish
+        return baseEnv + 'exec "$shellPath"';
+
+      case 'bash':
+      default:
+        // Bash: 使用 --rcfile 加载用户配置
+        return baseEnv +
+            // 历史记录配置（仅 bash）
+            'export HISTFILE="\$HOME/.bash_history"; '
+            'export HISTSIZE=10000; '
+            'export HISTFILESIZE=20000; '
+            'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
+            // PROMPT_COMMAND: 首次提示符时读取历史，之后每次命令后保存历史
+            'export PROMPT_COMMAND=\'[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; history -a\'; '
+            r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
+            'if [ -f "\$HOME/.bashrc" ]; then exec "$shellPath" --rcfile "\$HOME/.bashrc"; '
+            'else exec "$shellPath" --norc; fi';
+    }
   }
 
   /// 获取桌面平台的默认shell

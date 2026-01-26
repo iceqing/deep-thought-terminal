@@ -56,6 +56,8 @@ class SettingsScreen extends StatelessWidget {
           const _ImportHistoryTile(),
           _SectionHeader(title: l10n.packageSources),
           const _MirrorSetting(),
+          _SectionHeader(title: l10n.shell),
+          const _ShellSetting(),
           _SectionHeader(title: l10n.advanced),
           const _ShowDebugInfoSetting(),
           const _WcwidthDebugTile(),
@@ -901,6 +903,162 @@ class _MirrorSetting extends StatelessWidget {
           backgroundColor: success ? null : Colors.red,
         ),
       );
+    }
+  }
+}
+
+/// 默认 Shell 选择
+class _ShellSetting extends StatefulWidget {
+  const _ShellSetting();
+
+  @override
+  State<_ShellSetting> createState() => _ShellSettingState();
+}
+
+class _ShellSettingState extends State<_ShellSetting> {
+  Map<String, bool> _shellAvailability = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkShellAvailability();
+  }
+
+  Future<void> _checkShellAvailability() async {
+    final availability = <String, bool>{};
+    for (final entry in AvailableShells.shells.entries) {
+      final shellPath = AvailableShells.getFullPath(entry.value);
+      final exists = await File(shellPath).exists();
+      availability[entry.value] = exists;
+    }
+    if (mounted) {
+      setState(() {
+        _shellAvailability = availability;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
+
+    return ListTile(
+      leading: const Icon(Icons.terminal),
+      title: Text(l10n.defaultShell),
+      subtitle: Text(settings.defaultShellDisplayName),
+      onTap: () => _showShellPicker(context, settings),
+    );
+  }
+
+  void _showShellPicker(BuildContext context, SettingsProvider settings) {
+    final l10n = AppLocalizations.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                l10n.selectShell,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              )
+            else
+              ...AvailableShells.shells.entries.map((entry) {
+                final displayName = entry.key;
+                final shellName = entry.value;
+                final isSelected = shellName == settings.defaultShell;
+                final isInstalled = _shellAvailability[shellName] ?? false;
+
+                return ListTile(
+                  leading: Icon(
+                    _getShellIcon(shellName),
+                    color: isInstalled
+                        ? (isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : null)
+                        : Colors.grey,
+                  ),
+                  title: Text(
+                    displayName,
+                    style: TextStyle(
+                      color: isInstalled ? null : Colors.grey,
+                    ),
+                  ),
+                  subtitle: isInstalled
+                      ? null
+                      : Text(
+                          l10n.shellNotInstalled,
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontSize: 12,
+                          ),
+                        ),
+                  trailing: isSelected
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: isInstalled
+                      ? () async {
+                          Navigator.pop(context);
+                          await settings.setDefaultShell(shellName);
+                          // 同步写入 ~/.shell 文件
+                          await _writeShellConfig(shellName);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Default shell changed to $displayName',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                );
+              }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getShellIcon(String shellName) {
+    switch (shellName) {
+      case 'bash':
+        return Icons.terminal;
+      case 'zsh':
+        return Icons.auto_awesome;
+      case 'fish':
+        return Icons.water;
+      default:
+        return Icons.code;
+    }
+  }
+
+  /// 将 shell 配置写入 ~/.shell 文件，以便 chsh 和终端会话都能识别
+  Future<void> _writeShellConfig(String shellName) async {
+    try {
+      final homeDir = TermuxConstants.homeDir;
+      final shellConfigFile = File('$homeDir/.shell');
+      await shellConfigFile.writeAsString('$shellName\n');
+      debugPrint('Written shell config to ~/.shell: $shellName');
+    } catch (e) {
+      debugPrint('Error writing ~/.shell: $e');
     }
   }
 }

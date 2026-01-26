@@ -151,6 +151,11 @@ class AppLocalizations {
   String get selectCursorStyle => _translate('selectCursorStyle');
   String get selectLanguage => _translate('selectLanguage');
   String get selectMirror => _translate('selectMirror');
+  String get shell => _translate('shell');
+  String get defaultShell => _translate('defaultShell');
+  String get defaultShellDesc => _translate('defaultShellDesc');
+  String get selectShell => _translate('selectShell');
+  String get shellNotInstalled => _translate('shellNotInstalled');
 
   // ===== Bootstrap =====
   String get bootstrapTitle => _translate('bootstrapTitle');
@@ -352,6 +357,11 @@ const Map<String, String> _enTranslations = {
   'selectCursorStyle': 'Select Cursor Style',
   'selectLanguage': 'Select Language',
   'selectMirror': 'Select Package Mirror',
+  'shell': 'Shell',
+  'defaultShell': 'Default Shell',
+  'defaultShellDesc': 'Shell to use for new sessions',
+  'selectShell': 'Select Shell',
+  'shellNotInstalled': 'Not installed',
 
   // Bootstrap
   'bootstrapTitle': 'Terminal Environment Setup',
@@ -536,6 +546,11 @@ const Map<String, String> _zhCNTranslations = {
   'selectCursorStyle': '选择光标样式',
   'selectLanguage': '选择语言',
   'selectMirror': '选择软件镜像源',
+  'shell': 'Shell',
+  'defaultShell': '默认 Shell',
+  'defaultShellDesc': '新会话使用的 Shell',
+  'selectShell': '选择 Shell',
+  'shellNotInstalled': '未安装',
 
   // Bootstrap
   'bootstrapTitle': '终端环境配置',
@@ -720,6 +735,11 @@ const Map<String, String> _zhTWTranslations = {
   'selectCursorStyle': '選擇游標樣式',
   'selectLanguage': '選擇語言',
   'selectMirror': '選擇軟體鏡像源',
+  'shell': 'Shell',
+  'defaultShell': '預設 Shell',
+  'defaultShellDesc': '新工作階段使用的 Shell',
+  'selectShell': '選擇 Shell',
+  'shellNotInstalled': '未安裝',
 
   // Bootstrap
   'bootstrapTitle': '終端機環境設定',

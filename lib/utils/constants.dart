@@ -169,3 +169,32 @@ class CursorStyles {
 
   static const List<String> all = [block, underline, bar];
 }
+
+/// 可用的 Shell 列表
+class AvailableShells {
+  /// Shell 配置: key = 显示名称, value = 相对于 bin 目录的路径
+  static const Map<String, String> shells = {
+    'Bash': 'bash',
+    'Zsh': 'zsh',
+    'Fish': 'fish',
+    'Sh': 'sh',
+  };
+
+  /// 默认 Shell
+  static const String defaultShell = 'bash';
+
+  /// 获取 Shell 的完整路径
+  static String getFullPath(String shellName) {
+    return '${TermuxConstants.binDir}/$shellName';
+  }
+
+  /// 获取显示名称
+  static String getDisplayName(String shellName) {
+    for (final entry in shells.entries) {
+      if (entry.value == shellName) {
+        return entry.key;
+      }
+    }
+    return shellName;
+  }
+}
