@@ -33,7 +33,7 @@ class ScaledTerminalView extends StatefulWidget {
     this.onSecondaryTapDown,
     this.onSecondaryTapUp,
     this.mouseCursor = SystemMouseCursors.text,
-    this.keyboardType = TextInputType.emailAddress,
+    this.keyboardType = TextInputType.text,
     this.keyboardAppearance = Brightness.dark,
     this.cursorType = TerminalCursorType.block,
     this.alwaysShowCursor = false,
@@ -368,7 +368,7 @@ class _TerminalTextInput extends StatefulWidget {
     required this.focusNode,
     this.autofocus = false,
     this.readOnly = false,
-    this.inputType = TextInputType.text,
+    this.inputType = TextInputType.multiline,
     this.keyboardAppearance = Brightness.light,
     this.deleteDetection = false,
   });
@@ -478,13 +478,13 @@ class _TerminalTextInputState extends State<_TerminalTextInput>
     if (hasInputConnection) {
       _connection!.show();
     } else {
+      // 注意：enableSuggestions 和 enableIMEPersonalizedLearning 保持默认值 true
+      // 设为 false 会触发 HyperOS 的安全输入保护（被识别为密码输入场景）
       final config = TextInputConfiguration(
         inputType: widget.inputType,
         inputAction: TextInputAction.newline,
         keyboardAppearance: widget.keyboardAppearance,
         autocorrect: false,
-        enableSuggestions: false,
-        enableIMEPersonalizedLearning: false,
       );
 
       _connection = TextInput.attach(this, config);

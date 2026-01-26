@@ -755,9 +755,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
             alwaysShowCursor: true,
             autofocus: true,
             focusNode: _terminalFocusNode,
-            // 使用visiblePassword明确告诉系统这不是密码输入
-            // 这可以避免触发小米等厂商的安全键盘
-            keyboardType: TextInputType.visiblePassword,
+            keyboardType: TextInputType.text,
             onSecondaryTapDown: (details, offset) {
               _showContextMenu(context, details, terminalProvider);
             },
