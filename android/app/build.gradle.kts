@@ -22,13 +22,6 @@ android {
     lint {
         disable +="ExpiredTargetSdkVersion"
     }
-    splits { // 配置 ABI 分拆
-        abi {
-            isEnable = true // 注意：Kotlin 中使用 isEnable
-            reset()         // 清除默认的所有架构
-            isUniversalApk = false // 是否生成一个包含所有架构的胖 APK
-        }
-    }
     
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
