@@ -143,7 +143,7 @@ class QuickCommand {
 
   /// Termux 兼容命令
   static const List<QuickCommand> termuxCommands = [
-    QuickCommand(label: 'setup-storage', command: 'termux-setup-storage\n', icon: Icons.folder_open),
+    QuickCommand(label: 'setup-storage', command: 'setup-storage\n', icon: Icons.folder_open),
     QuickCommand(label: 'pkg install', command: 'pkg install '),
     QuickCommand(label: 'pkg search', command: 'pkg search '),
     QuickCommand(label: 'pkg list', command: 'pkg list-installed\n'),
