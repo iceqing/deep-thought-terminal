@@ -121,6 +121,19 @@ class TerminalProvider extends ChangeNotifier {
     }
   }
 
+  /// 清除当前终端内容
+  void clearCurrentTerminal() {
+    final session = currentSession;
+    if (session == null) return;
+
+    // 清除终端缓冲区
+    session.terminal.eraseDisplay();
+    session.terminal.eraseScrollbackOnly();
+    session.terminal.setCursor(0, 0);
+
+    notifyListeners();
+  }
+
   /// 初始化（创建第一个会话）
   void init() {
     if (_sessions.isEmpty) {

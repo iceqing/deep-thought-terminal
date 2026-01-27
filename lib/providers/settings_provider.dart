@@ -54,7 +54,8 @@ class SettingsProvider extends ChangeNotifier {
 
   // 手势设置
   bool _pinchZoomEnabled = DefaultSettings.pinchZoomEnabled;
-  bool _volumeKeysEnabled = DefaultSettings.volumeKeysEnabled;
+  String _volumeUpAction = DefaultSettings.volumeUpAction;
+  String _volumeDownAction = DefaultSettings.volumeDownAction;
 
   // 调试设置
   bool _showDebugInfo = false;
@@ -103,7 +104,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get vibrationEnabled => _vibrationEnabled;
   bool get bellEnabled => _bellEnabled;
   bool get pinchZoomEnabled => _pinchZoomEnabled;
-  bool get volumeKeysEnabled => _volumeKeysEnabled;
+  String get volumeUpAction => _volumeUpAction;
+  String get volumeDownAction => _volumeDownAction;
   bool get showDebugInfo => _showDebugInfo;
 
   // 镜像源 Getters
@@ -189,7 +191,8 @@ class SettingsProvider extends ChangeNotifier {
     _vibrationEnabled = _prefs.getBool('vibrationEnabled') ?? DefaultSettings.vibrationEnabled;
     _bellEnabled = _prefs.getBool('bellEnabled') ?? DefaultSettings.bellEnabled;
     _pinchZoomEnabled = _prefs.getBool('pinchZoomEnabled') ?? DefaultSettings.pinchZoomEnabled;
-    _volumeKeysEnabled = _prefs.getBool('volumeKeysEnabled') ?? DefaultSettings.volumeKeysEnabled;
+    _volumeUpAction = _prefs.getString('volumeUpAction') ?? DefaultSettings.volumeUpAction;
+    _volumeDownAction = _prefs.getString('volumeDownAction') ?? DefaultSettings.volumeDownAction;
     _showDebugInfo = _prefs.getBool('showDebugInfo') ?? false;
     _mirrorId = _prefs.getString('mirrorId') ?? 'default';
     _defaultShell = _prefs.getString('defaultShell') ?? AvailableShells.defaultShell;
@@ -278,9 +281,15 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setVolumeKeysEnabled(bool value) async {
-    _volumeKeysEnabled = value;
-    await _prefs.setBool('volumeKeysEnabled', value);
+  Future<void> setVolumeUpAction(String value) async {
+    _volumeUpAction = value;
+    await _prefs.setString('volumeUpAction', value);
+    notifyListeners();
+  }
+
+  Future<void> setVolumeDownAction(String value) async {
+    _volumeDownAction = value;
+    await _prefs.setString('volumeDownAction', value);
     notifyListeners();
   }
 
@@ -389,7 +398,8 @@ class SettingsProvider extends ChangeNotifier {
     await setVibrationEnabled(DefaultSettings.vibrationEnabled);
     await setBellEnabled(DefaultSettings.bellEnabled);
     await setPinchZoomEnabled(DefaultSettings.pinchZoomEnabled);
-    await setVolumeKeysEnabled(DefaultSettings.volumeKeysEnabled);
+    await setVolumeUpAction(DefaultSettings.volumeUpAction);
+    await setVolumeDownAction(DefaultSettings.volumeDownAction);
     await setLocale(null); // 重置为跟随系统
   }
 
@@ -565,9 +575,11 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     // 音量键
-    if (props.containsKey('volume-keys')) {
-      final value = props['volume-keys']!.toLowerCase();
-      await setVolumeKeysEnabled(value != 'volume');
+    if (props.containsKey('volume-up-action')) {
+      await setVolumeUpAction(props['volume-up-action']!);
+    }
+    if (props.containsKey('volume-down-action')) {
+      await setVolumeDownAction(props['volume-down-action']!);
     }
 
     // 颜色主题（自定义扩展）

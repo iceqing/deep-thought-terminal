@@ -43,8 +43,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
   double _baseScaleFontSize = 14.0;
 
   // 音量键修饰符状态
-  bool _volumeUpCtrlActive = false;
-  bool _volumeDownAltActive = false;
+  bool _volumeUpModifierActive = false;
+  bool _volumeDownModifierActive = false;
 
   // 调试信息刷新计时器
   Timer? _debugRefreshTimer;
@@ -76,9 +76,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // 监听选择变化
       _setupSelectionListener(terminalProvider);
 
-      // 更新音量键启用状态
+      // 更新音量键启用状态（只要有任一音量键配置了动作就启用）
       final settings = context.read<SettingsProvider>();
-      VolumeKeyService.instance.setEnabled(settings.volumeKeysEnabled);
+      final volumeKeysEnabled = settings.volumeUpAction != 'none' ||
+                                 settings.volumeDownAction != 'none';
+      VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
 
       // 启动设置重载监听（支持 termux-reload-settings 命令）
       settings.startReloadWatcher();
@@ -134,21 +136,82 @@ class _TerminalScreenState extends State<TerminalScreen> {
       if (!mounted) return;
 
       final settings = context.read<SettingsProvider>();
-      if (!settings.volumeKeysEnabled) return;
+      final volumeAction = key == 'up'
+          ? settings.volumeUpAction
+          : settings.volumeDownAction;
 
-      setState(() {
-        if (key == 'up') {
-          // 音量上键 = Ctrl
-          _volumeUpCtrlActive = action == 'down';
-        } else if (key == 'down') {
-          // 音量下键 = Alt
-          _volumeDownAltActive = action == 'down';
+      // 如果该键被禁用，忽略
+      if (volumeAction == 'none') return;
+
+      // 检查是否为修饰键模式
+      final isModifier = VolumeKeyActions.isModifier(volumeAction);
+
+      if (isModifier) {
+        // 修饰键模式：设置状态等待下一个按键
+        setState(() {
+          if (key == 'up') {
+            _volumeUpModifierActive = action == 'down';
+          } else {
+            _volumeDownModifierActive = action == 'down';
+          }
+        });
+        // 更新当前会话的输入转换器
+        _updateSessionInputTransformer();
+      } else if (action == 'down') {
+        // 非修饰键模式：直接发送字符序列
+        final sequence = VolumeKeyActions.getSequence(volumeAction);
+        if (sequence.isNotEmpty) {
+          _sendSequenceToTerminal(sequence);
         }
-      });
-
-      // 更新当前会话的输入转换器
-      _updateSessionInputTransformer();
+      }
     };
+  }
+
+  /// 发送字符序列到终端
+  void _sendSequenceToTerminal(String sequence) {
+    final terminalProvider = context.read<TerminalProvider>();
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    session.write(sequence);
+  }
+
+  /// 检查指定修饰符是否激活
+  bool _isModifierActive(SettingsProvider settings, String modifier) {
+    return (_volumeUpModifierActive && settings.volumeUpAction == modifier) ||
+           (_volumeDownModifierActive && settings.volumeDownAction == modifier);
+  }
+
+  /// 检查 Ctrl 修饰符是否激活
+  bool _isCtrlActive(SettingsProvider settings) => _isModifierActive(settings, 'ctrl');
+
+  /// 检查 Alt 修饰符是否激活
+  bool _isAltActive(SettingsProvider settings) => _isModifierActive(settings, 'alt');
+
+  /// 切换指定修饰符
+  void _toggleModifier(SettingsProvider settings, String modifier, {bool fallbackToVolumeUp = true}) {
+    setState(() {
+      if (settings.volumeUpAction == modifier) {
+        _volumeUpModifierActive = !_volumeUpModifierActive;
+      } else if (settings.volumeDownAction == modifier) {
+        _volumeDownModifierActive = !_volumeDownModifierActive;
+      } else if (fallbackToVolumeUp) {
+        _volumeUpModifierActive = !_volumeUpModifierActive;
+      } else {
+        _volumeDownModifierActive = !_volumeDownModifierActive;
+      }
+    });
+    _updateSessionInputTransformer();
+  }
+
+  /// 切换 Ctrl 修饰符
+  void _toggleCtrlModifier(SettingsProvider settings) {
+    _toggleModifier(settings, 'ctrl', fallbackToVolumeUp: true);
+  }
+
+  /// 切换 Alt 修饰符
+  void _toggleAltModifier(SettingsProvider settings) {
+    _toggleModifier(settings, 'alt', fallbackToVolumeUp: false);
   }
 
   /// 更新当前会话的输入转换器
@@ -166,9 +229,20 @@ class _TerminalScreenState extends State<TerminalScreen> {
   /// 应用修饰符转换输入
   String _transformInputWithModifiers(String input) {
     // 如果没有激活任何修饰符，直接返回原始输入
-    if (!_volumeUpCtrlActive && !_volumeDownAltActive) {
+    if (!_volumeUpModifierActive && !_volumeDownModifierActive) {
       return input;
     }
+
+    final settings = context.read<SettingsProvider>();
+    final volumeUpIsCtrl = settings.volumeUpAction == 'ctrl';
+    final volumeUpIsAlt = settings.volumeUpAction == 'alt';
+    final volumeDownIsCtrl = settings.volumeDownAction == 'ctrl';
+    final volumeDownIsAlt = settings.volumeDownAction == 'alt';
+
+    final ctrlActive = (_volumeUpModifierActive && volumeUpIsCtrl) ||
+                       (_volumeDownModifierActive && volumeDownIsCtrl);
+    final altActive = (_volumeUpModifierActive && volumeUpIsAlt) ||
+                      (_volumeDownModifierActive && volumeDownIsAlt);
 
     final buffer = StringBuffer();
 
@@ -177,7 +251,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       var charStr = input[i];
 
       // 应用 Ctrl 修饰符
-      if (_volumeUpCtrlActive) {
+      if (ctrlActive) {
         // a-z -> Ctrl+a-z (1-26)
         if (char >= 0x61 && char <= 0x7a) {
           char = char - 0x60; // 'a' -> 1, 'b' -> 2, ..., 'z' -> 26
@@ -211,7 +285,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       }
 
       // 应用 Alt 修饰符 (发送 ESC 前缀)
-      if (_volumeDownAltActive) {
+      if (altActive) {
         buffer.write('\x1b'); // ESC
       }
 
@@ -219,13 +293,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
     }
 
     // 重置修饰符状态（按下一个键后自动重置）
-    if (_volumeUpCtrlActive || _volumeDownAltActive) {
+    if (_volumeUpModifierActive || _volumeDownModifierActive) {
       // 使用 Future.microtask 避免在 build 期间调用 setState
       Future.microtask(() {
         if (mounted) {
           setState(() {
-            _volumeUpCtrlActive = false;
-            _volumeDownAltActive = false;
+            _volumeUpModifierActive = false;
+            _volumeDownModifierActive = false;
           });
         }
       });
@@ -277,7 +351,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
     }
 
     // 同步音量键设置到原生层
-    VolumeKeyService.instance.setEnabled(settings.volumeKeysEnabled);
+    final volumeKeysEnabled = settings.volumeUpAction != 'none' ||
+                               settings.volumeDownAction != 'none';
+    VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -316,10 +392,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 onTerminalKeyTap: (key) =>
                     _sendTerminalKey(terminalProvider, key),
                 vibrationEnabled: settings.vibrationEnabled,
-                ctrlPressed: _volumeUpCtrlActive,
-                altPressed: _volumeDownAltActive,
-                onCtrlToggle: () => setState(() => _volumeUpCtrlActive = !_volumeUpCtrlActive),
-                onAltToggle: () => setState(() => _volumeDownAltActive = !_volumeDownAltActive),
+                ctrlPressed: _isCtrlActive(settings),
+                altPressed: _isAltActive(settings),
+                onCtrlToggle: () => _toggleCtrlModifier(settings),
+                onAltToggle: () => _toggleAltModifier(settings),
                 customCommands: taskProvider.tasks.map((t) => QuickCommand(
                   label: t.name,
                   command: t.script.endsWith('\n') ? t.script : '${t.script}\n',
@@ -1051,7 +1127,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         details.globalPosition.dx,
         details.globalPosition.dy,
       ),
-      items: [
+      items: <PopupMenuEntry<String>>[
         const PopupMenuItem(
           value: 'copy',
           child: Row(
@@ -1072,12 +1148,25 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ],
           ),
         ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'clear',
+          child: Row(
+            children: [
+              Icon(Icons.cleaning_services_outlined, size: 20),
+              SizedBox(width: 8),
+              Text('Clear Terminal'),
+            ],
+          ),
+        ),
       ],
     ).then((value) {
       if (value == 'copy') {
         _copySelection(terminalProvider);
       } else if (value == 'paste') {
         _pasteClipboard(terminalProvider);
+      } else if (value == 'clear') {
+        _clearTerminal(terminalProvider);
       }
     });
   }
@@ -1100,6 +1189,18 @@ class _TerminalScreenState extends State<TerminalScreen> {
     session.controller.setSelection(
       beginAnchor,
       endAnchor,
+    );
+  }
+
+  /// 清除当前终端
+  void _clearTerminal(TerminalProvider terminalProvider) {
+    terminalProvider.clearCurrentTerminal();
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.terminalCleared),
+        duration: const Duration(seconds: 1),
+      ),
     );
   }
 

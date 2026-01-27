@@ -88,7 +88,8 @@ class DefaultSettings {
   static const int terminalMargin = 0;
   static const bool bellEnabled = true;
   static const bool pinchZoomEnabled = true;
-  static const bool volumeKeysEnabled = true;
+  static const String volumeUpAction = 'ctrl';
+  static const String volumeDownAction = 'alt';
 }
 
 /// 可用字体列表
@@ -168,6 +169,78 @@ class CursorStyles {
   static const String bar = 'bar';
 
   static const List<String> all = [block, underline, bar];
+}
+
+/// 音量键动作预设
+class VolumeKeyActions {
+  /// 预设动作映射
+  /// key: 动作标识符, value: (显示名称, 发送的字符序列, 是否为修饰键)
+  static const Map<String, (String, String, bool)> presets = {
+    'ctrl': ('Ctrl', '', true),           // Ctrl 修饰键
+    'alt': ('Alt', '\x1b', true),         // Alt 修饰键 (发送 Escape)
+    'esc': ('Esc', '\x1b', false),        // Escape 键
+    'tab': ('Tab', '\t', false),          // Tab 键
+    'up': ('↑', '\x1b[A', false),         // 方向上
+    'down': ('↓', '\x1b[B', false),       // 方向下
+    'left': ('←', '\x1b[D', false),       // 方向左
+    'right': ('→', '\x1b[C', false),      // 方向右
+    'pgup': ('PgUp', '\x1b[5~', false),   // Page Up
+    'pgdn': ('PgDn', '\x1b[6~', false),   // Page Down
+    'home': ('Home', '\x1b[H', false),    // Home
+    'end': ('End', '\x1b[F', false),      // End
+    'none': ('禁用', '', false),           // 禁用
+  };
+
+  /// 获取动作的显示名称
+  static String getDisplayName(String action) {
+    if (action.startsWith('custom:')) {
+      final customValue = action.substring(7);
+      return '自定义: $customValue';
+    }
+    return presets[action]?.$1 ?? action;
+  }
+
+  /// 获取动作要发送的字符序列
+  static String getSequence(String action) {
+    if (action.startsWith('custom:')) {
+      return _parseCustomSequence(action.substring(7));
+    }
+    return presets[action]?.$2 ?? '';
+  }
+
+  /// 判断是否为修饰键模式
+  static bool isModifier(String action) {
+    if (action.startsWith('custom:')) return false;
+    return presets[action]?.$3 ?? false;
+  }
+
+  /// 解析自定义序列（支持 \x1b, \t, \n 等转义）
+  static String _parseCustomSequence(String input) {
+    return input
+        .replaceAll(r'\x1b', '\x1b')
+        .replaceAll(r'\t', '\t')
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\r', '\r')
+        .replaceAll(r'\\', '\\');
+  }
+
+  /// 创建自定义动作
+  static String createCustomAction(String sequence) {
+    return 'custom:$sequence';
+  }
+
+  /// 判断是否为自定义动作
+  static bool isCustom(String action) {
+    return action.startsWith('custom:');
+  }
+
+  /// 获取自定义动作的原始值
+  static String? getCustomValue(String action) {
+    if (action.startsWith('custom:')) {
+      return action.substring(7);
+    }
+    return null;
+  }
 }
 
 /// 可用的 Shell 列表

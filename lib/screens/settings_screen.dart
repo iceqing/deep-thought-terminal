@@ -47,7 +47,8 @@ class SettingsScreen extends StatelessWidget {
           const _BellSetting(),
           _SectionHeader(title: l10n.gestures),
           const _PinchZoomSetting(),
-          const _VolumeKeysSetting(),
+          const _VolumeUpKeySetting(),
+          const _VolumeDownKeySetting(),
           _SectionHeader(title: l10n.history),
           const _HistoryStatsTile(),
           const _HistoryViewerTile(),
@@ -678,21 +679,227 @@ class _PinchZoomSetting extends StatelessWidget {
   }
 }
 
-/// 音量键作为修饰键
-class _VolumeKeysSetting extends StatelessWidget {
-  const _VolumeKeysSetting();
+/// 音量+按键设置
+class _VolumeUpKeySetting extends StatelessWidget {
+  const _VolumeUpKeySetting();
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final l10n = AppLocalizations.of(context);
 
-    return SwitchListTile(
-      secondary: const Icon(Icons.volume_up),
-      title: Text(l10n.volumeKeys),
-      subtitle: Text(l10n.volumeKeysDesc),
-      value: settings.volumeKeysEnabled,
-      onChanged: (value) => settings.setVolumeKeysEnabled(value),
+    return ListTile(
+      leading: const Icon(Icons.volume_up),
+      title: Text(l10n.volumeUpKey),
+      subtitle: Text(VolumeKeyActions.getDisplayName(settings.volumeUpAction)),
+      onTap: () => _VolumeKeyActionPicker.show(context, settings, isVolumeUp: true),
+    );
+  }
+}
+
+/// 音量-按键设置
+class _VolumeDownKeySetting extends StatelessWidget {
+  const _VolumeDownKeySetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
+
+    return ListTile(
+      leading: const Icon(Icons.volume_down),
+      title: Text(l10n.volumeDownKey),
+      subtitle: Text(VolumeKeyActions.getDisplayName(settings.volumeDownAction)),
+      onTap: () => _VolumeKeyActionPicker.show(context, settings, isVolumeUp: false),
+    );
+  }
+}
+
+/// 音量键动作选择器
+class _VolumeKeyActionPicker {
+  static void show(BuildContext context, SettingsProvider settings, {required bool isVolumeUp}) {
+    final l10n = AppLocalizations.of(context);
+    final currentAction = isVolumeUp ? settings.volumeUpAction : settings.volumeDownAction;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  l10n.selectAction,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    // 预设动作
+                    ...VolumeKeyActions.presets.entries.map((entry) {
+                      final actionId = entry.key;
+                      final displayName = entry.value.$1;
+                      final isSelected = currentAction == actionId;
+
+                      return ListTile(
+                        leading: Icon(
+                          _getActionIcon(actionId),
+                          color: isSelected
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                        title: Text(displayName),
+                        trailing: isSelected
+                            ? Icon(
+                                Icons.check,
+                                color: Theme.of(context).colorScheme.primary,
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (isVolumeUp) {
+                            settings.setVolumeUpAction(actionId);
+                          } else {
+                            settings.setVolumeDownAction(actionId);
+                          }
+                        },
+                      );
+                    }),
+                    const Divider(),
+                    // 自定义选项
+                    ListTile(
+                      leading: Icon(
+                        Icons.edit,
+                        color: VolumeKeyActions.isCustom(currentAction)
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      title: Text(l10n.customAction),
+                      subtitle: VolumeKeyActions.isCustom(currentAction)
+                          ? Text(VolumeKeyActions.getCustomValue(currentAction) ?? '')
+                          : null,
+                      trailing: VolumeKeyActions.isCustom(currentAction)
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(context).colorScheme.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showCustomInputDialog(context, settings, isVolumeUp, currentAction);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _getActionIcon(String actionId) {
+    switch (actionId) {
+      case 'ctrl':
+        return Icons.keyboard_command_key;
+      case 'alt':
+        return Icons.alt_route;
+      case 'esc':
+        return Icons.exit_to_app;
+      case 'tab':
+        return Icons.keyboard_tab;
+      case 'up':
+        return Icons.arrow_upward;
+      case 'down':
+        return Icons.arrow_downward;
+      case 'left':
+        return Icons.arrow_back;
+      case 'right':
+        return Icons.arrow_forward;
+      case 'pgup':
+        return Icons.keyboard_double_arrow_up;
+      case 'pgdn':
+        return Icons.keyboard_double_arrow_down;
+      case 'home':
+        return Icons.first_page;
+      case 'end':
+        return Icons.last_page;
+      case 'none':
+        return Icons.block;
+      default:
+        return Icons.keyboard;
+    }
+  }
+
+  static void _showCustomInputDialog(
+    BuildContext context,
+    SettingsProvider settings,
+    bool isVolumeUp,
+    String currentAction,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final controller = TextEditingController(
+      text: VolumeKeyActions.getCustomValue(currentAction) ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.customAction),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: l10n.customActionHint,
+                border: const OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Examples:\n'
+              '  \\x1b[A = Up arrow\n'
+              '  \\x1b[B = Down arrow\n'
+              '  \\t = Tab\n'
+              '  \\x1b = Escape',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final customAction = VolumeKeyActions.createCustomAction(controller.text);
+              if (isVolumeUp) {
+                settings.setVolumeUpAction(customAction);
+              } else {
+                settings.setVolumeDownAction(customAction);
+              }
+            },
+            child: Text(l10n.confirm),
+          ),
+        ],
+      ),
     );
   }
 }

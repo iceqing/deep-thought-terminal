@@ -135,8 +135,13 @@ class AppLocalizations {
   String get bellSoundDesc => _translate('bellSoundDesc');
   String get pinchZoom => _translate('pinchZoom');
   String get pinchZoomDesc => _translate('pinchZoomDesc');
-  String get volumeKeys => _translate('volumeKeys');
-  String get volumeKeysDesc => _translate('volumeKeysDesc');
+  String get volumeUpKey => _translate('volumeUpKey');
+  String get volumeDownKey => _translate('volumeDownKey');
+  String get selectAction => _translate('selectAction');
+  String get customAction => _translate('customAction');
+  String get customActionHint => _translate('customActionHint');
+  String get clearTerminal => _translate('clearTerminal');
+  String get terminalCleared => _translate('terminalCleared');
   String get resetToDefaults => _translate('resetToDefaults');
   String get resetToDefaultsDesc => _translate('resetToDefaultsDesc');
   String get resetSettings => _translate('resetSettings');
@@ -341,8 +346,13 @@ const Map<String, String> _enTranslations = {
   'bellSoundDesc': 'Play sound on bell character',
   'pinchZoom': 'Pinch to Zoom',
   'pinchZoomDesc': 'Use two fingers to resize text',
-  'volumeKeys': 'Volume Keys as Modifiers',
-  'volumeKeysDesc': 'Vol+ = Ctrl, Vol- = Alt',
+  'volumeUpKey': 'Volume Up Key',
+  'volumeDownKey': 'Volume Down Key',
+  'selectAction': 'Select Action',
+  'customAction': 'Custom',
+  'customActionHint': 'e.g. \\x1b[A for Up arrow',
+  'clearTerminal': 'Clear Terminal',
+  'terminalCleared': 'Terminal cleared',
   'resetToDefaults': 'Reset to Defaults',
   'resetToDefaultsDesc': 'Restore all settings to default values',
   'resetSettings': 'Reset Settings',
@@ -530,8 +540,13 @@ const Map<String, String> _zhCNTranslations = {
   'bellSoundDesc': '响铃字符时播放声音',
   'pinchZoom': '双指缩放',
   'pinchZoomDesc': '双指缩放调整字体大小',
-  'volumeKeys': '音量键作为修饰键',
-  'volumeKeysDesc': '音量+ = Ctrl, 音量- = Alt',
+  'volumeUpKey': '音量+按键',
+  'volumeDownKey': '音量-按键',
+  'selectAction': '选择动作',
+  'customAction': '自定义',
+  'customActionHint': '例如 \\x1b[A 表示方向上',
+  'clearTerminal': '清除终端',
+  'terminalCleared': '终端已清除',
   'resetToDefaults': '恢复默认设置',
   'resetToDefaultsDesc': '将所有设置恢复为默认值',
   'resetSettings': '重置设置',
@@ -719,8 +734,13 @@ const Map<String, String> _zhTWTranslations = {
   'bellSoundDesc': '響鈴字元時播放聲音',
   'pinchZoom': '雙指縮放',
   'pinchZoomDesc': '雙指縮放調整字體大小',
-  'volumeKeys': '音量鍵作為修飾鍵',
-  'volumeKeysDesc': '音量+ = Ctrl, 音量- = Alt',
+  'volumeUpKey': '音量+按鍵',
+  'volumeDownKey': '音量-按鍵',
+  'selectAction': '選擇動作',
+  'customAction': '自訂',
+  'customActionHint': '例如 \\x1b[A 表示方向上',
+  'clearTerminal': '清除終端機',
+  'terminalCleared': '終端機已清除',
   'resetToDefaults': '恢復預設設定',
   'resetToDefaultsDesc': '將所有設定恢復為預設值',
   'resetSettings': '重設設定',

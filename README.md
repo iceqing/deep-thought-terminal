@@ -32,8 +32,7 @@ Deep Thought is a feature-rich terminal emulator built with Flutter, designed to
 ### Core Terminal Features
 - **Full Linux Environment** - Powered by Termux bootstrap packages (bash, coreutils, apt, etc.)
 - **Multiple Sessions** - Create and manage multiple terminal sessions simultaneously
-- **Nerd Font Support** - Built-in Nerd Fonts for beautiful Powerline and icon display
-- **Powerlevel10k Compatible** - Full support for p10k themes with proper character width handling
+- **Font Support** - Built-in Mutipul Fonts 
 
 ### User Experience
 - **Pinch-to-Zoom** - Adjust font size with intuitive two-finger gestures
