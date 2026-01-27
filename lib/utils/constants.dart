@@ -1,3 +1,5 @@
+import 'dart:io' show File, Platform;
+
 /// 应用常量定义
 /// 参考 termux-app: TermuxConstants.java, TermuxPreferenceConstants.java
 
@@ -7,36 +9,151 @@ class AppConstants {
   static const String version = '0.1.0';
 }
 
-/// Termux 文件系统路径常量
-/// 参考 termux-app: TermuxConstants.java
+/// 文件系统路径常量
+/// Android: 使用 Termux 风格的目录结构
+/// Linux/Desktop: 使用系统原生路径
 class TermuxConstants {
-  // 基础路径 - Android 应用数据目录
-  static String get filesDir => '/data/data/${AppConstants.packageName}/files';
+  /// 是否为桌面平台（Linux/macOS/Windows）
+  static bool get isDesktop => !Platform.isAndroid && !Platform.isIOS;
 
-  // 核心目录
-  static String get prefixDir => '$filesDir/usr';           // PREFIX
-  static String get homeDir => '$filesDir/home';            // HOME
-  static String get stagingPrefixDir => '$filesDir/usr-staging';  // 临时安装目录
+  // ==================== 基础路径 ====================
 
-  // PREFIX 子目录
-  static String get binDir => '$prefixDir/bin';
-  static String get libDir => '$prefixDir/lib';
-  static String get libexecDir => '$prefixDir/libexec';
-  static String get etcDir => '$prefixDir/etc';
-  static String get shareDir => '$prefixDir/share';
-  static String get tmpDir => '$prefixDir/tmp';
-  static String get varDir => '$prefixDir/var';
-  static String get includeDir => '$prefixDir/include';
+  /// 应用数据目录（仅 Android 使用）
+  static String get filesDir {
+    if (Platform.isAndroid) {
+      return '/data/data/${AppConstants.packageName}/files';
+    }
+    // 桌面平台不需要特殊的 filesDir
+    return Platform.environment['HOME'] ?? '/tmp';
+  }
 
-  // HOME 子目录
+  /// 用户主目录
+  static String get homeDir {
+    if (Platform.isAndroid) {
+      return '$filesDir/home';
+    }
+    // 桌面平台：直接使用系统 HOME
+    return Platform.environment['HOME'] ?? '/tmp';
+  }
+
+  /// PREFIX 目录（仅 Android/Termux 使用）
+  static String get prefixDir {
+    if (Platform.isAndroid) {
+      return '$filesDir/usr';
+    }
+    return '/usr';
+  }
+
+  /// 临时安装目录（仅 Android 使用）
+  static String get stagingPrefixDir => '$filesDir/usr-staging';
+
+  // ==================== 系统目录 ====================
+
+  /// 可执行文件目录
+  static String get binDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/bin';
+    }
+    return '/usr/bin';
+  }
+
+  /// 库文件目录
+  static String get libDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/lib';
+    }
+    return '/usr/lib';
+  }
+
+  static String get libexecDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/libexec';
+    }
+    return '/usr/libexec';
+  }
+
+  /// 配置文件目录
+  static String get etcDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/etc';
+    }
+    return '/etc';
+  }
+
+  static String get shareDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/share';
+    }
+    return '/usr/share';
+  }
+
+  /// 临时文件目录
+  static String get tmpDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/tmp';
+    }
+    return '/tmp';
+  }
+
+  static String get varDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/var';
+    }
+    return '/var';
+  }
+
+  static String get includeDir {
+    if (Platform.isAndroid) {
+      return '$prefixDir/include';
+    }
+    return '/usr/include';
+  }
+
+  // ==================== 配置目录 ====================
+
+  /// Termux 配置目录（~/.termux）
   static String get termuxConfigDir => '$homeDir/.termux';
-  static String get configDir => '$homeDir/.config/termux';
+
+  /// 应用配置目录
+  static String get configDir {
+    if (Platform.isAndroid) {
+      return '$homeDir/.config/termux';
+    }
+    return '$homeDir/.config/dpterm';
+  }
+
   static String get storageDir => '$homeDir/storage';
 
-  // 重要文件
-  static String get bashPath => '$binDir/bash';
-  static String get shPath => '$binDir/sh';
-  static String get loginPath => '$binDir/login';
+  // ==================== Shell 路径 ====================
+
+  /// Bash 路径
+  static String get bashPath {
+    if (Platform.isAndroid) {
+      return '$binDir/bash';
+    }
+    // 桌面平台：尝试常见路径
+    if (File('/bin/bash').existsSync()) return '/bin/bash';
+    if (File('/usr/bin/bash').existsSync()) return '/usr/bin/bash';
+    return '/bin/sh';
+  }
+
+  /// sh 路径
+  static String get shPath {
+    if (Platform.isAndroid) {
+      return '$binDir/sh';
+    }
+    if (File('/bin/sh').existsSync()) return '/bin/sh';
+    return '/usr/bin/sh';
+  }
+
+  /// login 路径
+  static String get loginPath {
+    if (Platform.isAndroid) {
+      return '$binDir/login';
+    }
+    return '/usr/bin/login';
+  }
+
   static String get envFile => '$termuxConfigDir/termux.env';
   static String get propertiesFile => '$configDir/termux.properties';
   static String get symlinksFile => 'SYMLINKS.txt';
@@ -70,7 +187,14 @@ class TermuxConstants {
 
   // 默认 Shell
   static String get defaultShell => bashPath;
-  static const String fallbackShell = '/system/bin/sh';
+
+  /// 备用 Shell（系统级）
+  static String get fallbackShell {
+    if (Platform.isAndroid) {
+      return '/system/bin/sh';
+    }
+    return '/bin/sh';
+  }
 }
 
 /// 默认设置值
@@ -245,7 +369,7 @@ class VolumeKeyActions {
 
 /// 可用的 Shell 列表
 class AvailableShells {
-  /// Shell 配置: key = 显示名称, value = 相对于 bin 目录的路径
+  /// Shell 配置: key = 显示名称, value = shell 名称
   static const Map<String, String> shells = {
     'Bash': 'bash',
     'Zsh': 'zsh',
@@ -258,6 +382,18 @@ class AvailableShells {
 
   /// 获取 Shell 的完整路径
   static String getFullPath(String shellName) {
+    if (TermuxConstants.isDesktop) {
+      // 桌面平台：查找系统 shell
+      final paths = ['/bin/$shellName', '/usr/bin/$shellName'];
+      for (final path in paths) {
+        if (File(path).existsSync()) {
+          return path;
+        }
+      }
+      // 未找到，返回默认路径
+      return '/usr/bin/$shellName';
+    }
+    // Android: 使用 Termux bin 目录
     return '${TermuxConstants.binDir}/$shellName';
   }
 

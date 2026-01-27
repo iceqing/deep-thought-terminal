@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart';
@@ -79,9 +80,12 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   late FocusNode _focusNode;
   late TermuxTerminalController _controller;
   late ScrollController _scrollController;
-  
+
   // Selection pivot point for drag selection
   CellOffset? _selectionPivot;
+
+  // Check if running on desktop platform (mouse-based interaction)
+  static final bool _isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   final _viewportKey = GlobalKey();
   final _scrollableKey = GlobalKey<ScrollableState>();
@@ -170,33 +174,73 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
           requestKeyboard();
         }
       },
-      onLongPressStart: (details) {
+      // 双击选择单词
+      onDoubleTapDown: (details) {
         final offset = _renderTerminal.getCellOffset(details.localPosition);
-        _selectionPivot = offset;
-
-        // Try to select word to give immediate visual feedback
         final wordRange = widget.terminal.buffer.getWordBoundary(offset);
         if (wordRange != null) {
           final startAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.begin);
           final endAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.end);
           _controller.setSelection(startAnchor, endAnchor);
-        } else {
-          final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
-          _controller.setSelection(anchor, anchor);
         }
       },
-      onLongPressMoveUpdate: (details) {
-        if (_selectionPivot == null) return;
-        final offset = _renderTerminal.getCellOffset(details.localPosition);
+      // 桌面平台：使用 pan 手势实现鼠标拖动选择（立即响应）
+      onPanStart: _isDesktop
+          ? (details) {
+              final offset = _renderTerminal.getCellOffset(details.localPosition);
+              _selectionPivot = offset;
+              final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+              _controller.setSelection(anchor, anchor);
+            }
+          : null,
+      onPanUpdate: _isDesktop
+          ? (details) {
+              if (_selectionPivot == null) return;
+              final offset = _renderTerminal.getCellOffset(details.localPosition);
+              final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
+              final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+              _controller.setSelection(startAnchor, endAnchor);
+            }
+          : null,
+      onPanEnd: _isDesktop
+          ? (details) {
+              _selectionPivot = null;
+            }
+          : null,
+      // 移动平台：使用 longPress 手势（需要长按才触发选择）
+      onLongPressStart: !_isDesktop
+          ? (details) {
+              final offset = _renderTerminal.getCellOffset(details.localPosition);
+              _selectionPivot = offset;
 
-        final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
-        final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+              // Try to select word to give immediate visual feedback
+              final wordRange = widget.terminal.buffer.getWordBoundary(offset);
+              if (wordRange != null) {
+                final startAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.begin);
+                final endAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.end);
+                _controller.setSelection(startAnchor, endAnchor);
+              } else {
+                final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+                _controller.setSelection(anchor, anchor);
+              }
+            }
+          : null,
+      onLongPressMoveUpdate: !_isDesktop
+          ? (details) {
+              if (_selectionPivot == null) return;
+              final offset = _renderTerminal.getCellOffset(details.localPosition);
 
-        _controller.setSelection(startAnchor, endAnchor);
-      },
-      onLongPressEnd: (details) {
-        _selectionPivot = null;
-      },
+              final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
+              final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
+
+              _controller.setSelection(startAnchor, endAnchor);
+            }
+          : null,
+      onLongPressEnd: !_isDesktop
+          ? (details) {
+              _selectionPivot = null;
+            }
+          : null,
       onTapUp: widget.onTapUp != null
           ? (details) {
               final offset =

@@ -385,8 +385,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 ],
               ),
             ),
-            // 额外按键
-            if (settings.showExtraKeys)
+            // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
+            if (settings.showExtraKeys && !Platform.isLinux)
               ExtraKeysView(
                 onTextKeyTap: (key) => _sendTextKeyWithVolumeModifiers(terminalProvider, key),
                 onTerminalKeyTap: (key) =>

@@ -346,29 +346,16 @@ class SettingsProvider extends ChangeNotifier {
   /// 更新 APT sources.list 文件
   Future<bool> _updateSourcesList(TermuxMirror mirror) async {
     try {
-      final sourcesListPath = '$_termuxConfigDir/../usr/etc/apt/sources.list';
-      final file = File(sourcesListPath);
+      final file = File(TermuxConstants.aptSourcesList);
 
-      // 如果目录不存在，使用备用路径
+      // 确保目录存在
       if (!await file.parent.exists()) {
-        // Android 路径
-        final altPath = Platform.isAndroid
-            ? '/data/data/com.dpterm/files/usr/etc/apt/sources.list'
-            : '${Platform.environment['HOME']}/.termux/../usr/etc/apt/sources.list';
-        final altFile = File(altPath);
-        if (await altFile.parent.exists()) {
-          await altFile.writeAsString(mirror.sourcesListContent);
-          debugPrint('Updated sources.list at: $altPath');
-          return true;
-        }
-      } else {
-        await file.writeAsString(mirror.sourcesListContent);
-        debugPrint('Updated sources.list at: $sourcesListPath');
-        return true;
+        await file.parent.create(recursive: true);
       }
 
-      debugPrint('Could not find sources.list directory');
-      return false;
+      await file.writeAsString(mirror.sourcesListContent);
+      debugPrint('Updated sources.list at: ${TermuxConstants.aptSourcesList}');
+      return true;
     } catch (e) {
       debugPrint('Failed to update sources.list: $e');
       return false;
@@ -377,12 +364,7 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 获取 sources.list 文件路径
   static String get sourcesListPath {
-    if (Platform.isAndroid) {
-      return '/data/data/com.dpterm/files/usr/etc/apt/sources.list';
-    } else {
-      final home = Platform.environment['HOME'] ?? '/tmp';
-      return '$home/.termux/../usr/etc/apt/sources.list';
-    }
+    return '${TermuxConstants.etcDir}/apt/sources.list';
   }
 
   /// 重置为默认设置
@@ -410,15 +392,7 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 获取 termux 配置目录路径
   static String get _termuxConfigDir {
-    if (Platform.isAndroid) {
-      // Android: /data/data/com.dpterm/files/home/.termux
-      final home = Platform.environment['HOME'] ?? '/data/data/com.dpterm/files/home';
-      return '$home/.termux';
-    } else {
-      // Linux/其他: ~/.termux
-      final home = Platform.environment['HOME'] ?? '/tmp';
-      return '$home/.termux';
-    }
+    return TermuxConstants.termuxConfigDir;
   }
 
   /// 获取配置文件路径
