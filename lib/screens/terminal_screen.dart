@@ -698,6 +698,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   ],
                 ),
               ),
+              PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    const Icon(Icons.clear_all),
+                    const SizedBox(width: 8),
+                    Text(l10n.clearTerminal),
+                  ],
+                ),
+              ),
               const PopupMenuDivider(),
               PopupMenuItem(
                 value: 'settings',
@@ -951,6 +961,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
       case 'copy_ssh_key':
         _copySshPublicKey();
         break;
+      case 'clear':
+        _clearTerminal(terminalProvider);
+        break;
     }
   }
 
@@ -1119,6 +1132,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     TapDownDetails details,
     TerminalProvider terminalProvider,
   ) {
+    final l10n = AppLocalizations.of(context);
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -1128,34 +1142,34 @@ class _TerminalScreenState extends State<TerminalScreen> {
         details.globalPosition.dy,
       ),
       items: <PopupMenuEntry<String>>[
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'copy',
           child: Row(
             children: [
-              Icon(Icons.copy, size: 20),
-              SizedBox(width: 8),
-              Text('Copy'),
+              const Icon(Icons.copy, size: 20),
+              const SizedBox(width: 8),
+              Text(l10n.copy),
             ],
           ),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'paste',
           child: Row(
             children: [
-              Icon(Icons.paste, size: 20),
-              SizedBox(width: 8),
-              Text('Paste'),
+              const Icon(Icons.paste, size: 20),
+              const SizedBox(width: 8),
+              Text(l10n.paste),
             ],
           ),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'clear',
           child: Row(
             children: [
-              Icon(Icons.cleaning_services_outlined, size: 20),
-              SizedBox(width: 8),
-              Text('Clear Terminal'),
+              const Icon(Icons.clear_all, size: 20),
+              const SizedBox(width: 8),
+              Text(l10n.clearTerminal),
             ],
           ),
         ),

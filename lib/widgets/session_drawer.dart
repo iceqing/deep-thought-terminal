@@ -144,7 +144,7 @@ class SessionDrawer extends StatelessWidget {
               if (terminalProvider.currentSession != null) ...[
                 Divider(height: 1, color: theme.colorScheme.outlineVariant),
                 ListTile(
-                  leading: const Icon(Icons.cleaning_services_outlined),
+                  leading: const Icon(Icons.clear_all),
                   title: Text(l10n.clearTerminal),
                   onTap: () {
                     Navigator.pop(context);
