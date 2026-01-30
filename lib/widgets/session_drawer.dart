@@ -140,25 +140,6 @@ class SessionDrawer extends StatelessWidget {
                       ),
               ),
 
-              // 清除终端按钮
-              if (terminalProvider.currentSession != null) ...[
-                Divider(height: 1, color: theme.colorScheme.outlineVariant),
-                ListTile(
-                  leading: const Icon(Icons.clear_all),
-                  title: Text(l10n.clearTerminal),
-                  onTap: () {
-                    Navigator.pop(context);
-                    terminalProvider.clearCurrentTerminal();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n.terminalCleared),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                ),
-              ],
-
               // 底部信息栏 (可选)
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
               Padding(
