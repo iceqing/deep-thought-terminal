@@ -49,6 +49,8 @@ class TerminalSession {
   // 调试信息：最后发送给 shell 的尺寸
   int? lastShellColumns;
   int? lastShellRows;
+  String? _lastKnownWorkingDirectory;
+  Completer<String?>? _cwdRequestCompleter;
 
   TerminalSession({
     required this.id,
@@ -102,16 +104,16 @@ class TerminalSession {
           // 跟踪用户输入以检测命令执行（在发送到shell之前）
           _trackInput(data);
 
-          final transformedData = inputTransformer != null
-              ? inputTransformer!(data)
-              : data;
+          final transformedData =
+              inputTransformer != null ? inputTransformer!(data) : data;
           _shellSession!.write(transformedData);
         }
       };
 
       // 设置终端大小调整回调 - 将resize信号传递给Shell进程
       // 这样vim等全屏应用才能正确响应屏幕大小变化
-      terminal.onResize = (int width, int height, int pixelWidth, int pixelHeight) {
+      terminal.onResize =
+          (int width, int height, int pixelWidth, int pixelHeight) {
         if (_shellSession != null && _isRunning) {
           _shellSession!.resize(width, height);
           lastShellColumns = width;
@@ -165,6 +167,12 @@ class TerminalSession {
   }
 
   void _cleanup() {
+    if (_cwdRequestCompleter != null && !_cwdRequestCompleter!.isCompleted) {
+      _cwdRequestCompleter!.complete(
+        _lastKnownWorkingDirectory ?? TermuxConstants.homeDir,
+      );
+    }
+    _cwdRequestCompleter = null;
     _outputSubscription?.cancel();
     _outputSubscription = null;
     _exitSubscription?.cancel();
@@ -205,6 +213,19 @@ class TerminalSession {
   void _handleOscCommand(String? command) {
     if (command == null) return;
 
+    if (command.startsWith('cwd:')) {
+      final cwd = command.substring(4).trim();
+      if (cwd.isNotEmpty) {
+        _lastKnownWorkingDirectory = cwd;
+      }
+      if (_cwdRequestCompleter != null && !_cwdRequestCompleter!.isCompleted) {
+        _cwdRequestCompleter!.complete(
+          _lastKnownWorkingDirectory ?? TermuxConstants.homeDir,
+        );
+      }
+      return;
+    }
+
     switch (command) {
       case 'setup-storage':
         _setupStorage();
@@ -235,7 +256,8 @@ class TerminalSession {
             terminal.write('  $name -> ${parts[1]}\r\n');
           }
         }
-        terminal.write('\r\nYou can now access external storage via ~/storage/\r\n');
+        terminal.write(
+            '\r\nYou can now access external storage via ~/storage/\r\n');
       } else {
         terminal.write('\x1b[31m'); // 红色
         terminal.write('Storage setup failed!\r\n');
@@ -310,7 +332,12 @@ class TerminalSession {
       }
 
       // 跳过大部分控制字符
-      if (char < 0x20 && char != 0x0D && char != 0x08 && char != 0x03 && char != 0x15 && char != 0x07) {
+      if (char < 0x20 &&
+          char != 0x0D &&
+          char != 0x08 &&
+          char != 0x03 &&
+          char != 0x15 &&
+          char != 0x07) {
         continue;
       }
 
@@ -346,16 +373,19 @@ class TerminalSession {
     if (data.isEmpty) return false;
     final trimmed = data.trim();
     if (trimmed.isEmpty) return false;
-    final hasPrompt = RegExp(r'[\$\#\>]\s*$|@.*:.*[\$\#\>]\s*$').hasMatch(trimmed);
+    final hasPrompt =
+        RegExp(r'[\$\#\>]\s*$|@.*:.*[\$\#\>]\s*$').hasMatch(trimmed);
     if (hasPrompt && _inputBuffer.isNotEmpty) return true;
-    final hasOnlyControl = !trimmed.codeUnits.any((c) => c >= 0x20 && c != 0x7F);
+    final hasOnlyControl =
+        !trimmed.codeUnits.any((c) => c >= 0x20 && c != 0x7F);
     return hasOnlyControl;
   }
 
   /// 检查是否是有效命令
   bool _isValidCommand(String cmd) {
     if (cmd.isEmpty) return false;
-    if (cmd.startsWith('~') || cmd.startsWith(r'$') || cmd.startsWith('#')) return false;
+    if (cmd.startsWith('~') || cmd.startsWith(r'$') || cmd.startsWith('#'))
+      return false;
     if (cmd.contains(':~') || cmd.contains(':/')) return false;
     if (cmd.length < 2) return false;
     return true;
@@ -365,6 +395,49 @@ class TerminalSession {
   void write(String text) {
     if (_shellSession != null && _isRunning) {
       _shellSession!.write(text);
+    }
+  }
+
+  /// 获取当前 shell 工作目录
+  Future<String> queryCurrentWorkingDirectory({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    final fallbackPath = _lastKnownWorkingDirectory ?? TermuxConstants.homeDir;
+    if (_shellSession == null || !_isRunning) {
+      return fallbackPath;
+    }
+
+    if (_cwdRequestCompleter != null && !_cwdRequestCompleter!.isCompleted) {
+      return _cwdRequestCompleter!.future
+          .timeout(
+            timeout,
+            onTimeout: () => fallbackPath,
+          )
+          .then((value) =>
+              value?.trim().isNotEmpty == true ? value!.trim() : fallbackPath);
+    }
+
+    final completer = Completer<String?>();
+    _cwdRequestCompleter = completer;
+
+    // 请求 shell 主动通过 OSC 回传 PWD，避免解析提示符造成误判
+    write('printf "\\033]7777;cwd:%s\\007" "\$PWD"\r');
+
+    try {
+      final cwd = await completer.future.timeout(
+        timeout,
+        onTimeout: () => fallbackPath,
+      );
+      final normalized = cwd?.trim();
+      if (normalized != null && normalized.isNotEmpty) {
+        _lastKnownWorkingDirectory = normalized;
+        return normalized;
+      }
+      return fallbackPath;
+    } finally {
+      if (identical(_cwdRequestCompleter, completer)) {
+        _cwdRequestCompleter = null;
+      }
     }
   }
 

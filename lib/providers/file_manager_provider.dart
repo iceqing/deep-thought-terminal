@@ -14,6 +14,9 @@ class FileManagerProvider extends ChangeNotifier {
   bool _initialized = false;
   bool _hasStoragePermission = true;
   bool _showHiddenFiles = true;
+  bool _isGridView = false;
+  String _sortBy = 'name'; // 'name', 'date', 'size'
+  bool _sortAscending = true;
 
   String get currentPath => _currentPath;
   List<FileItem> get fileList => _fileList;
@@ -23,18 +26,61 @@ class FileManagerProvider extends ChangeNotifier {
   bool get canGoBack => _history.isNotEmpty;
   bool get hasStoragePermission => _hasStoragePermission;
   bool get showHiddenFiles => _showHiddenFiles;
+  bool get isGridView => _isGridView;
+  String get sortBy => _sortBy;
+  bool get sortAscending => _sortAscending;
+
   bool get canGoParent {
     if (_currentPath.isEmpty) return false;
     return _fileService.getParentDirectory(_currentPath) != _currentPath;
   }
 
-  Future<void> init() async {
+  void toggleViewMode() {
+    _isGridView = !_isGridView;
+    notifyListeners();
+  }
+
+  void setSortBy(String criteria) {
+    if (_sortBy == criteria) {
+      _sortAscending = !_sortAscending;
+    } else {
+      _sortBy = criteria;
+      _sortAscending = true;
+    }
+    _sortFileList();
+    notifyListeners();
+  }
+
+  void _sortFileList() {
+    _fileList.sort((a, b) {
+      // Directories always come first
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+
+      int result;
+      switch (_sortBy) {
+        case 'date':
+          result = a.modifiedDate.compareTo(b.modifiedDate);
+          break;
+        case 'size':
+          result = a.size.compareTo(b.size);
+          break;
+        case 'name':
+        default:
+          result = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          break;
+      }
+      return _sortAscending ? result : -result;
+    });
+  }
+
+  Future<void> init({String? initialPath}) async {
     if (_initialized) return;
 
     _setLoading(true);
     try {
       await checkStoragePermission();
-      _currentPath = await _fileService.getInitialDirectory();
+      _currentPath = initialPath ?? await _fileService.getInitialDirectory();
       await refresh();
       _initialized = true;
     } catch (e) {
@@ -102,6 +148,7 @@ class FileManagerProvider extends ChangeNotifier {
                 permissions: item['permissions'],
               ))
           .toList();
+      _sortFileList();
     } catch (e) {
       _error = e.toString();
       _fileList = [];

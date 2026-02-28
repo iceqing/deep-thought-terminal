@@ -25,6 +25,7 @@ import '../widgets/scaled_terminal_view.dart';
 import '../widgets/history_viewer.dart';
 import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
+import 'file_manager_screen.dart';
 import '../l10n/app_localizations.dart';
 
 /// 终端主屏幕
@@ -81,7 +82,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       // 更新音量键启用状态（只要有任一音量键配置了动作就启用）
       final settings = context.read<SettingsProvider>();
       final volumeKeysEnabled = settings.volumeUpAction != 'none' ||
-                                 settings.volumeDownAction != 'none';
+          settings.volumeDownAction != 'none';
       VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
 
       // 启动设置重载监听（支持 termux-reload-settings 命令）
@@ -109,7 +110,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (settings.showDebugInfo) {
       // 启动刷新计时器
       if (_debugRefreshTimer == null) {
-        _debugRefreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        _debugRefreshTimer =
+            Timer.periodic(const Duration(milliseconds: 200), (_) {
           if (mounted && settings.showDebugInfo) setState(() {});
         });
       }
@@ -124,16 +126,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 如果会话数量变化（通常是新建）或者索引变化（切换会话），则请求键盘
     // 这里简单地在任何变化时尝试唤醒，也可以更精细地控制
     if (mounted) {
-       _updateSessionInputTransformer();
-       _requestKeyboard();
+      _updateSessionInputTransformer();
+      _requestKeyboard();
     }
   }
 
   void _requestKeyboard() {
     if (!_terminalFocusNode.hasFocus) {
-       _terminalFocusNode.canRequestFocus = true;
-       _terminalFocusNode.requestFocus();
-       SystemChannels.textInput.invokeMethod('TextInput.show');
+      _terminalFocusNode.canRequestFocus = true;
+      _terminalFocusNode.requestFocus();
+      SystemChannels.textInput.invokeMethod('TextInput.show');
     }
   }
 
@@ -144,9 +146,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
       if (!mounted) return;
 
       final settings = context.read<SettingsProvider>();
-      final volumeAction = key == 'up'
-          ? settings.volumeUpAction
-          : settings.volumeDownAction;
+      final volumeAction =
+          key == 'up' ? settings.volumeUpAction : settings.volumeDownAction;
 
       // 如果该键被禁用，忽略
       if (volumeAction == 'none') return;
@@ -187,17 +188,20 @@ class _TerminalScreenState extends State<TerminalScreen> {
   /// 检查指定修饰符是否激活
   bool _isModifierActive(SettingsProvider settings, String modifier) {
     return (_volumeUpModifierActive && settings.volumeUpAction == modifier) ||
-           (_volumeDownModifierActive && settings.volumeDownAction == modifier);
+        (_volumeDownModifierActive && settings.volumeDownAction == modifier);
   }
 
   /// 检查 Ctrl 修饰符是否激活
-  bool _isCtrlActive(SettingsProvider settings) => _isModifierActive(settings, 'ctrl');
+  bool _isCtrlActive(SettingsProvider settings) =>
+      _isModifierActive(settings, 'ctrl');
 
   /// 检查 Alt 修饰符是否激活
-  bool _isAltActive(SettingsProvider settings) => _isModifierActive(settings, 'alt');
+  bool _isAltActive(SettingsProvider settings) =>
+      _isModifierActive(settings, 'alt');
 
   /// 切换指定修饰符
-  void _toggleModifier(SettingsProvider settings, String modifier, {bool fallbackToVolumeUp = true}) {
+  void _toggleModifier(SettingsProvider settings, String modifier,
+      {bool fallbackToVolumeUp = true}) {
     setState(() {
       if (settings.volumeUpAction == modifier) {
         _volumeUpModifierActive = !_volumeUpModifierActive;
@@ -256,9 +260,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
     final volumeDownIsAlt = settings.volumeDownAction == 'alt';
 
     final ctrlActive = (_volumeUpModifierActive && volumeUpIsCtrl) ||
-                       (_volumeDownModifierActive && volumeDownIsCtrl);
+        (_volumeDownModifierActive && volumeDownIsCtrl);
     final altActive = (_volumeUpModifierActive && volumeUpIsAlt) ||
-                      (_volumeDownModifierActive && volumeDownIsAlt);
+        (_volumeDownModifierActive && volumeDownIsAlt);
 
     final buffer = StringBuffer();
 
@@ -368,13 +372,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     // 同步音量键设置到原生层
     final volumeKeysEnabled = settings.volumeUpAction != 'none' ||
-                               settings.volumeDownAction != 'none';
+        settings.volumeDownAction != 'none';
     VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: settings.terminalTheme.background,
-      appBar: _hasSelection 
+      appBar: _hasSelection
           ? _buildSelectionAppBar(context, terminalProvider, settings)
           : _buildAppBar(context, terminalProvider, settings),
       drawer: SessionDrawer(
@@ -396,7 +400,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     Positioned(
                       top: 8,
                       right: 8,
-                      child: _buildDebugInfo(context, terminalProvider, settings),
+                      child:
+                          _buildDebugInfo(context, terminalProvider, settings),
                     ),
                 ],
               ),
@@ -404,7 +409,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
             // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
             if (settings.showExtraKeys && !Platform.isLinux)
               ExtraKeysView(
-                onTextKeyTap: (key) => _sendTextKeyWithVolumeModifiers(terminalProvider, key),
+                onTextKeyTap: (key) =>
+                    _sendTextKeyWithVolumeModifiers(terminalProvider, key),
                 onTerminalKeyTap: (key) =>
                     _sendTerminalKey(terminalProvider, key),
                 vibrationEnabled: settings.vibrationEnabled,
@@ -412,11 +418,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 altPressed: _isAltActive(settings),
                 onCtrlToggle: () => _toggleCtrlModifier(settings),
                 onAltToggle: () => _toggleAltModifier(settings),
-                customCommands: taskProvider.tasks.map((t) => QuickCommand(
-                  label: t.name,
-                  command: t.script.endsWith('\n') ? t.script : '${t.script}\n',
-                  icon: Icons.play_arrow,
-                )).toList(),
+                customCommands: taskProvider.tasks
+                    .map((t) => QuickCommand(
+                          label: t.name,
+                          command: t.script.endsWith('\n')
+                              ? t.script
+                              : '${t.script}\n',
+                          icon: Icons.play_arrow,
+                        ))
+                    .toList(),
               ),
           ],
         ),
@@ -451,9 +461,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
               icon: const Icon(Icons.copy, size: 18),
               label: Text(l10n.copy),
               style: FilledButton.styleFrom(
-                backgroundColor: settings.terminalTheme.foreground.withOpacity(0.15),
+                backgroundColor:
+                    settings.terminalTheme.foreground.withOpacity(0.15),
                 foregroundColor: settings.terminalTheme.foreground,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                 visualDensity: VisualDensity.compact,
               ),
             ),
@@ -514,7 +526,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
-  void _showNewSessionSheet(BuildContext context, TerminalProvider terminalProvider) {
+  void _showNewSessionSheet(
+      BuildContext context, TerminalProvider terminalProvider) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Allow full height if needed
@@ -543,7 +556,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
                       Text(
@@ -556,7 +570,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
                           Navigator.pop(context);
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const SSHManagerScreen()),
+                            MaterialPageRoute(
+                                builder: (context) => const SSHManagerScreen()),
                           );
                         },
                         icon: const Icon(Icons.settings),
@@ -596,17 +611,25 @@ class _TerminalScreenState extends State<TerminalScreen> {
                         ),
                         ...sshProvider.hosts.map((host) => ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
-                                child: Text(host.displayName.characters.first.toUpperCase()),
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer,
+                                foregroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .onSecondaryContainer,
+                                child: Text(host.displayName.characters.first
+                                    .toUpperCase()),
                               ),
                               title: Text(host.displayName),
                               subtitle: Text('${host.username}@${host.host}'),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () {
                                 Navigator.pop(context);
-                                terminalProvider.createSession(title: host.displayName).then((session) {
-                                  Future.delayed(const Duration(milliseconds: 300), () {
+                                terminalProvider
+                                    .createSession(title: host.displayName)
+                                    .then((session) {
+                                  Future.delayed(
+                                      const Duration(milliseconds: 300), () {
                                     session.write('${host.command}\r');
                                   });
                                 });
@@ -666,7 +689,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ? Icons.keyboard_hide
               : Icons.keyboard),
           onPressed: () => _toggleKeyboard(context),
-          tooltip: _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
+          tooltip:
+              _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
         ),
         // 其他所有操作收纳进菜单，防止误触
         PopupMenuButton<String>(
@@ -700,6 +724,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     const Icon(Icons.history),
                     const SizedBox(width: 8),
                     Text(l10n.history),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'open_current_folder',
+                child: Row(
+                  children: [
+                    const Icon(Icons.folder_open),
+                    const SizedBox(width: 8),
+                    const Text('打开当前目录'),
                   ],
                 ),
               ),
@@ -807,77 +841,79 @@ class _TerminalScreenState extends State<TerminalScreen> {
         onTap: () => _requestKeyboard(),
         excludeFromSemantics: true,
         child: RawGestureDetector(
-        gestures: {
-          TwoFingerScaleGestureRecognizer: GestureRecognizerFactoryWithHandlers<
-              TwoFingerScaleGestureRecognizer>(
-            () => TwoFingerScaleGestureRecognizer(),
-            (TwoFingerScaleGestureRecognizer instance) {
-              instance.onStart = (details) {
-                if (details.pointerCount >= 2) {
-                  _baseScaleFontSize = settings.fontSize;
-                }
-              };
-              instance.onUpdate = (details) {
-                if (details.pointerCount >= 2 && settings.pinchZoomEnabled) {
-                  final newSize = (_baseScaleFontSize * details.scale)
-                      .clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
-                  if ((newSize - settings.fontSize).abs() >= 0.5) {
-                    settings.setFontSize(newSize);
+          gestures: {
+            TwoFingerScaleGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                    TwoFingerScaleGestureRecognizer>(
+              () => TwoFingerScaleGestureRecognizer(),
+              (TwoFingerScaleGestureRecognizer instance) {
+                instance.onStart = (details) {
+                  if (details.pointerCount >= 2) {
+                    _baseScaleFontSize = settings.fontSize;
                   }
-                }
-              };
-            },
-          ),
-        },
-        child: Stack(
-          children: [
-            KeyboardListener(
-          focusNode: FocusNode(),
-          autofocus: false,
-          onKeyEvent: (event) {
-            // 处理物理键盘的Enter键
-            if (event is KeyDownEvent) {
-              if (event.logicalKey == LogicalKeyboardKey.enter ||
-                  event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-                currentSession.write('\r');
-              }
-            }
+                };
+                instance.onUpdate = (details) {
+                  if (details.pointerCount >= 2 && settings.pinchZoomEnabled) {
+                    final newSize = (_baseScaleFontSize * details.scale).clamp(
+                        DefaultSettings.minFontSize,
+                        DefaultSettings.maxFontSize);
+                    if ((newSize - settings.fontSize).abs() >= 0.5) {
+                      settings.setFontSize(newSize);
+                    }
+                  }
+                };
+              },
+            ),
           },
-          child: ScaledTerminalView(
-            currentSession.terminal,
-            controller: currentSession.controller,
-            scrollController: currentSession.scrollController,
-            theme: settings.terminalTheme,
-            textStyle: TerminalStyle(
-              fontFamily: _getTerminalFontFamily(settings),
-              fontSize: settings.fontSize,
-              height: 1.1,
-            ),
-            cursorType: settings.terminalCursorType,
-            alwaysShowCursor: true,
-            autofocus: true,
-            focusNode: _terminalFocusNode,
-            keyboardType: TextInputType.text,
-            onSecondaryTapDown: (details, offset) {
-              _showContextMenu(context, details, terminalProvider);
-            },
+          child: Stack(
+            children: [
+              KeyboardListener(
+                focusNode: FocusNode(),
+                autofocus: false,
+                onKeyEvent: (event) {
+                  // 处理物理键盘的Enter键
+                  if (event is KeyDownEvent) {
+                    if (event.logicalKey == LogicalKeyboardKey.enter ||
+                        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                      currentSession.write('\r');
+                    }
+                  }
+                },
+                child: ScaledTerminalView(
+                  currentSession.terminal,
+                  controller: currentSession.controller,
+                  scrollController: currentSession.scrollController,
+                  theme: settings.terminalTheme,
+                  textStyle: TerminalStyle(
+                    fontFamily: _getTerminalFontFamily(settings),
+                    fontSize: settings.fontSize,
+                    height: 1.1,
+                  ),
+                  cursorType: settings.terminalCursorType,
+                  alwaysShowCursor: true,
+                  autofocus: true,
+                  focusNode: _terminalFocusNode,
+                  keyboardType: TextInputType.text,
+                  onSecondaryTapDown: (details, offset) {
+                    _showContextMenu(context, details, terminalProvider);
+                  },
+                ),
+              ),
+              if (_hasSelection)
+                TerminalSelectionHandles(
+                  terminal: currentSession.terminal,
+                  controller: currentSession.controller,
+                  scrollController: currentSession.scrollController,
+                  textStyle: TerminalStyle(
+                    fontFamily: _getTerminalFontFamily(settings),
+                    fontSize: settings.fontSize,
+                    height: 1.1,
+                  ),
+                  handleColor: settings.terminalTheme.blue,
+                ),
+            ],
           ),
         ),
-        if (_hasSelection)
-            TerminalSelectionHandles(
-              terminal: currentSession.terminal,
-              controller: currentSession.controller,
-              scrollController: currentSession.scrollController,
-              textStyle: TerminalStyle(
-                fontFamily: _getTerminalFontFamily(settings),
-                fontSize: settings.fontSize,
-                height: 1.1,
-              ),
-              handleColor: settings.terminalTheme.blue,
-            ),
-          ],
-        ),
-      ),
       ),
     );
   }
@@ -885,7 +921,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
   /// 发送文本键到终端
   /// 注意：ExtraKeysView 已经处理了 Ctrl/Alt 修饰键转换
   /// 这里直接写入，不再重复转换
-  void _sendTextKeyWithVolumeModifiers(TerminalProvider terminalProvider, String key) {
+  void _sendTextKeyWithVolumeModifiers(
+      TerminalProvider terminalProvider, String key) {
     final session = terminalProvider.currentSession;
     if (session == null) return;
 
@@ -937,7 +974,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
-  void _showHistoryViewer(BuildContext context, TerminalProvider terminalProvider) {
+  void _showHistoryViewer(
+      BuildContext context, TerminalProvider terminalProvider) {
     HistoryViewer.show(
       context,
       onCommandSelected: (command) {
@@ -974,6 +1012,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
       case 'history':
         _showHistoryViewer(context, terminalProvider);
         break;
+      case 'open_current_folder':
+        _openCurrentFolderInFileManager(context, terminalProvider);
+        break;
       case 'copy_ssh_key':
         _copySshPublicKey();
         break;
@@ -981,6 +1022,23 @@ class _TerminalScreenState extends State<TerminalScreen> {
         _clearTerminal(terminalProvider);
         break;
     }
+  }
+
+  Future<void> _openCurrentFolderInFileManager(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) async {
+    final session = terminalProvider.currentSession;
+    final initialPath = await session?.queryCurrentWorkingDirectory() ??
+        TermuxConstants.homeDir;
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FileManagerScreen(initialPath: initialPath),
+      ),
+    );
   }
 
   /// 复制最后N行终端内容
@@ -1338,11 +1396,17 @@ class _TerminalScreenState extends State<TerminalScreen> {
           const SizedBox(height: 4),
           Text(
             'Terminal: ${terminal.viewWidth}x${terminal.viewHeight}',
-            style: const TextStyle(color: Colors.yellow, fontSize: 10, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.yellow,
+                fontSize: 10,
+                fontWeight: FontWeight.bold),
           ),
           Text(
             'Shell: ${session.lastShellColumns ?? "?"}x${session.lastShellRows ?? "?"}',
-            style: const TextStyle(color: Colors.lightGreen, fontSize: 10, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.lightGreen,
+                fontSize: 10,
+                fontWeight: FontWeight.bold),
           ),
           Text(
             'Buffer lines: ${terminal.buffer.lines.length}',
