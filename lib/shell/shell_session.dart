@@ -331,15 +331,14 @@ class ShellSessionFactory {
                 // PROMPT_COMMAND:
                 // 1) 首次提示符时读取历史
                 // 2) 每次命令后追加历史
-                // 3) 仅在 HISTCMD 递增（真的执行了新命令）时，通过 OSC 7777 回传最后执行命令
+                // 3) 获取最后一条命令并通过 OSC 7777 回传
                 'export PROMPT_COMMAND=\''
                 '[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; '
                 'history -a; '
-                'if [ -z "\$_DPTERM_LAST_HISTCMD" ]; then _DPTERM_LAST_HISTCMD="\$HISTCMD"; fi; '
-                'if [ "\$HISTCMD" -gt "\$_DPTERM_LAST_HISTCMD" ]; then '
-                '__dpterm_last_cmd="\$(HISTTIMEFORMAT= history 1 | sed -E "s/^ *[0-9]+ *//")"; '
-                'if [ -n "\$__dpterm_last_cmd" ]; then printf "\\033]7777;command:%s\\007" "\$__dpterm_last_cmd"; fi; '
-                '_DPTERM_LAST_HISTCMD="\$HISTCMD"; '
+                '__dpterm_last_cmd="\$(HISTTIMEFORMAT= history 1 | sed -n "1p" | sed -E "s/^ *[0-9]+ *//")"; '
+                'if [ -n "\$__dpterm_last_cmd" ] && [ "\$__dpterm_last_cmd" != "\$_DPTERM_LAST_CMD" ]; then '
+                'printf "\\033]7777;command:%s\\007" "\$__dpterm_last_cmd"; '
+                '_DPTERM_LAST_CMD="\$__dpterm_last_cmd"; '
                 'fi; '
                 '\'; '
                 r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
