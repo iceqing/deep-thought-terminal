@@ -73,22 +73,6 @@ class SessionDrawer extends StatelessWidget {
                     ),
                     IconButton(
                       icon: Icon(
-                        Icons.folder_open,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const FileManagerScreen(),
-                          ),
-                        );
-                      },
-                      tooltip: l10n.fileManager,
-                    ),
-                    IconButton(
-                      icon: Icon(
                         Icons.settings,
                         color: theme.colorScheme.onPrimaryContainer,
                       ),
@@ -155,6 +139,23 @@ class SessionDrawer extends StatelessWidget {
                           );
                         },
                       ),
+              ),
+
+              // 工具入口（次级操作，放到底部减少误触）
+              Divider(height: 1, color: theme.colorScheme.outlineVariant),
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: Text(l10n.fileManager),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FileManagerScreen(),
+                    ),
+                  );
+                },
               ),
 
               // 底部操作栏

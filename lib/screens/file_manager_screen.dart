@@ -27,11 +27,17 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final fileManagerProvider = context.watch<FileManagerProvider>();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.fileManager),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed: () => _showCreateFolderDialog(context),
+            tooltip: '新建文件夹',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => context.read<FileManagerProvider>().refresh(),
@@ -61,124 +67,51 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
                   ],
                 ),
               ),
+              PopupMenuItem(
+                value: 'history_back',
+                enabled: fileManagerProvider.canGoBack,
+                child: Row(
+                  children: [
+                    const Icon(Icons.history),
+                    const SizedBox(width: 12),
+                    const Text('返回上一次位置'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle_hidden',
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility),
+                    const SizedBox(width: 12),
+                    Text(
+                      fileManagerProvider.showHiddenFiles
+                          ? '关闭隐藏文件显示'
+                          : '显示隐藏文件',
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'open_current_folder',
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_new),
+                    SizedBox(width: 12),
+                    Text('打开当前文件夹'),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
       ),
       body: Consumer<FileManagerProvider>(
         builder: (context, provider, child) {
-          if (provider.isLoading && provider.fileList.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (provider.error != null && provider.fileList.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      provider.error!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: () => provider.refresh(),
-                    icon: const Icon(Icons.refresh),
-                    label: Text(l10n.retry),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (provider.fileList.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.emptyDirectory,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            );
-          }
-
           return Column(
             children: [
-              // Breadcrumb / Path bar
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Row(
-                  children: [
-                    if (provider.canGoBack)
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, size: 20),
-                        onPressed: () => provider.goBack(),
-                        tooltip: l10n.back,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    if (provider.canGoBack) const SizedBox(width: 8),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _showPathDialog(context, provider),
-                        child: Text(
-                          provider.currentPath,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontFamily: 'monospace',
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // File list
-              Expanded(
-                child: ListView.separated(
-                  itemCount: provider.fileList.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final item = provider.fileList[index];
-                    return FileListTile(
-                      item: item,
-                      onTap: () => _handleFileTap(context, provider, item),
-                      onLongPress: () => _showFileOptions(context, provider, item),
-                    );
-                  },
-                ),
-              ),
+              _buildPathBar(context, provider, l10n),
+              Expanded(child: _buildContent(context, provider, l10n)),
             ],
           );
         },
@@ -186,7 +119,135 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  void _handleFileTap(BuildContext context, dynamic provider, dynamic item) async {
+  Widget _buildPathBar(
+    BuildContext context,
+    FileManagerProvider provider,
+    AppLocalizations l10n,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_upward, size: 20),
+            onPressed:
+                provider.canGoParent ? () => provider.navigateToParent() : null,
+            tooltip: '上一级',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _showPathDialog(context, provider),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '当前目录',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  Text(
+                    provider.currentPath,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    FileManagerProvider provider,
+    AppLocalizations l10n,
+  ) {
+    if (provider.isLoading && provider.fileList.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.error != null && provider.fileList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Error',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                provider.error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => provider.refresh(),
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.retry),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (provider.fileList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.folder_open,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.emptyDirectory,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: provider.fileList.length,
+      separatorBuilder: (context, index) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final item = provider.fileList[index];
+        return FileListTile(
+          item: item,
+          onTap: () => _handleFileTap(context, provider, item),
+          onLongPress: () => _showFileOptions(context, provider, item),
+        );
+      },
+    );
+  }
+
+  void _handleFileTap(
+      BuildContext context, dynamic provider, dynamic item) async {
     if (item.isDirectory) {
       await provider.navigateTo(item.path);
     } else {
@@ -199,7 +260,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     }
   }
 
-  void _openTextEditor(BuildContext context, dynamic provider, dynamic item) async {
+  void _openTextEditor(
+      BuildContext context, dynamic provider, dynamic item) async {
     try {
       final content = await provider.getFileContent(item.path);
       if (!mounted) return;
@@ -221,7 +283,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     }
   }
 
-  void _openExternally(BuildContext context, dynamic provider, dynamic item) async {
+  void _openExternally(
+      BuildContext context, dynamic provider, dynamic item) async {
     try {
       await provider.openFileExternally(item.path);
     } catch (e) {
@@ -231,6 +294,68 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
         );
       }
     }
+  }
+
+  void _showCreateFolderDialog(BuildContext context) {
+    final provider = context.read<FileManagerProvider>();
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('新建文件夹'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '输入文件夹名称',
+          ),
+          onSubmitted: (_) async {
+            final name = controller.text.trim();
+            if (name.isEmpty) return;
+            Navigator.pop(dialogContext);
+            try {
+              await provider.createFolder(name);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('文件夹已创建: $name')),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('创建失败: $e')),
+              );
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(dialogContext);
+              try {
+                await provider.createFolder(name);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('文件夹已创建: $name')),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('创建失败: $e')),
+                );
+              }
+            },
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showFileOptions(BuildContext context, dynamic provider, dynamic item) {
@@ -248,15 +373,17 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
               subtitle: item.isDirectory ? null : Text(item.formattedSize),
             ),
             const Divider(),
-            if (!item.isDirectory) ...[
+            if (!item.isDirectory && item.isTextFile) ...[
               ListTile(
-                leading: const Icon(Icons.edit),
-                title: Text(l10n.editFile),
+                leading: const Icon(Icons.article_outlined),
+                title: const Text('查看/编辑文本'),
                 onTap: () {
                   Navigator.pop(context);
                   _openTextEditor(context, provider, item);
                 },
               ),
+            ],
+            if (!item.isDirectory) ...[
               ListTile(
                 leading: const Icon(Icons.open_in_new),
                 title: Text(l10n.openFile),
@@ -299,7 +426,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
             _infoRow('Type', item.isDirectory ? 'Directory' : 'File'),
             if (!item.isDirectory) _infoRow('Size', item.formattedSize),
             _infoRow('Modified', item.modifiedDate.toString()),
-            if (item.permissions.isNotEmpty) _infoRow('Permissions', item.permissions),
+            if (item.permissions.isNotEmpty)
+              _infoRow('Permissions', item.permissions),
           ],
         ),
         actions: [
@@ -338,17 +466,73 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
 
     switch (action) {
       case 'home':
-        final homeDir = provider.currentPath.startsWith('/storage')
-            ? '/storage/emulated/0'
-            : provider.currentPath.split('/').take(3).join('/');
-        if (homeDir.isNotEmpty && homeDir != provider.currentPath) {
-          await provider.navigateTo(homeDir);
-        }
+        await provider.navigateHome();
         break;
       case 'storage':
+        final granted = await _ensureStoragePermission(context, provider);
+        if (!mounted || !granted) return;
         _showStorageDirectories(context, provider);
         break;
+      case 'history_back':
+        if (provider.canGoBack) {
+          await provider.goBack();
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('没有可返回的历史位置')),
+          );
+        }
+        break;
+      case 'toggle_hidden':
+        await provider.setShowHiddenFiles(!provider.showHiddenFiles);
+        break;
+      case 'open_current_folder':
+        try {
+          await provider.openCurrentDirectoryExternally();
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('打开失败: $e')),
+          );
+        }
+        break;
     }
+  }
+
+  Future<bool> _ensureStoragePermission(
+      BuildContext context, FileManagerProvider provider) async {
+    await provider.checkStoragePermission();
+    if (provider.hasStoragePermission) return true;
+    if (!mounted) return false;
+
+    final shouldRequest = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('需要存储权限'),
+        content: const Text('访问共享存储目录需要授权，是否现在去授权？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('去授权'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRequest != true) return false;
+    final granted = await provider.requestStoragePermission();
+    if (!mounted) return granted;
+
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未获得存储权限，将仅显示应用可访问目录')),
+      );
+    }
+    return granted;
   }
 
   void _showStorageDirectories(BuildContext context, dynamic provider) async {

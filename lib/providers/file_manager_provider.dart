@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/file_item.dart';
 import '../services/file_service.dart';
+import '../services/storage_service.dart';
 
 class FileManagerProvider extends ChangeNotifier {
   final FileService _fileService = FileService();
@@ -11,6 +12,8 @@ class FileManagerProvider extends ChangeNotifier {
   String? _error;
   final List<String> _history = [];
   bool _initialized = false;
+  bool _hasStoragePermission = true;
+  bool _showHiddenFiles = true;
 
   String get currentPath => _currentPath;
   List<FileItem> get fileList => _fileList;
@@ -18,12 +21,19 @@ class FileManagerProvider extends ChangeNotifier {
   String? get error => _error;
   bool get initialized => _initialized;
   bool get canGoBack => _history.isNotEmpty;
+  bool get hasStoragePermission => _hasStoragePermission;
+  bool get showHiddenFiles => _showHiddenFiles;
+  bool get canGoParent {
+    if (_currentPath.isEmpty) return false;
+    return _fileService.getParentDirectory(_currentPath) != _currentPath;
+  }
 
   Future<void> init() async {
     if (_initialized) return;
 
     _setLoading(true);
     try {
+      await checkStoragePermission();
       _currentPath = await _fileService.getInitialDirectory();
       await refresh();
       _initialized = true;
@@ -78,15 +88,20 @@ class FileManagerProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      final items = await _fileService.getFileItems(_currentPath);
-      _fileList = items.map((item) => FileItem(
-        name: item['name'],
-        path: item['path'],
-        isDirectory: item['isDirectory'],
-        size: item['size'],
-        modifiedDate: item['modifiedDate'],
-        permissions: item['permissions'],
-      )).toList();
+      final items = await _fileService.getFileItems(
+        _currentPath,
+        includeHidden: _showHiddenFiles,
+      );
+      _fileList = items
+          .map((item) => FileItem(
+                name: item['name'],
+                path: item['path'],
+                isDirectory: item['isDirectory'],
+                size: item['size'],
+                modifiedDate: item['modifiedDate'],
+                permissions: item['permissions'],
+              ))
+          .toList();
     } catch (e) {
       _error = e.toString();
       _fileList = [];
@@ -111,12 +126,69 @@ class FileManagerProvider extends ChangeNotifier {
     await refresh();
   }
 
+  Future<void> createFolder(String folderName) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      await _fileService.createDirectory(_currentPath, folderName);
+      await refresh();
+    } catch (e) {
+      _error = e.toString();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<void> openFileExternally(String path) async {
     await _fileService.openFileExternally(path);
   }
 
+  Future<void> openCurrentDirectoryExternally() async {
+    await _fileService.openPathExternally(_currentPath);
+  }
+
   Future<List<String>> getStorageDirectories() async {
     return _fileService.getStorageDirectories();
+  }
+
+  Future<void> checkStoragePermission() async {
+    _hasStoragePermission =
+        await StorageService.instance.checkStoragePermission();
+    notifyListeners();
+  }
+
+  Future<bool> requestStoragePermission() async {
+    final granted = await StorageService.instance.requestStoragePermission();
+    _hasStoragePermission = granted;
+    notifyListeners();
+    return granted;
+  }
+
+  Future<void> setShowHiddenFiles(bool value) async {
+    if (_showHiddenFiles == value) return;
+    _showHiddenFiles = value;
+    notifyListeners();
+    await refresh();
+  }
+
+  Future<void> navigateHome() async {
+    _setLoading(true);
+    _error = null;
+
+    try {
+      final homePath = await _fileService.getHomeDirectory();
+      if (_currentPath.isNotEmpty && _currentPath != homePath) {
+        _history.add(_currentPath);
+      }
+
+      _currentPath = homePath;
+      await refresh();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _setLoading(false);
+    }
   }
 
   void _setLoading(bool loading) {

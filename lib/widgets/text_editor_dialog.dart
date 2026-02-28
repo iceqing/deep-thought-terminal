@@ -19,13 +19,14 @@ class TextEditorDialog extends StatefulWidget {
     required String initialContent,
     required Function(String) onSave,
   }) {
-    return showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => TextEditorDialog(
-        fileName: fileName,
-        initialContent: initialContent,
-        onSave: onSave,
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (context) => TextEditorDialog(
+          fileName: fileName,
+          initialContent: initialContent,
+          onSave: onSave,
+        ),
       ),
     );
   }
@@ -96,7 +97,8 @@ class _TextEditorDialogState extends State<TextEditorDialog> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unsaved Changes'),
-        content: const Text('You have unsaved changes. Do you want to discard them?'),
+        content: const Text(
+            'You have unsaved changes. Do you want to discard them?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -126,115 +128,85 @@ class _TextEditorDialogState extends State<TextEditorDialog> {
           Navigator.of(context).pop();
         }
       },
-      child: Dialog(
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          height: MediaQuery.of(context).size.height * 0.7,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  const Icon(Icons.edit_document, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Edit File',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        Text(
-                          widget.fileName,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.fileName,
+            overflow: TextOverflow.ellipsis,
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () async {
+              if (_hasChanges) {
+                final shouldPop = await _onWillPop();
+                if (!shouldPop || !mounted) return;
+              }
+              Navigator.of(context).pop();
+            },
+          ),
+          actions: [
+            if (_hasChanges)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
-                  if (_hasChanges)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(4),
+                    child: Text(
+                      'Modified',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onErrorContainer,
                       ),
-                      child: Text(
-                        'Modified',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onErrorContainer,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Editor
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _controller,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.all(12),
-                      border: InputBorder.none,
-                      hintText: 'Enter file content...',
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () async {
-                      if (_hasChanges) {
-                        final shouldPop = await _onWillPop();
-                        if (shouldPop && mounted) {
-                          Navigator.of(context).pop();
-                        }
-                      } else {
-                        Navigator.of(context).pop();
-                      }
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: _hasChanges && !_isSaving ? _save : null,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save, size: 18),
-                    label: Text(_isSaving ? 'Saving...' : 'Save'),
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                onPressed: _hasChanges && !_isSaving ? _save : null,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save, size: 18),
+                label: Text(_isSaving ? 'Saving...' : 'Save'),
               ),
-            ],
+            ),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.3),
+              ),
+            ),
+            child: TextField(
+              controller: _controller,
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 13,
+                height: 1.5,
+              ),
+              decoration: const InputDecoration(
+                contentPadding: EdgeInsets.all(12),
+                border: InputBorder.none,
+                hintText: 'Enter file content...',
+              ),
+            ),
           ),
         ),
       ),

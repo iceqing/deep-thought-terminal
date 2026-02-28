@@ -207,19 +207,26 @@ class _SshConfigScreenState extends State<SshConfigScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _applyKeepAliveDefaults,
                   icon: const Icon(Icons.speed, size: 18),
-                  label: Text(l10n.sshConfigApplyKeepAlive),
+                  label: Text(
+                    l10n.sshConfigApplyKeepAlive,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 6),
               Text(
                 l10n.sshConfigApplyKeepAliveDesc,
                 style: Theme.of(context).textTheme.bodySmall,
+                softWrap: true,
               ),
             ],
           ),

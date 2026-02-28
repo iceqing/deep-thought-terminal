@@ -2,6 +2,7 @@ package com.dpterm
 
 import android.Manifest
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -9,8 +10,10 @@ import android.os.Environment
 import android.provider.Settings
 import android.view.KeyEvent
 import android.system.Os
+import android.webkit.MimeTypeMap
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -71,8 +74,65 @@ class MainActivity : FlutterActivity() {
                 "getExternalStoragePath" -> {
                     result.success(Environment.getExternalStorageDirectory().absolutePath)
                 }
+                "openPathExternally" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null || path.isBlank()) {
+                        result.error("INVALID_ARGUMENT", "path is required", null)
+                    } else {
+                        val openResult = openPathExternally(path)
+                        result.success(openResult)
+                    }
+                }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun getMimeType(file: File): String {
+        if (file.isDirectory) return "*/*"
+        val extension = MimeTypeMap.getFileExtensionFromUrl(file.name)?.lowercase()
+        if (!extension.isNullOrEmpty()) {
+            val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+            if (!mime.isNullOrEmpty()) return mime
+        }
+        return "*/*"
+    }
+
+    private fun openPathExternally(path: String): Map<String, Any> {
+        return try {
+            val file = File(path)
+            if (!file.exists()) {
+                return mapOf(
+                    "success" to false,
+                    "error" to "Path does not exist: $path"
+                )
+            }
+
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                file
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, getMimeType(file))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            startActivity(Intent.createChooser(intent, null))
+            mapOf("success" to true)
+        } catch (e: ActivityNotFoundException) {
+            mapOf(
+                "success" to false,
+                "error" to "No app found to open this path"
+            )
+        } catch (e: Exception) {
+            mapOf(
+                "success" to false,
+                "error" to (e.message ?: e.toString())
+            )
         }
     }
 

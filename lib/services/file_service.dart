@@ -2,28 +2,55 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'storage_service.dart';
+import '../utils/constants.dart';
 
 class FileService {
   /// Get the initial directory to start browsing from
   Future<String> getInitialDirectory() async {
     if (Platform.isAndroid) {
-      final directories = await getExternalStorageDirectories();
-      if (directories != null && directories.isNotEmpty) {
-        // Navigate up to a reasonable starting point
-        String path = directories.first.path;
-        // Go up from Android/data/... to a more usable location
-        final segments = path.split('/');
-        final index = segments.indexOf('Android');
-        if (index > 0) {
-          path = segments.sublist(0, index).join('/');
-        }
-        return path;
+      final home = await getHomeDirectory();
+      if (home.isNotEmpty) {
+        return home;
       }
-      return (await getApplicationDocumentsDirectory()).path;
+      return await _getAppDocumentsPath();
     } else if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
-      return Platform.environment['HOME'] ?? (await getApplicationDocumentsDirectory()).path;
+      final home = Platform.environment['HOME'];
+      if (home != null && await _isReadableDirectory(home)) {
+        return home;
+      }
+      return await _getAppDocumentsPath();
     }
-    return (await getApplicationDocumentsDirectory()).path;
+    return await _getAppDocumentsPath();
+  }
+
+  /// Get a safe "home" directory for the file manager.
+  Future<String> getHomeDirectory() async {
+    if (Platform.isAndroid) {
+      // 默认进入终端所在的 HOME 目录。
+      final termuxHome = TermuxConstants.homeDir;
+      if (await _isReadableDirectory(termuxHome)) {
+        return termuxHome;
+      }
+
+      // 回退到 app 专属目录。
+      final externalDirs = await getExternalStorageDirectories();
+      if (externalDirs != null) {
+        for (final dir in externalDirs) {
+          if (await _isReadableDirectory(dir.path)) {
+            return dir.path;
+          }
+        }
+      }
+
+      return await _getAppDocumentsPath();
+    }
+
+    final home = Platform.environment['HOME'];
+    if (home != null && await _isReadableDirectory(home)) {
+      return home;
+    }
+    return await _getAppDocumentsPath();
   }
 
   /// List files and directories in a given path
@@ -32,11 +59,19 @@ class FileService {
     if (!await directory.exists()) {
       throw Exception('Directory does not exist: $path');
     }
-    return directory.listSync();
+    try {
+      return await directory.list(followLinks: false).toList();
+    } on FileSystemException catch (e) {
+      throw Exception(
+          'Directory listing failed: $path (${e.osError?.message ?? e.message})');
+    }
   }
 
   /// Get file items from a directory path
-  Future<List<dynamic>> getFileItems(String path) async {
+  Future<List<dynamic>> getFileItems(
+    String path, {
+    bool includeHidden = false,
+  }) async {
     final entities = await listDirectory(path);
     final items = <dynamic>[];
 
@@ -44,14 +79,19 @@ class FileService {
       try {
         final stat = await entity.stat();
         final name = p.basename(entity.path);
+        final type = await FileSystemEntity.type(
+          entity.path,
+          followLinks: true,
+        );
+        final isDirectory = type == FileSystemEntityType.directory;
 
-        // Skip hidden files (starting with .)
-        if (name.startsWith('.')) continue;
+        // Skip hidden files unless explicitly included.
+        if (!includeHidden && name.startsWith('.')) continue;
 
         items.add({
           'name': name,
           'path': entity.path,
-          'isDirectory': entity is Directory,
+          'isDirectory': isDirectory,
           'size': stat.size,
           'modifiedDate': stat.modified,
           'permissions': _getPermissionString(stat.mode),
@@ -100,12 +140,14 @@ class FileService {
   }
 
   /// Read file content as string
-  Future<String> getFileContent(String path, {int maxSize = 1024 * 1024}) async {
+  Future<String> getFileContent(String path,
+      {int maxSize = 1024 * 1024}) async {
     final file = File(path);
     final stat = await file.stat();
 
     if (stat.size > maxSize) {
-      throw Exception('File is too large (${stat.size} bytes). Maximum allowed: $maxSize bytes.');
+      throw Exception(
+          'File is too large (${stat.size} bytes). Maximum allowed: $maxSize bytes.');
     }
 
     return file.readAsString();
@@ -117,19 +159,47 @@ class FileService {
     await file.writeAsString(content);
   }
 
+  /// Create a new folder under [parentPath]
+  Future<void> createDirectory(String parentPath, String folderName) async {
+    final trimmed = folderName.trim();
+    if (trimmed.isEmpty) {
+      throw Exception('Folder name cannot be empty');
+    }
+    if (trimmed.contains('/') || trimmed.contains('\\')) {
+      throw Exception('Folder name contains invalid characters');
+    }
+
+    final fullPath = p.join(parentPath, trimmed);
+    final directory = Directory(fullPath);
+    if (await directory.exists()) {
+      throw Exception('Folder already exists: $trimmed');
+    }
+    await directory.create(recursive: false);
+  }
+
   /// Open file with external application
   Future<void> openFileExternally(String path) async {
-    final file = File(path);
-    if (!await file.exists()) {
-      throw Exception('File does not exist: $path');
+    await openPathExternally(path);
+  }
+
+  /// Open a file or folder with external application
+  Future<void> openPathExternally(String path) async {
+    if (Platform.isAndroid) {
+      await StorageService.instance.openPathExternally(path);
+      return;
+    }
+
+    final type = await FileSystemEntity.type(path, followLinks: true);
+    if (type == FileSystemEntityType.notFound) {
+      throw Exception('Path does not exist: $path');
     }
 
     final uri = Uri.file(path);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      throw Exception('Cannot open file: $path');
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
     }
+    throw Exception('Cannot open path: $path');
   }
 
   /// Get available storage directories
@@ -137,29 +207,39 @@ class FileService {
     final directories = <String>[];
 
     if (Platform.isAndroid) {
-      // Get external storage
+      final hasStoragePermission =
+          await StorageService.instance.checkStoragePermission();
+      if (hasStoragePermission) {
+        final externalStoragePath =
+            await StorageService.instance.getExternalStoragePath();
+        if (externalStoragePath != null &&
+            await _isReadableDirectory(externalStoragePath)) {
+          directories.add(externalStoragePath);
+        }
+      }
+
       final externalDirs = await getExternalStorageDirectories();
       if (externalDirs != null) {
         for (final dir in externalDirs) {
-          // Navigate up to find usable root
-          String path = dir.path;
-          final segments = path.split('/');
-          final androidIndex = segments.indexOf('Android');
-          if (androidIndex > 0) {
-            path = segments.sublist(0, androidIndex).join('/');
-          }
-          if (!directories.contains(path)) {
-            directories.add(path);
+          if (await _isReadableDirectory(dir.path) &&
+              !directories.contains(dir.path)) {
+            directories.add(dir.path);
           }
         }
       }
 
-      // Add common Android directories
-      directories.add('/storage/emulated/0');
-      directories.add('/sdcard');
+      final docs = await _getAppDocumentsPath();
+      if (!directories.contains(docs)) {
+        directories.add(docs);
+      }
     } else {
-      directories.add(Platform.environment['HOME'] ?? '/home');
-      directories.add('/');
+      final home = Platform.environment['HOME'];
+      if (home != null && await _isReadableDirectory(home)) {
+        directories.add(home);
+      }
+      if (await _isReadableDirectory('/')) {
+        directories.add('/');
+      }
     }
 
     return directories;
@@ -173,5 +253,20 @@ class FileService {
   /// Check if directory exists
   Future<bool> directoryExists(String path) async {
     return Directory(path).exists();
+  }
+
+  Future<String> _getAppDocumentsPath() async {
+    return (await getApplicationDocumentsDirectory()).path;
+  }
+
+  Future<bool> _isReadableDirectory(String path) async {
+    try {
+      final directory = Directory(path);
+      if (!await directory.exists()) return false;
+      await directory.list(followLinks: false).take(1).toList();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }

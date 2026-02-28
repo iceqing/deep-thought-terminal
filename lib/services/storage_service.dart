@@ -36,7 +36,8 @@ class StorageService {
     if (!Platform.isAndroid) return true;
 
     try {
-      final result = await _channel.invokeMethod<bool>('checkStoragePermission');
+      final result =
+          await _channel.invokeMethod<bool>('checkStoragePermission');
       return result ?? false;
     } catch (e) {
       return false;
@@ -95,11 +96,13 @@ class StorageService {
       return StorageSetupResult(
         success: result['success'] as bool? ?? false,
         created: (result['created'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ?? [],
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
         errors: (result['errors'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ?? [],
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
       );
     } catch (e) {
       return StorageSetupResult(
@@ -117,6 +120,26 @@ class StorageService {
       return await _channel.invokeMethod<String>('getExternalStoragePath');
     } catch (e) {
       return null;
+    }
+  }
+
+  /// 通过 Android 原生 Intent 打开文件/目录
+  Future<void> openPathExternally(String path) async {
+    if (!Platform.isAndroid) {
+      throw Exception('openPathExternally is only available on Android');
+    }
+
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'openPathExternally',
+        {'path': path},
+      );
+      final success = result?['success'] as bool? ?? false;
+      if (!success) {
+        throw Exception(result?['error']?.toString() ?? 'Failed to open path');
+      }
+    } catch (e) {
+      throw Exception('Failed to open path: $e');
     }
   }
 
