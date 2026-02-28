@@ -44,8 +44,11 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     if (success) {
       // 延迟一下让用户看到完成状态
       await Future.delayed(const Duration(milliseconds: 500));
+      // 使用 addPostFrameCallback 确保在 widget 还在时调用
       if (mounted) {
-        widget.onComplete();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onComplete();
+        });
       }
     } else {
       if (mounted) {

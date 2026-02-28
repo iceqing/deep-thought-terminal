@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'bootstrap/termux_bootstrap.dart';
 import 'l10n/app_localizations.dart';
@@ -8,12 +9,22 @@ import 'providers/settings_provider.dart';
 import 'providers/terminal_provider.dart';
 import 'providers/ssh_provider.dart';
 import 'providers/task_provider.dart';
+import 'providers/file_manager_provider.dart';
+import 'providers/auth_provider.dart';
 import 'screens/bootstrap_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/terminal_screen.dart';
 import 'utils/constants.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // .env 为可选配置，加载失败时使用代码内默认值
+  }
+
   runApp(const DeepThoughtApp());
 }
 
@@ -29,6 +40,8 @@ class DeepThoughtApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TerminalProvider()),
         ChangeNotifierProvider(create: (_) => SSHProvider()..init()),
         ChangeNotifierProvider(create: (_) => TaskProvider()..init()),
+        ChangeNotifierProvider(create: (_) => FileManagerProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
@@ -133,10 +146,31 @@ class _AppContentState extends State<_AppContent> {
   @override
   void initState() {
     super.initState();
+    // 监听 AuthProvider 状态变化
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      authProvider.addListener(_onAuthChanged);
+    });
     _checkBootstrap();
   }
 
+  void _onAuthChanged() {
+    debugPrint('[DeepThought] AuthProvider changed, isLoggedIn: ${context.read<AuthProvider>().isLoggedIn}');
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    final authProvider = context.read<AuthProvider>();
+    authProvider.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
   Future<void> _checkBootstrap() async {
+    debugPrint('[DeepThought] _checkBootstrap start, platform: ${Platform.operatingSystem}');
+
     if (Platform.isAndroid) {
       // Android: 检查bootstrap是否已安装
       final isInstalled = await TermuxBootstrap.isInstalled();
@@ -165,16 +199,31 @@ class _AppContentState extends State<_AppContent> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[DeepThought] build: _checking=$_checking, _bootstrapReady=$_bootstrapReady, platform=${Platform.operatingSystem}');
+
     if (_checking) {
+      debugPrint('[DeepThought] showing LoadingScreen');
       return const _LoadingScreen();
     }
 
+    // 检查登录状态
+    final authProvider = context.watch<AuthProvider>();
+    debugPrint('[DeepThought] isLoggedIn=${authProvider.isLoggedIn}, guestMode=${authProvider.guestModeEnabled}');
+
+    // 未登录且未启用游客模式时显示登录页面
+    if (!authProvider.isLoggedIn && !authProvider.guestModeEnabled) {
+      debugPrint('[DeepThought] showing LoginScreen');
+      return const LoginScreen();
+    }
+
     if (!_bootstrapReady && Platform.isAndroid) {
+      debugPrint('[DeepThought] showing BootstrapScreen');
       return BootstrapScreen(
         onComplete: _onBootstrapComplete,
       );
     }
 
+    debugPrint('[DeepThought] showing TerminalScreen');
     return const TerminalScreen();
   }
 }

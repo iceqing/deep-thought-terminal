@@ -13,6 +13,8 @@ import '../utils/wcwidth_debug.dart';
 import '../utils/termux_wcwidth.dart';
 import '../services/history_service.dart';
 import '../widgets/history_viewer.dart';
+import '../providers/auth_provider.dart';
+import '../screens/login_screen.dart';
 import '../l10n/app_localizations.dart';
 
 /// 设置页面
@@ -55,6 +57,8 @@ class SettingsScreen extends StatelessWidget {
           const _ClearHistoryTile(),
           const _ExportHistoryTile(),
           const _ImportHistoryTile(),
+          _SectionHeader(title: 'Account'),
+          const _AuthSetting(),
           _SectionHeader(title: l10n.packageSources),
           const _MirrorSetting(),
           _SectionHeader(title: l10n.shell),
@@ -1981,5 +1985,60 @@ class _ImportHistoryTile extends StatelessWidget {
         );
       }
     }
+  }
+}
+
+/// 登录/登出设置
+class _AuthSetting extends StatelessWidget {
+  const _AuthSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    if (authProvider.isLoggedIn) {
+      return ListTile(
+        leading: const Icon(Icons.logout),
+        title: const Text('Logout'),
+        subtitle: Text(authProvider.email ?? ''),
+        onTap: () => _showLogoutDialog(context, authProvider),
+      );
+    } else {
+      return ListTile(
+        leading: const Icon(Icons.login),
+        title: const Text('Login'),
+        subtitle: const Text('登录以同步SSH主机和历史记录'),
+        onTap: () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        },
+      );
+    }
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              authProvider.logout();
+              Navigator.pop(context);
+            },
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
   }
 }

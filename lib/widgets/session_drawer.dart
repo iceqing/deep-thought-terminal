@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/terminal_provider.dart';
 import '../models/terminal_session.dart';
 import '../screens/ssh_manager_screen.dart';
+import '../screens/file_manager_screen.dart';
 import '../l10n/app_localizations.dart';
 
 /// 会话列表抽屉
@@ -69,6 +70,22 @@ class SessionDrawer extends StatelessWidget {
                         );
                       },
                       tooltip: l10n.manageSSH,
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.folder_open,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FileManagerScreen(),
+                          ),
+                        );
+                      },
+                      tooltip: l10n.fileManager,
                     ),
                     IconButton(
                       icon: Icon(
@@ -140,16 +157,38 @@ class SessionDrawer extends StatelessWidget {
                       ),
               ),
 
-              // 底部信息栏 (可选)
+              // 底部操作栏
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
               Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  l10n.activeSessionsCount(terminalProvider.sessions.length),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // 新建会话按钮 - 加大尺寸，带文字提示
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          terminalProvider.createSession();
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.add),
+                        label: Text(l10n.newSession),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // 会话计数
+                    Text(
+                      l10n.activeSessionsCount(terminalProvider.sessions.length),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

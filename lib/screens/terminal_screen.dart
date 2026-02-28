@@ -7,10 +7,12 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:xterm/xterm.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/terminal_provider.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/api_service.dart';
 import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
@@ -90,6 +92,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
       // 监听会话切换，确保新会话自动获得焦点
       terminalProvider.addListener(_onTerminalProviderChanged);
+
+      // 登录后从远程同步 SSH 主机列表
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isLoggedIn) {
+        context.read<SSHProvider>().syncFromApi();
+      }
 
       // 监听设置变化，管理调试信息刷新计时器
       settings.addListener(() => _updateDebugRefreshTimer(settings));
@@ -223,6 +231,14 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 设置输入转换器，用于处理 Ctrl/Alt 修饰键
     session.inputTransformer = (String input) {
       return _transformInputWithModifiers(input);
+    };
+
+    // 设置命令执行回调 - 登录后保存到后端
+    session.onCommandExecuted = (String command, String sessionName) {
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isLoggedIn) {
+        ApiService.addHistory(command, sessionName: sessionName);
+      }
     };
   }
 
@@ -710,23 +726,23 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ),
               const PopupMenuDivider(),
               PopupMenuItem(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    const Icon(Icons.settings),
-                    const SizedBox(width: 8),
-                    Text(l10n.settings),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
                 value: 'copy_ssh_key',
                 child: Row(
                   children: [
                     const Icon(Icons.key),
                     const SizedBox(width: 8),
                     Text(l10n.copySSHPublicKey),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    const Icon(Icons.settings),
+                    const SizedBox(width: 8),
+                    Text(l10n.settings),
                   ],
                 ),
               ),

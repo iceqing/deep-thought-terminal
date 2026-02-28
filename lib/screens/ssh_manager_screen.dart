@@ -4,6 +4,7 @@ import '../models/ssh_host.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/terminal_provider.dart';
 import '../l10n/app_localizations.dart';
+import 'ssh_config_screen.dart';
 
 class SSHManagerScreen extends StatelessWidget {
   const SSHManagerScreen({super.key});
@@ -21,6 +22,14 @@ class SSHManagerScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(l10n.sshConnections),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_ethernet),
+            tooltip: l10n.sshConfig,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SshConfigScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showEditDialog(context, null),

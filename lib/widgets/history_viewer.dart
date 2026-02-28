@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 import '../services/history_service.dart';
 
 /// 历史记录查看器
@@ -55,7 +58,31 @@ class _HistoryViewerState extends State<HistoryViewer> {
       _error = null;
     });
     try {
-      final entries = await _historyService.getAllHistory();
+      final authProvider = context.read<AuthProvider>();
+      List<HistoryEntry> entries;
+
+      if (authProvider.isLoggedIn) {
+        // 已登录：从后端 API 获取历史记录
+        final apiData = await ApiService.getHistory(limit: 500);
+        entries = apiData.asMap().entries.map((e) {
+          final item = e.value;
+          DateTime? timestamp;
+          if (item['created_at'] != null) {
+            timestamp = DateTime.tryParse(item['created_at']);
+          } else if (item['timestamp'] != null) {
+            timestamp = DateTime.tryParse(item['timestamp'].toString());
+          }
+          return HistoryEntry(
+            index: e.key + 1,
+            command: item['command'] ?? '',
+            timestamp: timestamp,
+          );
+        }).toList();
+      } else {
+        // 游客模式：从本地文件读取
+        entries = await _historyService.getAllHistory();
+      }
+
       // 最新的在前
       entries.sort((a, b) => b.index.compareTo(a.index));
       if (mounted) {

@@ -39,6 +39,13 @@ class TerminalSession {
   // 输入修饰符转换器 - 用于处理 Ctrl/Alt 修饰键
   InputModifierTransformer? inputTransformer;
 
+  // 命令执行回调 - 用于将命令保存到后端
+  void Function(String command, String sessionName)? onCommandExecuted;
+
+  // 输入缓冲区 - 跟踪用户输入以检测命令
+  String _inputBuffer = '';
+  bool _inEscapeSequence = false;
+
   // 调试信息：最后发送给 shell 的尺寸
   int? lastShellColumns;
   int? lastShellRows;
@@ -92,6 +99,9 @@ class TerminalSession {
       // 如果设置了inputTransformer，先转换输入（用于Ctrl/Alt修饰键）
       terminal.onOutput = (String data) {
         if (_shellSession != null && _isRunning) {
+          // 跟踪用户输入以检测命令执行（在发送到shell之前）
+          _trackInput(data);
+
           final transformedData = inputTransformer != null
               ? inputTransformer!(data)
               : data;
@@ -273,6 +283,82 @@ class TerminalSession {
   /// 写入欢迎消息
   void _writeWelcomeMessage() {
     // 使用cat时不需要欢迎消息，直接等待输入
+  }
+
+  /// 跟踪用户输入，检测命令执行（按下 Enter）
+  void _trackInput(String data) {
+    // 如果是终端自动响应，跳过
+    if (_isTerminalResponse(data)) return;
+
+    // 如果是提示符或输出，清空缓冲区
+    if (_isPromptOrOutput(data)) {
+      _inputBuffer = '';
+      return;
+    }
+
+    for (final char in data.codeUnits) {
+      if (_inEscapeSequence) {
+        if (char >= 0x40 && char <= 0x7E) {
+          _inEscapeSequence = false;
+        }
+        continue;
+      }
+
+      if (char == 0x1B) {
+        _inEscapeSequence = true;
+        continue;
+      }
+
+      // 跳过大部分控制字符
+      if (char < 0x20 && char != 0x0D && char != 0x08 && char != 0x03 && char != 0x15 && char != 0x07) {
+        continue;
+      }
+
+      if (char == 0x0D || char == 0x0A) {
+        final cmd = _inputBuffer.trim();
+        if (cmd.isNotEmpty && _isValidCommand(cmd)) {
+          onCommandExecuted?.call(cmd, displayName);
+        }
+        _inputBuffer = '';
+      } else if (char == 0x7F || char == 0x08) {
+        if (_inputBuffer.isNotEmpty) {
+          _inputBuffer = _inputBuffer.substring(0, _inputBuffer.length - 1);
+        }
+      } else if (char == 0x03 || char == 0x15) {
+        _inputBuffer = '';
+      } else if (char >= 0x20) {
+        _inputBuffer += String.fromCharCode(char);
+      }
+    }
+  }
+
+  /// 检查是否是终端自动响应
+  bool _isTerminalResponse(String data) {
+    if (data.isEmpty) return true;
+    final hasPrintable = data.codeUnits.any((c) => c >= 0x20 && c != 0x7F);
+    if (!hasPrintable) return true;
+    if (data.startsWith('\x1b[')) return true;
+    return false;
+  }
+
+  /// 检查是否是提示符或输出
+  bool _isPromptOrOutput(String data) {
+    if (data.isEmpty) return false;
+    final trimmed = data.trim();
+    if (trimmed.isEmpty) return false;
+    final hasPrompt = RegExp(r'[\$\#\>]\s*$|@.*:.*[\$\#\>]\s*$').hasMatch(trimmed);
+    if (hasPrompt && _inputBuffer.isNotEmpty) return true;
+    final hasOnlyControl = !trimmed.codeUnits.any((c) => c >= 0x20 && c != 0x7F);
+    return hasOnlyControl;
+  }
+
+  /// 检查是否是有效命令
+  bool _isValidCommand(String cmd) {
+    if (cmd.isEmpty) return false;
+    if (cmd.startsWith('~') || cmd.startsWith(r'$') || cmd.startsWith('#')) return false;
+    if (cmd.contains(':~') || cmd.contains(':/')) return false;
+    if (cmd.length < 2) return false;
+    return true;
   }
 
   /// 写入文本到Shell

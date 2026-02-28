@@ -212,6 +212,36 @@ class AppLocalizations {
   String get displayName => _translate('displayName');
   String get optional => _translate('optional');
 
+  // ===== SSH Config =====
+  String get sshConfig => _translate('sshConfig');
+  String get sshConfigDesc => _translate('sshConfigDesc');
+  String get sshConfigGlobal => _translate('sshConfigGlobal');
+  String get sshConfigAddHost => _translate('sshConfigAddHost');
+  String get sshConfigDeleteHost => _translate('sshConfigDeleteHost');
+  String sshConfigDeleteConfirm(String name) => _translate('sshConfigDeleteConfirm').replaceAll('{name}', name);
+  String get sshConfigSaved => _translate('sshConfigSaved');
+  String get sshConfigKeepAlive => _translate('sshConfigKeepAlive');
+  String get sshConfigConnection => _translate('sshConfigConnection');
+  String get sshConfigAuth => _translate('sshConfigAuth');
+  String get sshConfigSecurity => _translate('sshConfigSecurity');
+  String get sshConfigPerformance => _translate('sshConfigPerformance');
+  String get sshConfigHostPattern => _translate('sshConfigHostPattern');
+  String get sshConfigHostPatternHint => _translate('sshConfigHostPatternHint');
+  String get sshConfigServerAliveInterval => _translate('sshConfigServerAliveInterval');
+  String get sshConfigServerAliveCountMax => _translate('sshConfigServerAliveCountMax');
+  String get sshConfigConnectTimeout => _translate('sshConfigConnectTimeout');
+  String get sshConfigConnectionAttempts => _translate('sshConfigConnectionAttempts');
+  String get sshConfigIdentityFile => _translate('sshConfigIdentityFile');
+  String get sshConfigPreferredAuth => _translate('sshConfigPreferredAuth');
+  String get sshConfigStrictHostKey => _translate('sshConfigStrictHostKey');
+  String get sshConfigCompression => _translate('sshConfigCompression');
+  String get sshConfigForwardAgent => _translate('sshConfigForwardAgent');
+  String get sshConfigTcpKeepAlive => _translate('sshConfigTcpKeepAlive');
+  String get sshConfigApplyKeepAlive => _translate('sshConfigApplyKeepAlive');
+  String get sshConfigApplyKeepAliveDesc => _translate('sshConfigApplyKeepAliveDesc');
+  String get sshConfigNoFile => _translate('sshConfigNoFile');
+  String get sshConfigCreateNew => _translate('sshConfigCreateNew');
+
   // ===== 任务 =====
   String get tasks => _translate('tasks');
   String get taskRunning => _translate('taskRunning');
@@ -237,6 +267,21 @@ class AppLocalizations {
   String get keyIns => _translate('keyIns');
   String get keyDel => _translate('keyDel');
   String get keyEnter => _translate('keyEnter');
+
+  // ===== 文件管理器 =====
+  String get fileManager => _translate('fileManager');
+  String get openFile => _translate('openFile');
+  String get editFile => _translate('editFile');
+  String get fileInfo => _translate('fileInfo');
+  String get fileName => _translate('fileName');
+  String get fileSize => _translate('fileSize');
+  String get modifiedDate => _translate('modifiedDate');
+  String get emptyDirectory => _translate('emptyDirectory');
+  String get back => _translate('back');
+  String get home => _translate('home');
+  String get refresh => _translate('refresh');
+  String get storageDirectories => _translate('storageDirectories');
+  String get retry => _translate('retry');
   String get keyBackspace => _translate('keyBackspace');
   String get categorySymbols => _translate('categorySymbols');
   String get categoryFKeys => _translate('categoryFKeys');
@@ -423,6 +468,36 @@ const Map<String, String> _enTranslations = {
   'displayName': 'Display Name',
   'optional': 'Optional',
 
+  // SSH Config
+  'sshConfig': 'SSH Config',
+  'sshConfigDesc': 'Manage SSH client configuration',
+  'sshConfigGlobal': 'Global (all hosts)',
+  'sshConfigAddHost': 'Add Host Block',
+  'sshConfigDeleteHost': 'Delete Host Block',
+  'sshConfigDeleteConfirm': 'Delete config for {name}?',
+  'sshConfigSaved': 'SSH config saved',
+  'sshConfigKeepAlive': 'Keep-Alive',
+  'sshConfigConnection': 'Connection',
+  'sshConfigAuth': 'Authentication',
+  'sshConfigSecurity': 'Security',
+  'sshConfigPerformance': 'Performance',
+  'sshConfigHostPattern': 'Host Pattern',
+  'sshConfigHostPatternHint': 'e.g. *, myserver, 192.168.1.*',
+  'sshConfigServerAliveInterval': 'Server Alive Interval (sec)',
+  'sshConfigServerAliveCountMax': 'Server Alive Count Max',
+  'sshConfigConnectTimeout': 'Connect Timeout (sec)',
+  'sshConfigConnectionAttempts': 'Connection Attempts',
+  'sshConfigIdentityFile': 'Identity File',
+  'sshConfigPreferredAuth': 'Preferred Auth Methods',
+  'sshConfigStrictHostKey': 'Strict Host Key Checking',
+  'sshConfigCompression': 'Compression',
+  'sshConfigForwardAgent': 'Forward Agent',
+  'sshConfigTcpKeepAlive': 'TCP Keep-Alive',
+  'sshConfigApplyKeepAlive': 'Apply Keep-Alive Defaults',
+  'sshConfigApplyKeepAliveDesc': 'Set ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigNoFile': 'No SSH config file found',
+  'sshConfigCreateNew': 'Create config file',
+
   // 任务
   'tasks': 'Tasks',
   'taskRunning': 'Running',
@@ -454,6 +529,21 @@ const Map<String, String> _enTranslations = {
   'categoryCommands': 'Cmds',
   'categoryNav': 'Nav',
   'categoryTermux': 'Termux',
+
+  // File Manager
+  'fileManager': 'File Manager',
+  'openFile': 'Open File',
+  'editFile': 'Edit File',
+  'fileInfo': 'File Info',
+  'fileName': 'Name',
+  'fileSize': 'Size',
+  'modifiedDate': 'Modified',
+  'emptyDirectory': 'Empty Directory',
+  'back': 'Back',
+  'home': 'Home',
+  'refresh': 'Refresh',
+  'storageDirectories': 'Storage Locations',
+  'retry': 'Retry',
 };
 
 // ===== 简体中文翻译 =====
@@ -617,6 +707,36 @@ const Map<String, String> _zhCNTranslations = {
   'displayName': '显示名称',
   'optional': '可选',
 
+  // SSH Config
+  'sshConfig': 'SSH 配置',
+  'sshConfigDesc': '管理 SSH 客户端配置',
+  'sshConfigGlobal': '全局（所有主机）',
+  'sshConfigAddHost': '添加主机配置',
+  'sshConfigDeleteHost': '删除主机配置',
+  'sshConfigDeleteConfirm': '确定要删除 {name} 的配置吗？',
+  'sshConfigSaved': 'SSH 配置已保存',
+  'sshConfigKeepAlive': '保活',
+  'sshConfigConnection': '连接',
+  'sshConfigAuth': '认证',
+  'sshConfigSecurity': '安全',
+  'sshConfigPerformance': '性能',
+  'sshConfigHostPattern': '主机模式',
+  'sshConfigHostPatternHint': '例如 *, myserver, 192.168.1.*',
+  'sshConfigServerAliveInterval': '服务器存活间隔（秒）',
+  'sshConfigServerAliveCountMax': '服务器存活最大次数',
+  'sshConfigConnectTimeout': '连接超时（秒）',
+  'sshConfigConnectionAttempts': '连接尝试次数',
+  'sshConfigIdentityFile': '密钥文件',
+  'sshConfigPreferredAuth': '首选认证方式',
+  'sshConfigStrictHostKey': '严格主机密钥检查',
+  'sshConfigCompression': '压缩',
+  'sshConfigForwardAgent': '转发代理',
+  'sshConfigTcpKeepAlive': 'TCP 保活',
+  'sshConfigApplyKeepAlive': '应用保活默认值',
+  'sshConfigApplyKeepAliveDesc': '设置 ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigNoFile': '未找到 SSH 配置文件',
+  'sshConfigCreateNew': '创建配置文件',
+
   // 任务
   'tasks': '任务',
   'taskRunning': '运行中',
@@ -648,6 +768,21 @@ const Map<String, String> _zhCNTranslations = {
   'categoryCommands': '命令',
   'categoryNav': '导航',
   'categoryTermux': 'Termux',
+
+  // 文件管理器
+  'fileManager': '文件管理器',
+  'openFile': '打开文件',
+  'editFile': '编辑文件',
+  'fileInfo': '文件信息',
+  'fileName': '名称',
+  'fileSize': '大小',
+  'modifiedDate': '修改日期',
+  'emptyDirectory': '空目录',
+  'back': '返回',
+  'home': '主目录',
+  'refresh': '刷新',
+  'storageDirectories': '存储位置',
+  'retry': '重试',
 };
 
 // ===== 繁體中文翻译 =====
@@ -811,6 +946,36 @@ const Map<String, String> _zhTWTranslations = {
   'displayName': '顯示名稱',
   'optional': '可選',
 
+  // SSH Config
+  'sshConfig': 'SSH 設定',
+  'sshConfigDesc': '管理 SSH 用戶端設定',
+  'sshConfigGlobal': '全域（所有主機）',
+  'sshConfigAddHost': '新增主機設定',
+  'sshConfigDeleteHost': '刪除主機設定',
+  'sshConfigDeleteConfirm': '確定要刪除 {name} 的設定嗎？',
+  'sshConfigSaved': 'SSH 設定已儲存',
+  'sshConfigKeepAlive': '保活',
+  'sshConfigConnection': '連線',
+  'sshConfigAuth': '認證',
+  'sshConfigSecurity': '安全',
+  'sshConfigPerformance': '效能',
+  'sshConfigHostPattern': '主機模式',
+  'sshConfigHostPatternHint': '例如 *, myserver, 192.168.1.*',
+  'sshConfigServerAliveInterval': '伺服器存活間隔（秒）',
+  'sshConfigServerAliveCountMax': '伺服器存活最大次數',
+  'sshConfigConnectTimeout': '連線逾時（秒）',
+  'sshConfigConnectionAttempts': '連線嘗試次數',
+  'sshConfigIdentityFile': '金鑰檔案',
+  'sshConfigPreferredAuth': '偏好認證方式',
+  'sshConfigStrictHostKey': '嚴格主機金鑰檢查',
+  'sshConfigCompression': '壓縮',
+  'sshConfigForwardAgent': '轉發代理',
+  'sshConfigTcpKeepAlive': 'TCP 保活',
+  'sshConfigApplyKeepAlive': '套用保活預設值',
+  'sshConfigApplyKeepAliveDesc': '設定 ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigNoFile': '未找到 SSH 設定檔',
+  'sshConfigCreateNew': '建立設定檔',
+
   // 任務
   'tasks': '任務',
   'taskRunning': '執行中',
@@ -842,4 +1007,19 @@ const Map<String, String> _zhTWTranslations = {
   'categoryCommands': '命令',
   'categoryNav': '導航',
   'categoryTermux': 'Termux',
+
+  // 檔案管理員
+  'fileManager': '檔案管理員',
+  'openFile': '開啟檔案',
+  'editFile': '編輯檔案',
+  'fileInfo': '檔案資訊',
+  'fileName': '名稱',
+  'fileSize': '大小',
+  'modifiedDate': '修改日期',
+  'emptyDirectory': '空目錄',
+  'back': '返回',
+  'home': '主目錄',
+  'refresh': '重新整理',
+  'storageDirectories': '儲存位置',
+  'retry': '重試',
 };
