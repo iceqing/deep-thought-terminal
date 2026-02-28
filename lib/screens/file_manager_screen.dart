@@ -70,6 +70,12 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: '关闭文件管理器',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: Text(l10n.fileManager),
         actions: [
           IconButton(
@@ -165,39 +171,36 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
   ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_upward, size: 20),
+          Text(
+            '当前目录',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: () => _showPathDialog(context, provider),
+            child: Text(
+              provider.currentPath,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
             onPressed:
                 provider.canGoParent ? () => provider.navigateToParent() : null,
-            tooltip: '上一级',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => _showPathDialog(context, provider),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '当前目录',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                  Text(
-                    provider.currentPath,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontFamily: 'monospace',
-                        ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ],
-              ),
+            icon: const Icon(Icons.drive_file_move_outline, size: 18),
+            label: const Text('上一级目录'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(132, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),
         ],
