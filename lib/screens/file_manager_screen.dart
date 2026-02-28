@@ -13,6 +13,45 @@ class FileManagerScreen extends StatefulWidget {
 }
 
 class _FileManagerScreenState extends State<FileManagerScreen> {
+  static const Set<String> _externalOnlyExtensions = {
+    'mp4',
+    'mkv',
+    'avi',
+    'mov',
+    'webm',
+    'flv',
+    'wmv',
+    'mp3',
+    'wav',
+    'ogg',
+    'flac',
+    'aac',
+    'm4a',
+    'wma',
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'bmp',
+    'svg',
+    'zip',
+    'tar',
+    'gz',
+    'rar',
+    '7z',
+    'bz2',
+    'xz',
+    'apk',
+    'aab',
+    'so',
+    'bin',
+    'exe',
+    'dll',
+    'class',
+    'jar',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -251,20 +290,32 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     if (item.isDirectory) {
       await provider.navigateTo(item.path);
     } else {
-      // Open file based on type
-      if (item.isTextFile) {
-        _openTextEditor(context, provider, item);
-      } else {
+      if (_shouldOpenExternally(item)) {
         _openExternally(context, provider, item);
+      } else {
+        await _openTextEditor(context, provider, item);
       }
     }
   }
 
-  void _openTextEditor(
-      BuildContext context, dynamic provider, dynamic item) async {
+  bool _shouldOpenExternally(dynamic item) {
+    final lowerName = item.name.toString().toLowerCase();
+    final dotIndex = lowerName.lastIndexOf('.');
+    if (dotIndex <= 0 || dotIndex == lowerName.length - 1) {
+      return false;
+    }
+    final ext = lowerName.substring(dotIndex + 1);
+    return _externalOnlyExtensions.contains(ext);
+  }
+
+  Future<bool> _openTextEditor(
+    BuildContext context,
+    dynamic provider,
+    dynamic item,
+  ) async {
     try {
       final content = await provider.getFileContent(item.path);
-      if (!mounted) return;
+      if (!mounted) return false;
 
       await TextEditorDialog.show(
         context,
@@ -274,12 +325,14 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
           await provider.saveFileContent(item.path, newContent);
         },
       );
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error opening file: $e')),
         );
       }
+      return false;
     }
   }
 

@@ -35,11 +35,27 @@ class FileItem {
       return Icons.audio_file;
     }
     // Documents
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods'].contains(ext)) {
+    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods']
+        .contains(ext)) {
       return Icons.description;
     }
     // Code
-    if (['dart', 'py', 'js', 'ts', 'java', 'c', 'cpp', 'h', 'go', 'rs', 'rb', 'php', 'swift', 'kt'].contains(ext)) {
+    if ([
+      'dart',
+      'py',
+      'js',
+      'ts',
+      'java',
+      'c',
+      'cpp',
+      'h',
+      'go',
+      'rs',
+      'rb',
+      'php',
+      'swift',
+      'kt'
+    ].contains(ext)) {
       return Icons.code;
     }
     // Archives
@@ -47,7 +63,22 @@ class FileItem {
       return Icons.archive;
     }
     // Text
-    if (['txt', 'md', 'json', 'xml', 'yaml', 'yml', 'log', 'sh', 'bash', 'conf', 'cfg', 'ini', 'html', 'css'].contains(ext)) {
+    if ([
+      'txt',
+      'md',
+      'json',
+      'xml',
+      'yaml',
+      'yml',
+      'log',
+      'sh',
+      'bash',
+      'conf',
+      'cfg',
+      'ini',
+      'html',
+      'css'
+    ].contains(ext)) {
       return Icons.text_snippet;
     }
 
@@ -57,12 +88,61 @@ class FileItem {
   bool get isTextFile {
     if (isDirectory) return false;
 
+    final fileName = name.toLowerCase();
     final ext = path.split('.').last.toLowerCase();
+    const textFileNames = [
+      '.bash_history',
+      '.bashrc',
+      '.zshrc',
+      '.profile',
+      '.zprofile',
+      '.gitconfig',
+      '.gitignore',
+      '.env',
+      '.npmrc',
+      '.vimrc',
+      '.tmux.conf',
+    ];
+
+    if (textFileNames.contains(fileName)) {
+      return true;
+    }
+
     const textExtensions = [
-      'txt', 'md', 'json', 'xml', 'yaml', 'yml', 'log', 'sh', 'bash',
-      'conf', 'cfg', 'ini', 'html', 'css', 'js', 'ts', 'dart', 'py',
-      'java', 'c', 'cpp', 'h', 'go', 'rs', 'rb', 'php', 'swift', 'kt',
-      'sql', 'gitignore', 'env', 'properties', 'gradle', 'toml'
+      'txt',
+      'md',
+      'json',
+      'xml',
+      'yaml',
+      'yml',
+      'log',
+      'sh',
+      'bash',
+      'conf',
+      'cfg',
+      'ini',
+      'html',
+      'css',
+      'js',
+      'ts',
+      'dart',
+      'py',
+      'java',
+      'c',
+      'cpp',
+      'h',
+      'go',
+      'rs',
+      'rb',
+      'php',
+      'swift',
+      'kt',
+      'sql',
+      'gitignore',
+      'env',
+      'properties',
+      'gradle',
+      'toml'
     ];
     return textExtensions.contains(ext);
   }
@@ -71,7 +151,8 @@ class FileItem {
     if (isDirectory) return '';
     if (size < 1024) return '$size B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
-    if (size < 1024 * 1024 * 1024) return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (size < 1024 * 1024 * 1024)
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
