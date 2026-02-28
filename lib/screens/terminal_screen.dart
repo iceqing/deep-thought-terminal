@@ -462,7 +462,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
               label: Text(l10n.copy),
               style: FilledButton.styleFrom(
                 backgroundColor:
-                    settings.terminalTheme.foreground.withOpacity(0.15),
+                    settings.terminalTheme.foreground.withValues(alpha: 0.15),
                 foregroundColor: settings.terminalTheme.foreground,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -551,7 +551,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -663,7 +663,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     final l10n = AppLocalizations.of(context);
 
     return AppBar(
-      backgroundColor: settings.terminalTheme.background.withOpacity(0.9),
+      backgroundColor: settings.terminalTheme.background.withValues(alpha: 0.9),
       foregroundColor: settings.terminalTheme.foreground,
       elevation: 0,
       leading: IconButton(
@@ -812,13 +812,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
             Icon(
               Icons.terminal,
               size: 64,
-              color: settings.terminalTheme.foreground.withOpacity(0.5),
+              color: settings.terminalTheme.foreground.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
               l10n.noSessions,
               style: TextStyle(
-                color: settings.terminalTheme.foreground.withOpacity(0.7),
+                color: settings.terminalTheme.foreground.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 16),
@@ -1013,7 +1013,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         _showHistoryViewer(context, terminalProvider);
         break;
       case 'open_current_folder':
-        _openCurrentFolderInFileManager(context, terminalProvider);
+        _openCurrentFolderInFileManager(terminalProvider);
         break;
       case 'copy_ssh_key':
         _copySshPublicKey();
@@ -1025,7 +1025,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
   }
 
   Future<void> _openCurrentFolderInFileManager(
-    BuildContext context,
     TerminalProvider terminalProvider,
   ) async {
     final session = terminalProvider.currentSession;
@@ -1377,7 +1376,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
+        color: Colors.black.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.green, width: 1),
       ),

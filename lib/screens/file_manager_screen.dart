@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/file_manager_provider.dart';
@@ -17,11 +19,42 @@ class FileManagerScreen extends StatefulWidget {
 
 class _FileManagerScreenState extends State<FileManagerScreen> {
   static const Set<String> _externalOnlyExtensions = {
-    'mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv',
-    'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma',
-    'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg',
-    'zip', 'tar', 'gz', 'rar', '7z', 'bz2', 'xz',
-    'apk', 'aab', 'so', 'bin', 'exe', 'dll', 'class', 'jar',
+    'mp4',
+    'mkv',
+    'avi',
+    'mov',
+    'webm',
+    'flv',
+    'wmv',
+    'mp3',
+    'wav',
+    'ogg',
+    'flac',
+    'aac',
+    'm4a',
+    'wma',
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'bmp',
+    'svg',
+    'zip',
+    'tar',
+    'gz',
+    'rar',
+    '7z',
+    'bz2',
+    'xz',
+    'apk',
+    'aab',
+    'so',
+    'bin',
+    'exe',
+    'dll',
+    'class',
+    'jar',
   };
 
   @override
@@ -78,9 +111,11 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
             onSelected: (value) => _handleMenuAction(context, value),
             itemBuilder: (context) => [
               _buildMenuItem('home', Icons.home_outlined, l10n.home),
-              _buildMenuItem('storage', Icons.storage_outlined, l10n.storageDirectories),
-              _buildMenuItem('history_back', Icons.history, '返回上一次位置', enabled: provider.canGoBack),
-              _buildMenuItem('toggle_hidden', Icons.visibility_outlined, 
+              _buildMenuItem(
+                  'storage', Icons.storage_outlined, l10n.storageDirectories),
+              _buildMenuItem('history_back', Icons.history, '返回上一次位置',
+                  enabled: provider.canGoBack),
+              _buildMenuItem('toggle_hidden', Icons.visibility_outlined,
                   provider.showHiddenFiles ? '关闭隐藏文件' : '显示隐藏文件'),
               _buildMenuItem('open_current_folder', Icons.open_in_new, '在系统打开'),
             ],
@@ -109,30 +144,37 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  PopupMenuItem<String> _buildSortItem(String value, String label, FileManagerProvider provider) {
+  PopupMenuItem<String> _buildSortItem(
+      String value, String label, FileManagerProvider provider) {
     final isSelected = provider.sortBy == value;
     return PopupMenuItem(
       value: value,
       child: Row(
         children: [
           Icon(
-            isSelected 
-                ? (provider.sortAscending ? Icons.arrow_upward : Icons.arrow_downward)
+            isSelected
+                ? (provider.sortAscending
+                    ? Icons.arrow_upward
+                    : Icons.arrow_downward)
                 : null,
             size: 18,
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(
-            color: isSelected ? Theme.of(context).colorScheme.primary : null,
-            fontWeight: isSelected ? FontWeight.bold : null,
-          )),
+          Text(label,
+              style: TextStyle(
+                color:
+                    isSelected ? Theme.of(context).colorScheme.primary : null,
+                fontWeight: isSelected ? FontWeight.bold : null,
+              )),
         ],
       ),
     );
   }
 
-  PopupMenuItem<String> _buildMenuItem(String value, IconData icon, String label, {bool enabled = true}) {
+  PopupMenuItem<String> _buildMenuItem(
+      String value, IconData icon, String label,
+      {bool enabled = true}) {
     return PopupMenuItem(
       value: value,
       enabled: enabled,
@@ -163,18 +205,22 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.5),
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.5),
           ),
         ),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: parts.length + 1,
-        separatorBuilder: (context, index) => Icon(
-          Icons.chevron_right, 
-          size: 16, 
-          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
-        ),
+        separatorBuilder: (context, index) => Icon(Icons.chevron_right,
+            size: 16,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurfaceVariant
+                .withValues(alpha: 0.5)),
         itemBuilder: (context, index) {
           final isLast = index == parts.length;
           final String label = index == 0 ? '根目录' : parts[index - 1];
@@ -188,8 +234,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: isLast 
-                        ? Theme.of(context).colorScheme.primary 
+                    color: isLast
+                        ? Theme.of(context).colorScheme.primary
                         : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: isLast ? FontWeight.bold : FontWeight.normal,
                     fontSize: 14,
@@ -203,7 +249,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context, FileManagerProvider provider, AppLocalizations l10n) {
+  Widget _buildContent(BuildContext context, FileManagerProvider provider,
+      AppLocalizations l10n) {
     if (provider.error != null && provider.fileList.isEmpty) {
       return _buildErrorState(context, provider, l10n);
     }
@@ -213,21 +260,27 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     }
 
     if (provider.isGridView) {
-      return GridView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: provider.fileList.length,
-        itemBuilder: (context, index) {
-          final item = provider.fileList[index];
-          return FileGridItem(
-            item: item,
-            onTap: () => _handleFileTap(context, provider, item),
-            onLongPress: () => _showFileOptions(context, provider, item),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final crossAxisCount =
+              math.max(2, (constraints.maxWidth / 170).floor());
+          return GridView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: provider.fileList.length,
+            itemBuilder: (context, index) {
+              final item = provider.fileList[index];
+              return FileGridItem(
+                item: item,
+                onTap: () => _handleFileTap(context, provider, item),
+                onLongPress: () => _showFileOptions(context, provider, item),
+              );
+            },
           );
         },
       );
@@ -256,13 +309,13 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.05),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.folder_open_outlined,
               size: 64,
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
           ),
           const SizedBox(height: 24),
@@ -277,21 +330,24 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, FileManagerProvider provider, AppLocalizations l10n) {
+  Widget _buildErrorState(BuildContext context, FileManagerProvider provider,
+      AppLocalizations l10n) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.error_outline,
+                size: 64, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
             Text('出错了', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               provider.error!,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
@@ -305,7 +361,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  void _handleFileTap(BuildContext context, FileManagerProvider provider, FileItem item) async {
+  void _handleFileTap(
+      BuildContext context, FileManagerProvider provider, FileItem item) async {
     if (item.isDirectory) {
       await provider.navigateTo(item.path);
     } else {
@@ -327,7 +384,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     return _externalOnlyExtensions.contains(ext);
   }
 
-  Future<void> _openTextEditor(BuildContext context, FileManagerProvider provider, FileItem item) async {
+  Future<void> _openTextEditor(
+      BuildContext context, FileManagerProvider provider, FileItem item) async {
     try {
       final content = await provider.getFileContent(item.path);
       if (!context.mounted) return;
@@ -342,17 +400,20 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开文件失败: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('打开文件失败: $e')));
       }
     }
   }
 
-  void _openExternally(BuildContext context, FileManagerProvider provider, FileItem item) async {
+  void _openExternally(
+      BuildContext context, FileManagerProvider provider, FileItem item) async {
     try {
       await provider.openFileExternally(item.path);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开失败: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('打开失败: $e')));
       }
     }
   }
@@ -372,7 +433,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
             hintText: '输入文件夹名称',
             border: OutlineInputBorder(),
           ),
-          onSubmitted: (value) => _performCreateFolder(context, provider, value, dialogContext),
+          onSubmitted: (value) =>
+              _performCreateFolder(context, provider, value, dialogContext),
         ),
         actions: [
           TextButton(
@@ -380,7 +442,8 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => _performCreateFolder(context, provider, controller.text, dialogContext),
+            onPressed: () => _performCreateFolder(
+                context, provider, controller.text, dialogContext),
             child: const Text('创建'),
           ),
         ],
@@ -388,21 +451,25 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     );
   }
 
-  void _performCreateFolder(BuildContext context, FileManagerProvider provider, String name, BuildContext dialogContext) async {
+  void _performCreateFolder(BuildContext context, FileManagerProvider provider,
+      String name, BuildContext dialogContext) async {
     final folderName = name.trim();
     if (folderName.isEmpty) return;
     Navigator.pop(dialogContext);
     try {
       await provider.createFolder(folderName);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('文件夹 "$folderName" 已创建')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('文件夹 "$folderName" 已创建')));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('创建失败: $e')));
     }
   }
 
-  void _showFileOptions(BuildContext context, FileManagerProvider provider, FileItem item) {
+  void _showFileOptions(
+      BuildContext context, FileManagerProvider provider, FileItem item) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
@@ -426,16 +493,20 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(item.icon, color: theme.colorScheme.onPrimaryContainer),
+                    child: Icon(item.icon,
+                        color: theme.colorScheme.onPrimaryContainer),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.name, style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
+                        Text(item.name,
+                            style: theme.textTheme.titleMedium,
+                            overflow: TextOverflow.ellipsis),
                         if (!item.isDirectory)
-                          Text(item.formattedSize, style: theme.textTheme.bodySmall),
+                          Text(item.formattedSize,
+                              style: theme.textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -490,8 +561,7 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
             _infoRow('类型', item.isDirectory ? '文件夹' : '文件'),
             if (!item.isDirectory) _infoRow('大小', item.formattedSize),
             _infoRow('修改日期', item.modifiedDate.toString()),
-            if (item.permissions.isNotEmpty)
-              _infoRow('权限', item.permissions),
+            if (item.permissions.isNotEmpty) _infoRow('权限', item.permissions),
           ],
         ),
         actions: [
@@ -510,7 +580,11 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+          Text(label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.grey)),
           const SizedBox(height: 2),
           SelectableText(value, style: const TextStyle(fontSize: 14)),
         ],
@@ -540,13 +614,17 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
         try {
           await provider.openCurrentDirectoryExternally();
         } catch (e) {
-          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('打开失败: $e')));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('打开失败: $e')));
+          }
         }
         break;
     }
   }
 
-  Future<bool> _ensureStoragePermission(BuildContext context, FileManagerProvider provider) async {
+  Future<bool> _ensureStoragePermission(
+      BuildContext context, FileManagerProvider provider) async {
     await provider.checkStoragePermission();
     if (provider.hasStoragePermission) return true;
     if (!context.mounted) return false;
@@ -557,8 +635,12 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
         title: const Text('需要存储权限'),
         content: const Text('访问共享存储目录需要授权，是否现在去授权？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('去授权')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('去授权')),
         ],
       ),
     );
@@ -567,37 +649,43 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     return await provider.requestStoragePermission();
   }
 
-  void _showStorageDirectories(BuildContext context, FileManagerProvider provider) async {
+  void _showStorageDirectories(
+      BuildContext context, FileManagerProvider provider) async {
     try {
       final dirs = await provider.getStorageDirectories();
       if (!context.mounted) return;
 
       showModalBottomSheet(
         context: context,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (context) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('存储目录', style: Theme.of(context).textTheme.titleMedium),
+                child: Text('存储目录',
+                    style: Theme.of(context).textTheme.titleMedium),
               ),
               ...dirs.map((dir) => ListTile(
-                leading: const Icon(Icons.storage),
-                title: Text(dir),
-                onTap: () {
-                  Navigator.pop(context);
-                  provider.navigateTo(dir);
-                },
-              )),
+                    leading: const Icon(Icons.storage),
+                    title: Text(dir),
+                    onTap: () {
+                      Navigator.pop(context);
+                      provider.navigateTo(dir);
+                    },
+                  )),
               const SizedBox(height: 16),
             ],
           ),
         ),
       );
     } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('获取目录失败: $e')));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('获取目录失败: $e')));
+      }
     }
   }
 }

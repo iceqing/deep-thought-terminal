@@ -48,13 +48,13 @@ class FileListTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right,
                 size: 20,
-                color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
               )
             else
               Text(
                 item.formattedDate,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ),
           ],
@@ -68,9 +68,9 @@ class FileListTile extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: item.isDirectory 
-            ? Colors.amber.withOpacity(0.1) 
-            : _getFileIconColor(item).withOpacity(0.1),
+        color: item.isDirectory
+            ? Colors.amber.withValues(alpha: 0.1)
+            : _getFileIconColor(item).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
@@ -86,7 +86,7 @@ class FileListTile extends StatelessWidget {
       return Text(
         '文件夹',
         style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
         ),
       );
     }
@@ -96,7 +96,7 @@ class FileListTile extends StatelessWidget {
         Text(
           item.formattedSize,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
         ),
         Container(
@@ -105,13 +105,13 @@ class FileListTile extends StatelessWidget {
           height: 3,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.3),
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
           ),
         ),
         Text(
           _getFileExtension(item.name),
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
             letterSpacing: 0.5,
           ),
         ),
@@ -140,7 +140,8 @@ class FileListTile extends StatelessWidget {
     if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].contains(ext)) {
       return Colors.blue;
     }
-    if (['dart', 'py', 'js', 'ts', 'java', 'c', 'cpp', 'h', 'go', 'rs'].contains(ext)) {
+    if (['dart', 'py', 'js', 'ts', 'java', 'c', 'cpp', 'h', 'go', 'rs']
+        .contains(ext)) {
       return Colors.teal;
     }
     if (['zip', 'tar', 'gz', 'rar', '7z'].contains(ext)) {
@@ -177,20 +178,22 @@ class FileGridItem extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: colorScheme.outlineVariant.withOpacity(0.5),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 item.icon,
-                size: 40,
-                color: item.isDirectory ? Colors.amber[700] : _getFileIconColor(item),
+                size: 36,
+                color: item.isDirectory
+                    ? Colors.amber[700]
+                    : _getFileIconColor(item),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 item.name,
                 textAlign: TextAlign.center,
@@ -200,11 +203,13 @@ class FileGridItem extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 item.isDirectory ? '文件夹' : item.formattedSize,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -217,7 +222,9 @@ class FileGridItem extends StatelessWidget {
   Color _getFileIconColor(FileItem item) {
     // Reuse color logic from FileListTile
     final ext = item.path.split('.').last.toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) return Colors.green;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+      return Colors.green;
+    }
     if (['mp4', 'mkv', 'avi'].contains(ext)) return Colors.red;
     if (['mp3', 'wav', 'ogg'].contains(ext)) return Colors.purple;
     if (['pdf', 'doc', 'docx'].contains(ext)) return Colors.blue;
