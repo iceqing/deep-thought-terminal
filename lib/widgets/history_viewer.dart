@@ -14,7 +14,8 @@ class HistoryViewer extends StatefulWidget {
   const HistoryViewer({super.key, this.onCommandSelected});
 
   /// 显示历史查看器
-  static Future<String?> show(BuildContext context, {
+  static Future<String?> show(
+    BuildContext context, {
     void Function(String command)? onCommandSelected,
   }) {
     return showModalBottomSheet<String>(
@@ -60,14 +61,28 @@ class _HistoryViewerState extends State<HistoryViewer> {
     try {
       final authProvider = context.read<AuthProvider>();
       List<HistoryEntry> entries;
+      debugPrint(
+          '[HistoryDiag] HistoryViewer loading, loggedIn=${authProvider.isLoggedIn}');
 
       if (authProvider.isLoggedIn) {
         // 已登录：从后端 API 获取历史记录
         final apiData = await ApiService.getHistory(limit: 500);
+        debugPrint(
+            '[HistoryDiag] HistoryViewer source=api, rawCount=${apiData.length}');
         entries = apiData.asMap().entries.map((e) {
           final item = e.value;
           DateTime? timestamp;
-          if (item['created_at'] != null) {
+          int? executedAt;
+          if (item['executed_at'] != null) {
+            final raw = item['executed_at'];
+            final ts = raw is num ? raw.toInt() : int.tryParse(raw.toString());
+            if (ts != null) {
+              executedAt = ts;
+              // 兼容毫秒/微秒时间戳
+              final millis = ts > 10000000000000 ? (ts ~/ 1000) : ts;
+              timestamp = DateTime.fromMillisecondsSinceEpoch(millis);
+            }
+          } else if (item['created_at'] != null) {
             timestamp = DateTime.tryParse(item['created_at']);
           } else if (item['timestamp'] != null) {
             timestamp = DateTime.tryParse(item['timestamp'].toString());
@@ -76,16 +91,30 @@ class _HistoryViewerState extends State<HistoryViewer> {
             index: e.key + 1,
             command: item['command'] ?? '',
             timestamp: timestamp,
+            executedAt: executedAt,
           );
         }).toList();
       } else {
         // 游客模式：从本地文件读取
         entries = await _historyService.getAllHistory();
+        debugPrint(
+            '[HistoryDiag] HistoryViewer source=local, rawCount=${entries.length}');
       }
 
-      // 最新的在前
-      entries.sort((a, b) => b.index.compareTo(a.index));
+      // 最新的在前：优先按时间倒序，时间缺失时回退 index 倒序
+      entries.sort((a, b) {
+        final ta = a.timestamp?.millisecondsSinceEpoch;
+        final tb = b.timestamp?.millisecondsSinceEpoch;
+        if (ta != null && tb != null) {
+          return tb.compareTo(ta);
+        }
+        if (tb != null) return 1;
+        if (ta != null) return -1;
+        return b.index.compareTo(a.index);
+      });
       if (mounted) {
+        debugPrint(
+            '[HistoryDiag] HistoryViewer finalCount=${entries.length}, first="${entries.isNotEmpty ? entries.first.command : ''}"');
         setState(() {
           _entries = entries;
           _filteredEntries = entries;
@@ -93,6 +122,7 @@ class _HistoryViewerState extends State<HistoryViewer> {
         });
       }
     } catch (e) {
+      debugPrint('[HistoryDiag] HistoryViewer load error: $e');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -216,11 +246,57 @@ class _HistoryViewerState extends State<HistoryViewer> {
                   widget.onCommandSelected!(entry.command);
                 },
               ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Delete this entry'),
+              subtitle: const Text('Remove only this command from history'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _deleteEntry(entry);
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _deleteEntry(HistoryEntry entry) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final authProvider = context.read<AuthProvider>();
+    bool success;
+
+    if (authProvider.isLoggedIn) {
+      final executedAt = entry.executedAt;
+      if (executedAt == null) {
+        if (mounted) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Delete failed: missing history key')),
+          );
+        }
+        return;
+      }
+      success = await ApiService.deleteHistoryItem(
+        executedAt: executedAt,
+        command: entry.command,
+      );
+    } else {
+      success = await _historyService.deleteEntry(entry);
+    }
+
+    if (!mounted) return;
+
+    if (success) {
+      await _loadHistory();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('History entry deleted')),
+      );
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Failed to delete history entry')),
+      );
+    }
   }
 
   @override
@@ -239,7 +315,7 @@ class _HistoryViewerState extends State<HistoryViewer> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 10,
                 offset: const Offset(0, -2),
               ),
@@ -381,7 +457,8 @@ class _HistoryViewerState extends State<HistoryViewer> {
           children: [
             Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
             const SizedBox(height: 16),
-            Text('Error loading history', style: TextStyle(color: Colors.red[300])),
+            Text('Error loading history',
+                style: TextStyle(color: Colors.red[300])),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _loadHistory,
@@ -525,7 +602,8 @@ class _HistoryEntryTile extends StatelessWidget {
     );
   }
 
-  Widget _buildHighlightedText(String text, String query, BuildContext context) {
+  Widget _buildHighlightedText(
+      String text, String query, BuildContext context) {
     final style = TextStyle(
       fontFamily: 'monospace',
       fontSize: 14,
@@ -560,7 +638,7 @@ class _HistoryEntryTile extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
         style: TextStyle(
-          backgroundColor: Colors.yellow.withOpacity(0.4),
+          backgroundColor: Colors.yellow.withValues(alpha: 0.4),
           fontWeight: FontWeight.bold,
           color: Colors.black87,
         ),

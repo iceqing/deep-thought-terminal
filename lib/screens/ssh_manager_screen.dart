@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/ssh_host.dart';
+import '../providers/auth_provider.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/terminal_provider.dart';
+import '../services/api_service.dart';
 import '../l10n/app_localizations.dart';
 import 'ssh_config_screen.dart';
 
@@ -41,7 +43,8 @@ class SSHManagerScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.computer, size: 64, color: Colors.grey.withOpacity(0.5)),
+                  Icon(Icons.computer,
+                      size: 64, color: Colors.grey.withOpacity(0.5)),
                   const SizedBox(height: 16),
                   Text(l10n.sshNoHosts),
                   const SizedBox(height: 8),
@@ -74,7 +77,8 @@ class SSHManagerScreen extends StatelessWidget {
                         final l10n = AppLocalizations.of(context);
                         return AlertDialog(
                           title: Text(l10n.deleteHost),
-                          content: Text(l10n.deleteHostConfirm.replaceAll('{name}', host.displayName)),
+                          content: Text(l10n.deleteHostConfirm
+                              .replaceAll('{name}', host.displayName)),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
@@ -82,7 +86,8 @@ class SSHManagerScreen extends StatelessWidget {
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context, true),
-                              child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
+                              child: Text(l10n.delete,
+                                  style: const TextStyle(color: Colors.red)),
                             ),
                           ],
                         );
@@ -94,10 +99,14 @@ class SSHManagerScreen extends StatelessWidget {
                   },
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
                       child: Text(
                         host.displayName.characters.first.toUpperCase(),
-                        style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer),
                       ),
                     ),
                     title: Text(host.displayName),
@@ -126,16 +135,22 @@ class SSHManagerScreen extends StatelessWidget {
 
   void _connectToHost(BuildContext context, SSHHost host) {
     final terminalProvider = context.read<TerminalProvider>();
-    
+    final shouldUploadHistory = context.read<AuthProvider>().isLoggedIn;
+
     // Create new session
-    terminalProvider.createSession(title: host.displayName).then((session) {
+    terminalProvider
+        .createSession(title: host.displayName, isSshSession: true)
+        .then((session) {
       // Small delay to ensure shell is ready to receive input
       Future.delayed(const Duration(milliseconds: 300), () {
+        if (shouldUploadHistory) {
+          ApiService.addHistory(host.command, sessionName: session.displayName);
+        }
         // Send SSH command
         session.write('${host.command}\r');
       });
     });
-    
+
     Navigator.pop(context); // Close manager
   }
 
@@ -168,7 +183,8 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
     super.initState();
     _aliasController = TextEditingController(text: widget.host?.alias);
     _hostController = TextEditingController(text: widget.host?.host);
-    _portController = TextEditingController(text: widget.host?.port.toString() ?? '22');
+    _portController =
+        TextEditingController(text: widget.host?.port.toString() ?? '22');
     _usernameController = TextEditingController(text: widget.host?.username);
     _argsController = TextEditingController(text: widget.host?.args);
   }
@@ -213,7 +229,8 @@ class _SSHEditDialogState extends State<_SSHEditDialog> {
                       hintText: '192.168.1.1 or example.com',
                       border: const OutlineInputBorder(),
                     ),
-                    keyboardType: TextInputType.emailAddress, // for better keyboard
+                    keyboardType:
+                        TextInputType.emailAddress, // for better keyboard
                     autocorrect: false,
                   ),
                 ),

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 /// 支持的语言列表
 class L10n {
   static const all = [
-    Locale('en'),           // English
-    Locale('zh', 'CN'),     // 简体中文
-    Locale('zh', 'TW'),     // 繁體中文
+    Locale('en'), // English
+    Locale('zh', 'CN'), // 简体中文
+    Locale('zh', 'TW'), // 繁體中文
   ];
 
   static const defaultLocale = Locale('en');
@@ -43,11 +43,15 @@ class AppLocalizations {
     final langCode = languageCode;
     // 尝试完整语言代码
     if (_localizedValues.containsKey(langCode)) {
-      return _localizedValues[langCode]![key] ?? _localizedValues['en']![key] ?? key;
+      return _localizedValues[langCode]![key] ??
+          _localizedValues['en']![key] ??
+          key;
     }
     // 回退到基础语言代码
     if (_localizedValues.containsKey(locale.languageCode)) {
-      return _localizedValues[locale.languageCode]![key] ?? _localizedValues['en']![key] ?? key;
+      return _localizedValues[locale.languageCode]![key] ??
+          _localizedValues['en']![key] ??
+          key;
     }
     // 回退到英语
     return _localizedValues['en']![key] ?? key;
@@ -80,7 +84,8 @@ class AppLocalizations {
   String get sessions => _translate('sessions');
   String get noSessions => _translate('noSessions');
   String get sessionClosed => _translate('sessionClosed');
-  String activeSessionsCount(int count) => _translate('activeSessionsCount').replaceAll('{count}', count.toString());
+  String activeSessionsCount(int count) =>
+      _translate('activeSessionsCount').replaceAll('{count}', count.toString());
   String get copy => _translate('copy');
   String get paste => _translate('paste');
   String get selectAll => _translate('selectAll');
@@ -124,6 +129,9 @@ class AppLocalizations {
   String get packageMirror => _translate('packageMirror');
   String get advanced => _translate('advanced');
   String get about => _translate('about');
+  String get backendServer => _translate('backendServer');
+  String get backendDomain => _translate('backendDomain');
+  String get appIntro => _translate('appIntro');
   String get version => _translate('version');
   String get terminalMargin => _translate('terminalMargin');
   String get appTheme => _translate('appTheme');
@@ -218,7 +226,8 @@ class AppLocalizations {
   String get sshConfigGlobal => _translate('sshConfigGlobal');
   String get sshConfigAddHost => _translate('sshConfigAddHost');
   String get sshConfigDeleteHost => _translate('sshConfigDeleteHost');
-  String sshConfigDeleteConfirm(String name) => _translate('sshConfigDeleteConfirm').replaceAll('{name}', name);
+  String sshConfigDeleteConfirm(String name) =>
+      _translate('sshConfigDeleteConfirm').replaceAll('{name}', name);
   String get sshConfigSaved => _translate('sshConfigSaved');
   String get sshConfigKeepAlive => _translate('sshConfigKeepAlive');
   String get sshConfigConnection => _translate('sshConfigConnection');
@@ -227,10 +236,13 @@ class AppLocalizations {
   String get sshConfigPerformance => _translate('sshConfigPerformance');
   String get sshConfigHostPattern => _translate('sshConfigHostPattern');
   String get sshConfigHostPatternHint => _translate('sshConfigHostPatternHint');
-  String get sshConfigServerAliveInterval => _translate('sshConfigServerAliveInterval');
-  String get sshConfigServerAliveCountMax => _translate('sshConfigServerAliveCountMax');
+  String get sshConfigServerAliveInterval =>
+      _translate('sshConfigServerAliveInterval');
+  String get sshConfigServerAliveCountMax =>
+      _translate('sshConfigServerAliveCountMax');
   String get sshConfigConnectTimeout => _translate('sshConfigConnectTimeout');
-  String get sshConfigConnectionAttempts => _translate('sshConfigConnectionAttempts');
+  String get sshConfigConnectionAttempts =>
+      _translate('sshConfigConnectionAttempts');
   String get sshConfigIdentityFile => _translate('sshConfigIdentityFile');
   String get sshConfigPreferredAuth => _translate('sshConfigPreferredAuth');
   String get sshConfigStrictHostKey => _translate('sshConfigStrictHostKey');
@@ -238,7 +250,8 @@ class AppLocalizations {
   String get sshConfigForwardAgent => _translate('sshConfigForwardAgent');
   String get sshConfigTcpKeepAlive => _translate('sshConfigTcpKeepAlive');
   String get sshConfigApplyKeepAlive => _translate('sshConfigApplyKeepAlive');
-  String get sshConfigApplyKeepAliveDesc => _translate('sshConfigApplyKeepAliveDesc');
+  String get sshConfigApplyKeepAliveDesc =>
+      _translate('sshConfigApplyKeepAliveDesc');
   String get sshConfigNoFile => _translate('sshConfigNoFile');
   String get sshConfigCreateNew => _translate('sshConfigCreateNew');
 
@@ -290,7 +303,8 @@ class AppLocalizations {
   String get categoryTermux => _translate('categoryTermux');
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -380,6 +394,9 @@ const Map<String, String> _enTranslations = {
   'packageMirror': 'Package Mirror',
   'advanced': 'Advanced',
   'about': 'About',
+  'backendServer': 'Backend Server',
+  'backendDomain': 'Backend Domain',
+  'appIntro': 'A Flutter terminal emulator inspired by Termux.',
   'version': 'Version',
   'terminalMargin': 'Terminal Margin',
   'appTheme': 'App Theme',
@@ -401,7 +418,8 @@ const Map<String, String> _enTranslations = {
   'resetToDefaults': 'Reset to Defaults',
   'resetToDefaultsDesc': 'Restore all settings to default values',
   'resetSettings': 'Reset Settings',
-  'resetSettingsConfirm': 'Are you sure you want to reset all settings to their default values?',
+  'resetSettingsConfirm':
+      'Are you sure you want to reset all settings to their default values?',
   'showDebugInfo': 'Show Debug Info',
   'showDebugInfoDesc': 'Display terminal debug overlay',
   'charWidthDebug': 'Character Width Debug',
@@ -494,7 +512,8 @@ const Map<String, String> _enTranslations = {
   'sshConfigForwardAgent': 'Forward Agent',
   'sshConfigTcpKeepAlive': 'TCP Keep-Alive',
   'sshConfigApplyKeepAlive': 'Apply Keep-Alive Defaults',
-  'sshConfigApplyKeepAliveDesc': 'Set ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigApplyKeepAliveDesc':
+      'Set ServerAliveInterval=30, ServerAliveCountMax=3',
   'sshConfigNoFile': 'No SSH config file found',
   'sshConfigCreateNew': 'Create config file',
 
@@ -619,6 +638,9 @@ const Map<String, String> _zhCNTranslations = {
   'packageMirror': '软件镜像源',
   'advanced': '高级',
   'about': '关于',
+  'backendServer': '后端服务器',
+  'backendDomain': '后端域名',
+  'appIntro': '一款受 Termux 启发的 Flutter 终端模拟器。',
   'version': '版本',
   'terminalMargin': '终端边距',
   'appTheme': '应用主题',
@@ -733,7 +755,8 @@ const Map<String, String> _zhCNTranslations = {
   'sshConfigForwardAgent': '转发代理',
   'sshConfigTcpKeepAlive': 'TCP 保活',
   'sshConfigApplyKeepAlive': '应用保活默认值',
-  'sshConfigApplyKeepAliveDesc': '设置 ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigApplyKeepAliveDesc':
+      '设置 ServerAliveInterval=30, ServerAliveCountMax=3',
   'sshConfigNoFile': '未找到 SSH 配置文件',
   'sshConfigCreateNew': '创建配置文件',
 
@@ -858,6 +881,9 @@ const Map<String, String> _zhTWTranslations = {
   'packageMirror': '軟體鏡像源',
   'advanced': '進階',
   'about': '關於',
+  'backendServer': '後端伺服器',
+  'backendDomain': '後端網域',
+  'appIntro': '一款受 Termux 啟發的 Flutter 終端模擬器。',
   'version': '版本',
   'terminalMargin': '終端機邊距',
   'appTheme': '應用程式主題',
@@ -972,7 +998,8 @@ const Map<String, String> _zhTWTranslations = {
   'sshConfigForwardAgent': '轉發代理',
   'sshConfigTcpKeepAlive': 'TCP 保活',
   'sshConfigApplyKeepAlive': '套用保活預設值',
-  'sshConfigApplyKeepAliveDesc': '設定 ServerAliveInterval=30, ServerAliveCountMax=3',
+  'sshConfigApplyKeepAliveDesc':
+      '設定 ServerAliveInterval=30, ServerAliveCountMax=3',
   'sshConfigNoFile': '未找到 SSH 設定檔',
   'sshConfigCreateNew': '建立設定檔',
 

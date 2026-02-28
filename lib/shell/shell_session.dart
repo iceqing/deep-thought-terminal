@@ -29,8 +29,10 @@ class PtyShellSession implements ShellSession {
   final Map<String, String>? environment;
 
   Pty? _pty;
-  final StreamController<List<int>> _outputController = StreamController<List<int>>.broadcast();
-  final StreamController<void> _exitController = StreamController<void>.broadcast();
+  final StreamController<List<int>> _outputController =
+      StreamController<List<int>>.broadcast();
+  final StreamController<void> _exitController =
+      StreamController<void>.broadcast();
   bool _isRunning = false;
   int? _exitCode;
 
@@ -226,7 +228,8 @@ class ShellSessionFactory {
       // 检查 bootstrap 是否已安装
       if (await isBashInstalled()) {
         // 获取用户配置的 shell
-        final configuredShell = await getConfiguredShell(preferredShell: shellPath);
+        final configuredShell =
+            await getConfiguredShell(preferredShell: shellPath);
         final cmd = _buildShellLaunchCommand(configuredShell);
         debugPrint('Using configured shell: $configuredShell');
         debugPrint('Shell command length: ${cmd.length}');
@@ -309,8 +312,8 @@ class ShellSessionFactory {
         // Zsh: 使用 ZDOTDIR 或默认配置
         return baseEnv +
             'export ZDOTDIR="\$HOME"; '
-            'if [ -f "\$HOME/.zshrc" ]; then exec "$shellPath"; '
-            'else exec "$shellPath" --no-rcs; fi';
+                'if [ -f "\$HOME/.zshrc" ]; then exec "$shellPath"; '
+                'else exec "$shellPath" --no-rcs; fi';
 
       case 'fish':
         // Fish: 配置文件在 ~/.config/fish/config.fish
@@ -322,14 +325,26 @@ class ShellSessionFactory {
         return baseEnv +
             // 历史记录配置（仅 bash）
             'export HISTFILE="\$HOME/.bash_history"; '
-            'export HISTSIZE=10000; '
-            'export HISTFILESIZE=20000; '
-            'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
-            // PROMPT_COMMAND: 首次提示符时读取历史，之后每次命令后保存历史
-            'export PROMPT_COMMAND=\'[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; history -a\'; '
-            r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
-            'if [ -f "\$HOME/.bashrc" ]; then exec "$shellPath" --rcfile "\$HOME/.bashrc"; '
-            'else exec "$shellPath" --norc; fi';
+                'export HISTSIZE=10000; '
+                'export HISTFILESIZE=20000; '
+                'export HISTCONTROL=ignoredups:ignorespace:erasedups; '
+                // PROMPT_COMMAND:
+                // 1) 首次提示符时读取历史
+                // 2) 每次命令后追加历史
+                // 3) 仅在 HISTCMD 递增（真的执行了新命令）时，通过 OSC 7777 回传最后执行命令
+                'export PROMPT_COMMAND=\''
+                '[ -z "\$_DPTERM_HIST_INIT" ] && history -r && _DPTERM_HIST_INIT=1; '
+                'history -a; '
+                'if [ -z "\$_DPTERM_LAST_HISTCMD" ]; then _DPTERM_LAST_HISTCMD="\$HISTCMD"; fi; '
+                'if [ "\$HISTCMD" -gt "\$_DPTERM_LAST_HISTCMD" ]; then '
+                '__dpterm_last_cmd="\$(HISTTIMEFORMAT= history 1 | sed -E "s/^ *[0-9]+ *//")"; '
+                'if [ -n "\$__dpterm_last_cmd" ]; then printf "\\033]7777;command:%s\\007" "\$__dpterm_last_cmd"; fi; '
+                '_DPTERM_LAST_HISTCMD="\$HISTCMD"; '
+                'fi; '
+                '\'; '
+                r"export PS1='\[\e[0;32m\]\w\[\e[0m\] \$ '; "
+                'if [ -f "\$HOME/.bashrc" ]; then exec "$shellPath" --rcfile "\$HOME/.bashrc"; '
+                'else exec "$shellPath" --norc; fi';
     }
   }
 

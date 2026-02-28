@@ -98,6 +98,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       final authProvider = context.read<AuthProvider>();
       if (authProvider.isLoggedIn) {
         context.read<SSHProvider>().syncFromApi();
+        context.read<TaskProvider>().syncFromApi();
       }
 
       // 监听设置变化，管理调试信息刷新计时器
@@ -240,8 +241,20 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 设置命令执行回调 - 登录后保存到后端
     session.onCommandExecuted = (String command, String sessionName) {
       final authProvider = context.read<AuthProvider>();
+      if (session.isSshSession) {
+        debugPrint(
+            '[HistoryDiag] Skip upload for SSH session: "$command", session="$sessionName"');
+        return;
+      }
+      debugPrint(
+          '[HistoryDiag] Command captured: "$command", session="$sessionName", loggedIn=${authProvider.isLoggedIn}');
       if (authProvider.isLoggedIn) {
-        ApiService.addHistory(command, sessionName: sessionName);
+        ApiService.addHistory(command, sessionName: sessionName).then((ok) {
+          debugPrint(
+              '[HistoryDiag] Upload history result: $ok, command="$command"');
+        });
+      } else {
+        debugPrint('[HistoryDiag] Skip upload because user is not logged in.');
       }
     };
   }
@@ -625,11 +638,22 @@ class _TerminalScreenState extends State<TerminalScreen> {
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () {
                                 Navigator.pop(context);
+                                final shouldUploadHistory =
+                                    context.read<AuthProvider>().isLoggedIn;
                                 terminalProvider
-                                    .createSession(title: host.displayName)
+                                    .createSession(
+                                  title: host.displayName,
+                                  isSshSession: true,
+                                )
                                     .then((session) {
                                   Future.delayed(
                                       const Duration(milliseconds: 300), () {
+                                    if (shouldUploadHistory) {
+                                      ApiService.addHistory(
+                                        host.command,
+                                        sessionName: session.displayName,
+                                      );
+                                    }
                                     session.write('${host.command}\r');
                                   });
                                 });

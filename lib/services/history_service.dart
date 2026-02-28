@@ -9,11 +9,13 @@ class HistoryEntry {
   final int index;
   final String command;
   final DateTime? timestamp;
+  final int? executedAt;
 
   HistoryEntry({
     required this.index,
     required this.command,
     this.timestamp,
+    this.executedAt,
   });
 }
 
@@ -21,7 +23,8 @@ class HistoryEntry {
 /// 提供读取、搜索、清除、导出、导入等功能
 class HistoryService {
   /// Bash 历史文件路径
-  static String get bashHistoryPath => '${TermuxConstants.homeDir}/.bash_history';
+  static String get bashHistoryPath =>
+      '${TermuxConstants.homeDir}/.bash_history';
 
   /// Zsh 历史文件路径
   static String get zshHistoryPath => '${TermuxConstants.homeDir}/.zsh_history';
@@ -108,7 +111,8 @@ class HistoryService {
     try {
       final content = await file.readAsString();
       debugPrint('[HistoryService] File content length: ${content.length}');
-      debugPrint('[HistoryService] File content preview: ${content.length > 200 ? content.substring(0, 200) : content}');
+      debugPrint(
+          '[HistoryService] File content preview: ${content.length > 200 ? content.substring(0, 200) : content}');
 
       final lines = content.split('\n');
       debugPrint('[HistoryService] Total lines: ${lines.length}');
@@ -131,6 +135,7 @@ class HistoryService {
               index: entries.length + 1,
               command: lines[i + 1].trim(),
               timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp * 1000),
+              executedAt: timestamp * 1000,
             ));
             i++; // 跳过下一行
             continue;
@@ -168,7 +173,8 @@ class HistoryService {
     try {
       final content = await file.readAsString();
       debugPrint('[HistoryService] Zsh file content length: ${content.length}');
-      debugPrint('[HistoryService] Zsh file content preview: ${content.length > 200 ? content.substring(0, 200) : content}');
+      debugPrint(
+          '[HistoryService] Zsh file content preview: ${content.length > 200 ? content.substring(0, 200) : content}');
 
       final lines = content.split('\n');
       debugPrint('[HistoryService] Zsh total lines: ${lines.length}');
@@ -191,6 +197,7 @@ class HistoryService {
               timestamp: timestamp != null
                   ? DateTime.fromMillisecondsSinceEpoch(timestamp * 1000)
                   : null,
+              executedAt: timestamp != null ? timestamp * 1000 : null,
             ));
             continue;
           }
@@ -232,6 +239,7 @@ class HistoryService {
         index: i + 1,
         command: all[i].command,
         timestamp: all[i].timestamp,
+        executedAt: all[i].executedAt,
       );
     }
 
@@ -267,6 +275,74 @@ class HistoryService {
         await zshFile.writeAsString('');
       }
     }
+  }
+
+  /// 删除一条本地历史记录（尽力删除最近匹配项）
+  Future<bool> deleteEntry(HistoryEntry target) async {
+    final removedFromZsh = await _deleteOneFromZsh(target.command);
+    if (removedFromZsh) return true;
+    return _deleteOneFromBash(target.command);
+  }
+
+  Future<bool> _deleteOneFromBash(String command) async {
+    final file = File(bashHistoryPath);
+    if (!await file.exists()) return false;
+
+    final content = await file.readAsString();
+    final lines = content.split('\n');
+    int deleteIndex = -1;
+    bool deletePrevTimestampLine = false;
+
+    for (int i = lines.length - 1; i >= 0; i--) {
+      final current = lines[i].trim();
+      if (current != command) continue;
+      deleteIndex = i;
+      if (i > 0 && RegExp(r'^#\d+$').hasMatch(lines[i - 1].trim())) {
+        deletePrevTimestampLine = true;
+      }
+      break;
+    }
+
+    if (deleteIndex == -1) return false;
+
+    lines.removeAt(deleteIndex);
+    if (deletePrevTimestampLine) {
+      lines.removeAt(deleteIndex - 1);
+    }
+    await file.writeAsString(lines.join('\n'));
+    return true;
+  }
+
+  Future<bool> _deleteOneFromZsh(String command) async {
+    final file = File(zshHistoryPath);
+    if (!await file.exists()) return false;
+
+    final content = await file.readAsString();
+    final lines = content.split('\n');
+    int deleteIndex = -1;
+
+    for (int i = lines.length - 1; i >= 0; i--) {
+      final trimmed = lines[i].trim();
+      if (trimmed.isEmpty) continue;
+
+      String cmd = trimmed;
+      if (trimmed.startsWith(': ')) {
+        final match = RegExp(r'^: (\d+):\d+;(.+)$').firstMatch(trimmed);
+        if (match != null) {
+          cmd = match.group(2) ?? '';
+        }
+      }
+
+      if (cmd == command) {
+        deleteIndex = i;
+        break;
+      }
+    }
+
+    if (deleteIndex == -1) return false;
+    lines.removeAt(deleteIndex);
+    await file.writeAsString(lines.join('\n'));
+    return true;
   }
 
   /// 获取历史统计信息

@@ -6,7 +6,7 @@ import 'dart:io' show File, Platform;
 class AppConstants {
   static const String appName = 'Deep Thought';
   static const String packageName = 'com.dpterm';
-  static const String version = '0.1.0';
+  static const String version = '0.1.1+2';
 }
 
 /// 文件系统路径常量
@@ -161,25 +161,26 @@ class TermuxConstants {
   // Bootstrap 相关 - 使用Termux官方bootstrap包
   // https://github.com/termux/termux-packages/releases
   static const String bootstrapArchive = 'bootstrap.zip';
-  static const String bootstrapVersion = 'bootstrap-2026.01.11-r1+apt.android-7';
+  static const String bootstrapVersion =
+      'bootstrap-2026.01.11-r1+apt.android-7';
   static const String bootstrapBaseUrl =
-    'https://github.com/termux/termux-packages/releases/download';
+      'https://github.com/termux/termux-packages/releases/download';
 
   // ARM64 (aarch64) - 大多数现代Android设备
   static String get bootstrapUrlAarch64 =>
-    '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-aarch64.zip';
+      '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-aarch64.zip';
 
   // x86_64 - 模拟器和部分平板
   static String get bootstrapUrlX86_64 =>
-    '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-x86_64.zip';
+      '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-x86_64.zip';
 
   // ARM (armeabi-v7a) - 旧设备
   static String get bootstrapUrlArm =>
-    '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-arm.zip';
+      '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-arm.zip';
 
   // x86 (i686) - 旧模拟器
   static String get bootstrapUrlI686 =>
-    '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-i686.zip';
+      '$bootstrapBaseUrl/${Uri.encodeComponent(bootstrapVersion)}/bootstrap-i686.zip';
 
   // APT 配置
   static String get aptSourcesList => '$etcDir/apt/sources.list';
@@ -252,14 +253,14 @@ class AvailableFonts {
 
   /// 所有可用字体（Nerd Fonts 在前）
   static List<String> get fonts => [
-    ...builtInNerdFonts.keys,
-    ...googleFonts,
-  ];
+        ...builtInNerdFonts.keys,
+        ...googleFonts,
+      ];
 
   /// 判断是否为内置 Nerd Font
   static bool isBuiltInNerdFont(String fontFamily) {
     return builtInNerdFonts.containsKey(fontFamily) ||
-           builtInNerdFonts.containsValue(fontFamily);
+        builtInNerdFonts.containsValue(fontFamily);
   }
 
   /// 获取内置字体的 Flutter 字体族名称
@@ -268,7 +269,8 @@ class AvailableFonts {
   }
 
   /// 获取字体显示名称
-  static String getDisplayName(String fontFamily, {bool hasCustomFont = false}) {
+  static String getDisplayName(String fontFamily,
+      {bool hasCustomFont = false}) {
     // 检查是否为内置 Nerd Font
     if (builtInNerdFonts.containsKey(fontFamily)) {
       return '$fontFamily (Built-in)';
@@ -300,19 +302,19 @@ class VolumeKeyActions {
   /// 预设动作映射
   /// key: 动作标识符, value: (显示名称, 发送的字符序列, 是否为修饰键)
   static const Map<String, (String, String, bool)> presets = {
-    'ctrl': ('Ctrl', '', true),           // Ctrl 修饰键
-    'alt': ('Alt', '\x1b', true),         // Alt 修饰键 (发送 Escape)
-    'esc': ('Esc', '\x1b', false),        // Escape 键
-    'tab': ('Tab', '\t', false),          // Tab 键
-    'up': ('↑', '\x1b[A', false),         // 方向上
-    'down': ('↓', '\x1b[B', false),       // 方向下
-    'left': ('←', '\x1b[D', false),       // 方向左
-    'right': ('→', '\x1b[C', false),      // 方向右
-    'pgup': ('PgUp', '\x1b[5~', false),   // Page Up
-    'pgdn': ('PgDn', '\x1b[6~', false),   // Page Down
-    'home': ('Home', '\x1b[H', false),    // Home
-    'end': ('End', '\x1b[F', false),      // End
-    'none': ('禁用', '', false),           // 禁用
+    'ctrl': ('Ctrl', '', true), // Ctrl 修饰键
+    'alt': ('Alt', '\x1b', true), // Alt 修饰键 (发送 Escape)
+    'esc': ('Esc', '\x1b', false), // Escape 键
+    'tab': ('Tab', '\t', false), // Tab 键
+    'up': ('↑', '\x1b[A', false), // 方向上
+    'down': ('↓', '\x1b[B', false), // 方向下
+    'left': ('←', '\x1b[D', false), // 方向左
+    'right': ('→', '\x1b[C', false), // 方向右
+    'pgup': ('PgUp', '\x1b[5~', false), // Page Up
+    'pgdn': ('PgDn', '\x1b[6~', false), // Page Down
+    'home': ('Home', '\x1b[H', false), // Home
+    'end': ('End', '\x1b[F', false), // End
+    'none': ('禁用', '', false), // 禁用
   };
 
   /// 获取动作的显示名称

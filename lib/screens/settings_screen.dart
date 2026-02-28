@@ -10,8 +10,8 @@ import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
 import '../models/mirror.dart';
 import '../utils/wcwidth_debug.dart';
-import '../utils/termux_wcwidth.dart';
 import '../services/history_service.dart';
+import '../services/api_service.dart';
 import '../widgets/history_viewer.dart';
 import '../providers/auth_provider.dart';
 import '../screens/login_screen.dart';
@@ -57,8 +57,10 @@ class SettingsScreen extends StatelessWidget {
           const _ClearHistoryTile(),
           const _ExportHistoryTile(),
           const _ImportHistoryTile(),
-          _SectionHeader(title: 'Account'),
+          const _SectionHeader(title: 'Account'),
           const _AuthSetting(),
+          _SectionHeader(title: l10n.about),
+          const _BackendServerTile(),
           _SectionHeader(title: l10n.packageSources),
           const _MirrorSetting(),
           _SectionHeader(title: l10n.shell),
@@ -143,8 +145,10 @@ class _LanguageSetting extends StatelessWidget {
             ),
             _buildRadioTile(context, settings, null, 'System Default'),
             _buildRadioTile(context, settings, const Locale('en'), 'English'),
-            _buildRadioTile(context, settings, const Locale('zh', 'CN'), '简体中文'),
-            _buildRadioTile(context, settings, const Locale('zh', 'TW'), '繁體中文'),
+            _buildRadioTile(
+                context, settings, const Locale('zh', 'CN'), '简体中文'),
+            _buildRadioTile(
+                context, settings, const Locale('zh', 'TW'), '繁體中文'),
           ],
         ),
       ),
@@ -168,7 +172,8 @@ class _LanguageSetting extends StatelessWidget {
       isSelected = false;
     }
 
-    debugPrint('Building radio tile: $name, locale=$locale, isSelected=$isSelected, current=${settings.locale}');
+    debugPrint(
+        'Building radio tile: $name, locale=$locale, isSelected=$isSelected, current=${settings.locale}');
 
     return ListTile(
       leading: Icon(
@@ -178,8 +183,8 @@ class _LanguageSetting extends StatelessWidget {
       title: Text(name),
       onTap: () async {
         debugPrint('Language tile tapped: $name, locale=$locale');
-        Navigator.pop(context);  // 先关闭弹窗
-        await settings.setLocale(locale);  // 再设置语言
+        Navigator.pop(context); // 先关闭弹窗
+        await settings.setLocale(locale); // 再设置语言
         debugPrint('setLocale completed');
       },
     );
@@ -230,14 +235,15 @@ class _FontFamilySetting extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Row(
                   children: [
-                    Icon(Icons.star, size: 16, color: Theme.of(context).colorScheme.primary),
+                    Icon(Icons.star,
+                        size: 16, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
                       'Built-in Nerd Fonts (support p10k icons)',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ],
                 ),
@@ -249,7 +255,8 @@ class _FontFamilySetting extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final font = AvailableFonts.fonts[index];
                     final isSelected = font == settings.fontFamily;
-                    final isBuiltInNerdFont = AvailableFonts.isBuiltInNerdFont(font);
+                    final isBuiltInNerdFont =
+                        AvailableFonts.isBuiltInNerdFont(font);
 
                     // Insert Google Fonts section header
                     Widget? sectionHeader;
@@ -258,14 +265,20 @@ class _FontFamilySetting extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                         child: Row(
                           children: [
-                            Icon(Icons.cloud_download, size: 16, color: Theme.of(context).colorScheme.secondary),
+                            Icon(Icons.cloud_download,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.secondary),
                             const SizedBox(width: 8),
                             Text(
                               'Google Fonts (no Powerline icons)',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: Theme.of(context).colorScheme.secondary,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                           ],
                         ),
@@ -275,7 +288,8 @@ class _FontFamilySetting extends StatelessWidget {
                     // Get font style for preview
                     TextStyle fontStyle;
                     if (isBuiltInNerdFont) {
-                      final builtInFamily = AvailableFonts.getBuiltInFontFamily(font);
+                      final builtInFamily =
+                          AvailableFonts.getBuiltInFontFamily(font);
                       fontStyle = TextStyle(fontFamily: builtInFamily);
                     } else {
                       try {
@@ -291,7 +305,8 @@ class _FontFamilySetting extends StatelessWidget {
                           : const Icon(Icons.text_fields, size: 20),
                       title: Text(font, style: fontStyle),
                       subtitle: isBuiltInNerdFont
-                          ? Text('Preview: \uE0B0 \uE0B2 \uF113', style: fontStyle.copyWith(fontSize: 12))
+                          ? Text('Preview: \uE0B0 \uE0B2 \uF113',
+                              style: fontStyle.copyWith(fontSize: 12))
                           : null,
                       trailing: isSelected
                           ? Icon(
@@ -696,7 +711,8 @@ class _VolumeUpKeySetting extends StatelessWidget {
       leading: const Icon(Icons.volume_up),
       title: Text(l10n.volumeUpKey),
       subtitle: Text(VolumeKeyActions.getDisplayName(settings.volumeUpAction)),
-      onTap: () => _VolumeKeyActionPicker.show(context, settings, isVolumeUp: true),
+      onTap: () =>
+          _VolumeKeyActionPicker.show(context, settings, isVolumeUp: true),
     );
   }
 }
@@ -713,17 +729,21 @@ class _VolumeDownKeySetting extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.volume_down),
       title: Text(l10n.volumeDownKey),
-      subtitle: Text(VolumeKeyActions.getDisplayName(settings.volumeDownAction)),
-      onTap: () => _VolumeKeyActionPicker.show(context, settings, isVolumeUp: false),
+      subtitle:
+          Text(VolumeKeyActions.getDisplayName(settings.volumeDownAction)),
+      onTap: () =>
+          _VolumeKeyActionPicker.show(context, settings, isVolumeUp: false),
     );
   }
 }
 
 /// 音量键动作选择器
 class _VolumeKeyActionPicker {
-  static void show(BuildContext context, SettingsProvider settings, {required bool isVolumeUp}) {
+  static void show(BuildContext context, SettingsProvider settings,
+      {required bool isVolumeUp}) {
     final l10n = AppLocalizations.of(context);
-    final currentAction = isVolumeUp ? settings.volumeUpAction : settings.volumeDownAction;
+    final currentAction =
+        isVolumeUp ? settings.volumeUpAction : settings.volumeDownAction;
 
     showModalBottomSheet(
       context: context,
@@ -788,7 +808,9 @@ class _VolumeKeyActionPicker {
                       ),
                       title: Text(l10n.customAction),
                       subtitle: VolumeKeyActions.isCustom(currentAction)
-                          ? Text(VolumeKeyActions.getCustomValue(currentAction) ?? '')
+                          ? Text(
+                              VolumeKeyActions.getCustomValue(currentAction) ??
+                                  '')
                           : null,
                       trailing: VolumeKeyActions.isCustom(currentAction)
                           ? Icon(
@@ -798,7 +820,8 @@ class _VolumeKeyActionPicker {
                           : null,
                       onTap: () {
                         Navigator.pop(context);
-                        _showCustomInputDialog(context, settings, isVolumeUp, currentAction);
+                        _showCustomInputDialog(
+                            context, settings, isVolumeUp, currentAction);
                       },
                     ),
                   ],
@@ -879,9 +902,9 @@ class _VolumeKeyActionPicker {
               '  \\t = Tab\n'
               '  \\x1b = Escape',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontFamily: 'monospace',
-                color: Colors.grey,
-              ),
+                    fontFamily: 'monospace',
+                    color: Colors.grey,
+                  ),
             ),
           ],
         ),
@@ -893,7 +916,8 @@ class _VolumeKeyActionPicker {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
-              final customAction = VolumeKeyActions.createCustomAction(controller.text);
+              final customAction =
+                  VolumeKeyActions.createCustomAction(controller.text);
               if (isVolumeUp) {
                 settings.setVolumeUpAction(customAction);
               } else {
@@ -1009,10 +1033,13 @@ class _MirrorSetting extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Text(
                             region,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ),
                         ...mirrors.map((mirror) {
@@ -1035,7 +1062,8 @@ class _MirrorSetting extends StatelessWidget {
                             trailing: isSelected
                                 ? Icon(
                                     Icons.check,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
                                   )
                                 : null,
                             onTap: () async {
@@ -1321,11 +1349,13 @@ class _WcwidthDebugTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Font family: $fontFamily', style: const TextStyle(fontSize: 12)),
-              Text('useBuiltInFont: ${settings.useBuiltInFont}', style: const TextStyle(fontSize: 12)),
+              Text('Font family: $fontFamily',
+                  style: const TextStyle(fontSize: 12)),
+              Text('useBuiltInFont: ${settings.useBuiltInFont}',
+                  style: const TextStyle(fontSize: 12)),
               const SizedBox(height: 16),
-
-              const Text('Powerline Arrows:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text('Powerline Arrows:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -1339,10 +1369,11 @@ class _WcwidthDebugTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const Text('Should show: >< >< ><', style: TextStyle(fontSize: 10, color: Colors.grey)),
-
+              const Text('Should show: >< >< ><',
+                  style: TextStyle(fontSize: 10, color: Colors.grey)),
               const SizedBox(height: 12),
-              const Text('Box Drawing:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text('Box Drawing:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -1357,9 +1388,9 @@ class _WcwidthDebugTile extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-              const Text('Nerd Font Icons:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text('Nerd Font Icons:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -1373,9 +1404,9 @@ class _WcwidthDebugTile extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-              const Text('Compare monospace vs NerdFont:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const Text('Compare monospace vs NerdFont:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -1385,21 +1416,26 @@ class _WcwidthDebugTile extends StatelessWidget {
                   children: [
                     const Text(
                       'mono: >\uE0B0< (should show box)',
-                      style: TextStyle(fontFamily: 'monospace', fontSize: 16, color: Colors.yellow),
+                      style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 16,
+                          color: Colors.yellow),
                     ),
                     Text(
                       'nerd: >\uE0B0< (should show arrow)',
-                      style: TextStyle(fontFamily: fontFamily, fontSize: 16, color: Colors.greenAccent),
+                      style: TextStyle(
+                          fontFamily: fontFamily,
+                          fontSize: 16,
+                          color: Colors.greenAccent),
                     ),
                   ],
                 ),
               ),
-
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
@@ -1723,7 +1759,8 @@ class _HistoryStatsTileState extends State<_HistoryStatsTile> {
       title: Text(l10n.historyStats),
       subtitle: _stats == null
           ? Text(l10n.loading)
-          : Text('${_stats!['total']} commands (Bash: ${_stats!['bash']}, Zsh: ${_stats!['zsh']})'),
+          : Text(
+              '${_stats!['total']} commands (Bash: ${_stats!['bash']}, Zsh: ${_stats!['zsh']})'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1839,10 +1876,8 @@ class _ExportHistoryTile extends StatelessWidget {
         dir ??= await getApplicationDocumentsDirectory();
       }
 
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')[0];
+      final timestamp =
+          DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
       final fileName = 'history_backup_$timestamp.json';
       final path = '${dir.path}/$fileName';
 
@@ -1945,11 +1980,8 @@ class _ImportHistoryTile extends StatelessWidget {
     );
   }
 
-  Future<void> _importHistory(
-    BuildContext context,
-    String path,
-    {required bool append}
-  ) async {
+  Future<void> _importHistory(BuildContext context, String path,
+      {required bool append}) async {
     if (path.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2038,6 +2070,25 @@ class _AuthSetting extends StatelessWidget {
             child: const Text('Logout'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BackendServerTile extends StatelessWidget {
+  const _BackendServerTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final backendDomain = ApiService.backendServer;
+    return ListTile(
+      leading: const Icon(Icons.dns_outlined),
+      title: Text(l10n.about),
+      subtitle: Text(
+        '${l10n.version}: ${AppConstants.version}\n'
+        '${l10n.appIntro}\n'
+        '${l10n.backendDomain}: $backendDomain',
       ),
     );
   }

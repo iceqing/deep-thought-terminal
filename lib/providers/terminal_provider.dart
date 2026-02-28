@@ -19,9 +19,13 @@ class TerminalProvider extends ChangeNotifier {
   }
 
   /// 创建新会话
-  Future<TerminalSession> createSession({String? title}) async {
+  Future<TerminalSession> createSession({
+    String? title,
+    bool isSshSession = false,
+  }) async {
     final session = TerminalSession.create(
       title: title ?? 'Terminal ${_sessions.length + 1}',
+      isSshSession: isSshSession,
     );
 
     // 启动Shell进程

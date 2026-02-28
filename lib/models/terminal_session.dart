@@ -19,6 +19,7 @@ class TerminalSession {
   final TermuxTerminal terminal;
   final TermuxTerminalController controller;
   final ScrollController scrollController;
+  final bool isSshSession;
   String title;
   final DateTime createdAt;
   bool _isActive = false;
@@ -45,6 +46,8 @@ class TerminalSession {
   // 输入缓冲区 - 跟踪用户输入以检测命令
   String _inputBuffer = '';
   bool _inEscapeSequence = false;
+  String? _lastReportedCommand;
+  DateTime? _lastReportedAt;
 
   // 调试信息：最后发送给 shell 的尺寸
   int? lastShellColumns;
@@ -57,6 +60,7 @@ class TerminalSession {
     required this.terminal,
     required this.controller,
     required this.scrollController,
+    this.isSshSession = false,
     this.title = 'Terminal',
   }) : createdAt = DateTime.now();
 
@@ -69,7 +73,7 @@ class TerminalSession {
   }
 
   /// 创建新的终端会话
-  static TerminalSession create({String? title}) {
+  static TerminalSession create({String? title, bool isSshSession = false}) {
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     // 使用 TermuxTerminal 替代 xterm 的 Terminal
     final terminal = TermuxTerminal(maxLines: 10000);
@@ -81,6 +85,7 @@ class TerminalSession {
       terminal: terminal,
       controller: controller,
       scrollController: scrollController,
+      isSshSession: isSshSession,
       title: title ?? 'Terminal',
     );
   }
@@ -213,6 +218,14 @@ class TerminalSession {
   void _handleOscCommand(String? command) {
     if (command == null) return;
 
+    if (command.startsWith('command:')) {
+      final cmd = command.substring(8).trim();
+      if (cmd.isNotEmpty) {
+        _emitCommandExecuted(cmd);
+      }
+      return;
+    }
+
     if (command.startsWith('cwd:')) {
       final cwd = command.substring(4).trim();
       if (cwd.isNotEmpty) {
@@ -312,6 +325,8 @@ class TerminalSession {
     // 如果是终端自动响应，跳过
     if (_isTerminalResponse(data)) return;
 
+    debugPrint('[HistoryDiag] trackInput chunk="$data"');
+
     // 如果是提示符或输出，清空缓冲区
     if (_isPromptOrOutput(data)) {
       _inputBuffer = '';
@@ -343,8 +358,9 @@ class TerminalSession {
 
       if (char == 0x0D || char == 0x0A) {
         final cmd = _inputBuffer.trim();
+        debugPrint('[HistoryDiag] trackInput enter, buffer="$cmd"');
         if (cmd.isNotEmpty && _isValidCommand(cmd)) {
-          onCommandExecuted?.call(cmd, displayName);
+          _emitCommandExecuted(cmd);
         }
         _inputBuffer = '';
       } else if (char == 0x7F || char == 0x08) {
@@ -362,6 +378,19 @@ class TerminalSession {
   /// 检查是否是终端自动响应
   bool _isTerminalResponse(String data) {
     if (data.isEmpty) return true;
+
+    // 回车/退格/Ctrl+C/Ctrl+U 这类控制输入属于用户输入，不应被当作终端响应跳过
+    final hasInputControl = data.codeUnits.any(
+      (c) =>
+          c == 0x0D ||
+          c == 0x0A ||
+          c == 0x08 ||
+          c == 0x7F ||
+          c == 0x03 ||
+          c == 0x15,
+    );
+    if (hasInputControl) return false;
+
     final hasPrintable = data.codeUnits.any((c) => c >= 0x20 && c != 0x7F);
     if (!hasPrintable) return true;
     if (data.startsWith('\x1b[')) return true;
@@ -389,6 +418,19 @@ class TerminalSession {
     if (cmd.contains(':~') || cmd.contains(':/')) return false;
     if (cmd.length < 2) return false;
     return true;
+  }
+
+  void _emitCommandExecuted(String cmd) {
+    // 去重：同一命令在短时间内可能由键盘跟踪和 shell hook 同时上报
+    final now = DateTime.now();
+    if (_lastReportedCommand == cmd &&
+        _lastReportedAt != null &&
+        now.difference(_lastReportedAt!).inMilliseconds < 600) {
+      return;
+    }
+    _lastReportedCommand = cmd;
+    _lastReportedAt = now;
+    onCommandExecuted?.call(cmd, displayName);
   }
 
   /// 写入文本到Shell
