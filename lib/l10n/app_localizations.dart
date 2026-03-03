@@ -295,6 +295,7 @@ class AppLocalizations {
   String get refresh => _translate('refresh');
   String get storageDirectories => _translate('storageDirectories');
   String get retry => _translate('retry');
+  String get openCurrentDirectory => _translate('openCurrentDirectory');
   String get keyBackspace => _translate('keyBackspace');
   String get categorySymbols => _translate('categorySymbols');
   String get categoryFKeys => _translate('categoryFKeys');
@@ -563,6 +564,7 @@ const Map<String, String> _enTranslations = {
   'refresh': 'Refresh',
   'storageDirectories': 'Storage Locations',
   'retry': 'Retry',
+  'openCurrentDirectory': 'Open Current Directory',
 };
 
 // ===== 简体中文翻译 =====
@@ -806,6 +808,7 @@ const Map<String, String> _zhCNTranslations = {
   'refresh': '刷新',
   'storageDirectories': '存储位置',
   'retry': '重试',
+  'openCurrentDirectory': '打开当前目录',
 };
 
 // ===== 繁體中文翻译 =====
@@ -1049,4 +1052,5 @@ const Map<String, String> _zhTWTranslations = {
   'refresh': '重新整理',
   'storageDirectories': '儲存位置',
   'retry': '重試',
+  'openCurrentDirectory': '開啟目前目錄',
 };

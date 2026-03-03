@@ -757,7 +757,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   children: [
                     const Icon(Icons.folder_open),
                     const SizedBox(width: 8),
-                    const Text('打开当前目录'),
+                    Text(l10n.openCurrentDirectory),
                   ],
                 ),
               ),

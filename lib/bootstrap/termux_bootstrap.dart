@@ -472,6 +472,11 @@ class TermuxBootstrap {
     await _ensureShSymlink();
     BootstrapProfiler.end('  _ensureShSymlink');
 
+    // 创建 termux-fix-shebang 脚本
+    BootstrapProfiler.start('  _createFixShebangScript');
+    await _createFixShebangScript();
+    BootstrapProfiler.end('  _createFixShebangScript');
+
     // 创建 APT method 包装脚本（解决 https 方法问题）
     BootstrapProfiler.start('  _createAptMethodWrappers');
     await _createAptMethodWrappers();
@@ -1022,6 +1027,62 @@ fi
       debugPrint('chsh script created');
     } catch (e) {
       debugPrint('Failed to create chsh script: $e');
+    }
+  }
+
+  /// 创建 termux-fix-shebang 脚本
+  /// 修复脚本中的 shebang 行，将 /usr/bin/env 等路径替换为 $PREFIX/bin 下的路径
+  static Future<void> _createFixShebangScript() async {
+    final scriptPath = '${TermuxConstants.binDir}/termux-fix-shebang';
+    final prefixBin = TermuxConstants.binDir;
+
+    try {
+      final script = '''#!/system/bin/sh
+# termux-fix-shebang - Fix shebang lines in scripts for dpterm environment
+# Usage: termux-fix-shebang <file> [file2 ...]
+#
+# Replaces standard shebang paths like #!/usr/bin/env, #!/usr/bin/python, etc.
+# with the correct $prefixBin paths.
+
+if [ \$# -eq 0 ]; then
+    echo "Usage: termux-fix-shebang <file> [file2 ...]"
+    echo ""
+    echo "Fix shebang (#!) lines in scripts to use dpterm paths."
+    echo "Replaces /usr/bin, /bin paths with $prefixBin"
+    exit 1
+fi
+
+PREFIX_BIN="$prefixBin"
+
+for file in "\$@"; do
+    if [ ! -f "\$file" ]; then
+        echo "Warning: \$file not found, skipping"
+        continue
+    fi
+
+    head_line=\$(head -n1 "\$file")
+    case "\$head_line" in
+        "#!"*)
+            # Replace /usr/bin/env with PREFIX/bin/env
+            # Replace /usr/bin/<cmd> with PREFIX/bin/<cmd>
+            # Replace /bin/<cmd> with PREFIX/bin/<cmd>
+            sed -i "1s|^#!.*/usr/bin/env\\b|#!\$PREFIX_BIN/env|" "\$file"
+            sed -i "1s|^#!/usr/bin/|#!\$PREFIX_BIN/|" "\$file"
+            sed -i "1s|^#!/bin/|#!\$PREFIX_BIN/|" "\$file"
+            echo "Fixed: \$file"
+            ;;
+        *)
+            echo "Skipped (no shebang): \$file"
+            ;;
+    esac
+done
+''';
+
+      await File(scriptPath).writeAsString(script);
+      await Process.run('chmod', ['755', scriptPath]);
+      debugPrint('termux-fix-shebang script created');
+    } catch (e) {
+      debugPrint('Failed to create termux-fix-shebang script: \$e');
     }
   }
 

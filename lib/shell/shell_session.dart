@@ -304,7 +304,12 @@ class ShellSessionFactory {
         r"export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.jpg=1;35:*.png=1;35:*.mp3=1;36:*.mp4=1;36'; "
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
         'export LESS="-R"; '
-        'cd "\$HOME" 2>/dev/null || cd /sdcard; ';
+        'cd "\$HOME" 2>/dev/null || cd /sdcard; '
+        // 自动修复常见脚本的 shebang（/usr/bin/env → $PREFIX/bin/env）
+        'for __f in "\$HOME/.autojump/bin/"*; do '
+        '[ -f "\$__f" ] && head -1 "\$__f" | grep -q "^#!/usr/bin" && '
+        'sed -i "1s|#!/usr/bin/env|#!$binPath/env|;1s|#!/usr/bin/|#!$binPath/|;1s|#!/bin/|#!$binPath/|" "\$__f" 2>/dev/null; '
+        'done; unset __f; ';
 
     // 根据不同 shell 构建启动命令
     switch (shellName) {
