@@ -9,7 +9,8 @@ class ApiService {
   static const String _apiBaseUrlEnvKey = 'API_BASE_URL';
 
   static String get _baseUrl {
-    final fromEnv = dotenv.maybeGet(_apiBaseUrlEnvKey)?.trim();
+    final fromEnv =
+        dotenv.isInitialized ? dotenv.maybeGet(_apiBaseUrlEnvKey)?.trim() : null;
     final raw =
         (fromEnv == null || fromEnv.isEmpty) ? _defaultBaseDomain : fromEnv;
     final normalized =

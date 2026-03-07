@@ -14,69 +14,179 @@ import '../services/history_service.dart';
 import '../services/api_service.dart';
 import '../widgets/history_viewer.dart';
 import '../providers/auth_provider.dart';
-import '../screens/login_screen.dart';
 import '../l10n/app_localizations.dart';
 
-/// 设置页面
-/// 参考 termux-app: SettingsActivity.java, TermuxPreferencesFragment.java
+// ═══════════════════════════════════════════════════
+// 主设置页面
+// ═══════════════════════════════════════════════════
+
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.settings),
-      ),
+      appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          _SectionHeader(title: l10n.language),
-          const _LanguageSetting(),
-          _SectionHeader(title: l10n.appearance),
-          const _FontFamilySetting(),
-          const _FontSizeSetting(),
-          const _ColorThemeSetting(),
-          _SectionHeader(title: l10n.cursor),
-          const _CursorStyleSetting(),
-          const _CursorBlinkSetting(),
-          _SectionHeader(title: l10n.display),
-          const _KeepScreenOnSetting(),
-          const _ShowExtraKeysSetting(),
-          const _TerminalMarginSetting(),
-          _SectionHeader(title: l10n.input),
-          const _VibrationSetting(),
-          const _BellSetting(),
-          _SectionHeader(title: l10n.gestures),
-          const _PinchZoomSetting(),
-          const _VolumeUpKeySetting(),
-          const _VolumeDownKeySetting(),
-          _SectionHeader(title: l10n.history),
-          const _HistoryStatsTile(),
-          const _HistoryViewerTile(),
-          const _ClearHistoryTile(),
-          const _ExportHistoryTile(),
-          const _ImportHistoryTile(),
-          const _SectionHeader(title: 'Account'),
-          const _AuthSetting(),
-          _SectionHeader(title: l10n.about),
-          const _BackendServerTile(),
-          _SectionHeader(title: l10n.packageSources),
-          const _MirrorSetting(),
-          _SectionHeader(title: l10n.shell),
-          const _ShellSetting(),
-          _SectionHeader(title: l10n.advanced),
-          const _ShowDebugInfoSetting(),
-          const _WcwidthDebugTile(),
-          const _ResetSettingsTile(),
+          // Account
+          const _AccountCard(),
+          const SizedBox(height: 8),
+
+          // Language (quick access)
+          _SettingsGroup(children: [const _LanguageSetting()]),
+          const SizedBox(height: 8),
+
+          // Navigation tiles to sub-pages
+          _SettingsGroup(
+            children: [
+              _NavTile(
+                icon: Icons.palette_outlined,
+                title: l10n.appearance,
+                subtitle: _buildAppearanceSummary(context),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _AppearanceSettingsPage()),
+                ),
+              ),
+              _NavTile(
+                icon: Icons.terminal,
+                title: l10n.terminal,
+                subtitle: _buildTerminalSummary(context),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _TerminalSettingsPage()),
+                ),
+              ),
+              _NavTile(
+                icon: Icons.history,
+                title: l10n.history,
+                subtitle: null,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _HistorySettingsPage()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Shell & Package Sources
+          _SettingsGroup(
+            children: [
+              const _ShellSetting(),
+              Divider(
+                  height: 1,
+                  indent: 56,
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+              const _MirrorSetting(),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Advanced & About
+          _SettingsGroup(
+            children: [
+              _NavTile(
+                icon: Icons.tune,
+                title: l10n.advanced,
+                subtitle: null,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _AdvancedSettingsPage()),
+                ),
+              ),
+              Divider(
+                  height: 1,
+                  indent: 56,
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+              const _BackendServerTile(),
+            ],
+          ),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
+
+  String _buildAppearanceSummary(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final font = AvailableFonts.getDisplayName(settings.fontFamily,
+        hasCustomFont: settings.customFontLoaded);
+    final themeName = ThemeDisplayNames.getName(settings.colorTheme);
+    return '$font, ${settings.fontSize.round()}pt, $themeName';
+  }
+
+  String _buildTerminalSummary(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
+    final parts = <String>[];
+    if (settings.keepScreenOn) parts.add(l10n.keepScreenOn);
+    if (settings.showExtraKeys) parts.add(l10n.showExtraKeys);
+    if (settings.cursorBlink) parts.add(l10n.cursorBlink);
+    return parts.isEmpty ? '' : parts.join(', ');
+  }
 }
 
-/// 设置分区标题
+// ═══════════════════════════════════════════════════
+// 通用 UI 组件
+// ═══════════════════════════════════════════════════
+
+class _SettingsGroup extends StatelessWidget {
+  final List<Widget> children;
+
+  const _SettingsGroup({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: children),
+      ),
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: subtitle != null && subtitle!.isNotEmpty
+          ? Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis)
+          : null,
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   final String title;
 
@@ -98,7 +208,204 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// 语言设置
+// ═══════════════════════════════════════════════════
+// Account Card
+// ═══════════════════════════════════════════════════
+
+class _AccountCard extends StatelessWidget {
+  const _AccountCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: authProvider.isLoggedIn
+            ? _buildLoggedIn(context, authProvider, theme)
+            : _buildLoggedOut(context, theme),
+      ),
+    );
+  }
+
+  Widget _buildLoggedIn(
+      BuildContext context, AuthProvider authProvider, ThemeData theme) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      leading: CircleAvatar(
+        backgroundColor: theme.colorScheme.primary,
+        child: Icon(Icons.person, color: theme.colorScheme.onPrimary),
+      ),
+      title: Text(authProvider.email ?? '',
+          style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: const Text('Logged in'),
+      trailing: TextButton(
+        onPressed: () => _showLogoutDialog(context, authProvider),
+        child: const Text('Logout'),
+      ),
+    );
+  }
+
+  Widget _buildLoggedOut(BuildContext context, ThemeData theme) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      leading: CircleAvatar(
+        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+        child: Icon(Icons.person_outline,
+            color: theme.colorScheme.onSurfaceVariant),
+      ),
+      title: const Text('Not logged in',
+          style: TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: const Text('Login to sync SSH hosts and history'),
+      trailing: FilledButton.tonal(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Login'),
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              authProvider.logout();
+              Navigator.pop(context);
+            },
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Appearance Sub-page
+// ═══════════════════════════════════════════════════
+
+class _AppearanceSettingsPage extends StatelessWidget {
+  const _AppearanceSettingsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.appearance)),
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: const [
+          _FontFamilySetting(),
+          _FontSizeSetting(),
+          _ColorThemeSetting(),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Terminal Sub-page
+// ═══════════════════════════════════════════════════
+
+class _TerminalSettingsPage extends StatelessWidget {
+  const _TerminalSettingsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.terminal)),
+      body: ListView(
+        children: [
+          _SectionHeader(title: l10n.cursor),
+          const _CursorStyleSetting(),
+          const _CursorBlinkSetting(),
+          _SectionHeader(title: l10n.display),
+          const _KeepScreenOnSetting(),
+          const _ShowExtraKeysSetting(),
+          const _TerminalMarginSetting(),
+          _SectionHeader(title: l10n.input),
+          const _VibrationSetting(),
+          const _BellSetting(),
+          _SectionHeader(title: l10n.gestures),
+          const _PinchZoomSetting(),
+          const _VolumeUpKeySetting(),
+          const _VolumeDownKeySetting(),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// History Sub-page
+// ═══════════════════════════════════════════════════
+
+class _HistorySettingsPage extends StatelessWidget {
+  const _HistorySettingsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.history)),
+      body: ListView(
+        children: const [
+          _HistoryStatsTile(),
+          _HistoryViewerTile(),
+          _ClearHistoryTile(),
+          _ExportHistoryTile(),
+          _ImportHistoryTile(),
+          SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Advanced Sub-page
+// ═══════════════════════════════════════════════════
+
+class _AdvancedSettingsPage extends StatelessWidget {
+  const _AdvancedSettingsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.advanced)),
+      body: ListView(
+        children: const [
+          _ShowDebugInfoSetting(),
+          _WcwidthDebugTile(),
+          _ResetSettingsTile(),
+          SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Individual Setting Widgets (unchanged logic)
+// ═══════════════════════════════════════════════════
+
 class _LanguageSetting extends StatelessWidget {
   const _LanguageSetting();
 
@@ -161,7 +468,6 @@ class _LanguageSetting extends StatelessWidget {
     Locale? locale,
     String name,
   ) {
-    // 检查是否选中
     bool isSelected;
     if (locale == null && settings.locale == null) {
       isSelected = true;
@@ -172,9 +478,6 @@ class _LanguageSetting extends StatelessWidget {
       isSelected = false;
     }
 
-    debugPrint(
-        'Building radio tile: $name, locale=$locale, isSelected=$isSelected, current=${settings.locale}');
-
     return ListTile(
       leading: Icon(
         isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
@@ -182,16 +485,13 @@ class _LanguageSetting extends StatelessWidget {
       ),
       title: Text(name),
       onTap: () async {
-        debugPrint('Language tile tapped: $name, locale=$locale');
-        Navigator.pop(context); // 先关闭弹窗
-        await settings.setLocale(locale); // 再设置语言
-        debugPrint('setLocale completed');
+        Navigator.pop(context);
+        await settings.setLocale(locale);
       },
     );
   }
 }
 
-/// 字体选择
 class _FontFamilySetting extends StatelessWidget {
   const _FontFamilySetting();
 
@@ -230,7 +530,6 @@ class _FontFamilySetting extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-              // Nerd Fonts section header
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Row(
@@ -258,7 +557,6 @@ class _FontFamilySetting extends StatelessWidget {
                     final isBuiltInNerdFont =
                         AvailableFonts.isBuiltInNerdFont(font);
 
-                    // Insert Google Fonts section header
                     Widget? sectionHeader;
                     if (index == AvailableFonts.builtInNerdFonts.length) {
                       sectionHeader = Padding(
@@ -285,7 +583,6 @@ class _FontFamilySetting extends StatelessWidget {
                       );
                     }
 
-                    // Get font style for preview
                     TextStyle fontStyle;
                     if (isBuiltInNerdFont) {
                       final builtInFamily =
@@ -309,10 +606,8 @@ class _FontFamilySetting extends StatelessWidget {
                               style: fontStyle.copyWith(fontSize: 12))
                           : null,
                       trailing: isSelected
-                          ? Icon(
-                              Icons.check,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
+                          ? Icon(Icons.check,
+                              color: Theme.of(context).colorScheme.primary)
                           : null,
                       onTap: () {
                         settings.setFontFamily(font);
@@ -338,7 +633,6 @@ class _FontFamilySetting extends StatelessWidget {
   }
 }
 
-/// 字体大小
 class _FontSizeSetting extends StatelessWidget {
   const _FontSizeSetting();
 
@@ -366,7 +660,6 @@ class _FontSizeSetting extends StatelessWidget {
   }
 }
 
-/// 颜色主题
 class _ColorThemeSetting extends StatelessWidget {
   const _ColorThemeSetting();
 
@@ -414,8 +707,7 @@ class _ColorThemeSetting extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.background,
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
+                            color: Theme.of(context).colorScheme.outline),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Center(
@@ -430,10 +722,8 @@ class _ColorThemeSetting extends StatelessWidget {
                     ),
                     title: Text(ThemeDisplayNames.getName(themeName)),
                     trailing: isSelected
-                        ? Icon(
-                            Icons.check,
-                            color: Theme.of(context).colorScheme.primary,
-                          )
+                        ? Icon(Icons.check,
+                            color: Theme.of(context).colorScheme.primary)
                         : null,
                     onTap: () {
                       settings.setColorTheme(themeName);
@@ -450,7 +740,6 @@ class _ColorThemeSetting extends StatelessWidget {
   }
 }
 
-/// 光标样式
 class _CursorStyleSetting extends StatelessWidget {
   const _CursorStyleSetting();
 
@@ -501,10 +790,8 @@ class _CursorStyleSetting extends StatelessWidget {
                 leading: _buildCursorPreview(style, context),
                 title: Text(_getCursorStyleName(style)),
                 trailing: isSelected
-                    ? Icon(
-                        Icons.check,
-                        color: Theme.of(context).colorScheme.primary,
-                      )
+                    ? Icon(Icons.check,
+                        color: Theme.of(context).colorScheme.primary)
                     : null,
                 onTap: () {
                   settings.setCursorStyle(style);
@@ -520,35 +807,22 @@ class _CursorStyleSetting extends StatelessWidget {
 
   Widget _buildCursorPreview(String style, BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
-
     switch (style) {
       case CursorStyles.block:
-        return Container(
-          width: 16,
-          height: 24,
-          color: color,
-        );
+        return Container(width: 16, height: 24, color: color);
       case CursorStyles.underline:
         return Container(
           width: 16,
           height: 24,
           alignment: Alignment.bottomCenter,
-          child: Container(
-            width: 16,
-            height: 3,
-            color: color,
-          ),
+          child: Container(width: 16, height: 3, color: color),
         );
       case CursorStyles.bar:
         return Container(
           width: 16,
           height: 24,
           alignment: Alignment.centerLeft,
-          child: Container(
-            width: 2,
-            height: 24,
-            color: color,
-          ),
+          child: Container(width: 2, height: 24, color: color),
         );
       default:
         return const SizedBox(width: 16, height: 24);
@@ -556,7 +830,6 @@ class _CursorStyleSetting extends StatelessWidget {
   }
 }
 
-/// 光标闪烁
 class _CursorBlinkSetting extends StatelessWidget {
   const _CursorBlinkSetting();
 
@@ -575,7 +848,6 @@ class _CursorBlinkSetting extends StatelessWidget {
   }
 }
 
-/// 屏幕常亮
 class _KeepScreenOnSetting extends StatelessWidget {
   const _KeepScreenOnSetting();
 
@@ -594,7 +866,6 @@ class _KeepScreenOnSetting extends StatelessWidget {
   }
 }
 
-/// 显示额外按键
 class _ShowExtraKeysSetting extends StatelessWidget {
   const _ShowExtraKeysSetting();
 
@@ -613,7 +884,6 @@ class _ShowExtraKeysSetting extends StatelessWidget {
   }
 }
 
-/// 终端边距
 class _TerminalMarginSetting extends StatelessWidget {
   const _TerminalMarginSetting();
 
@@ -641,7 +911,6 @@ class _TerminalMarginSetting extends StatelessWidget {
   }
 }
 
-/// 振动反馈
 class _VibrationSetting extends StatelessWidget {
   const _VibrationSetting();
 
@@ -660,7 +929,6 @@ class _VibrationSetting extends StatelessWidget {
   }
 }
 
-/// 响铃
 class _BellSetting extends StatelessWidget {
   const _BellSetting();
 
@@ -679,7 +947,6 @@ class _BellSetting extends StatelessWidget {
   }
 }
 
-/// 双指缩放
 class _PinchZoomSetting extends StatelessWidget {
   const _PinchZoomSetting();
 
@@ -698,7 +965,6 @@ class _PinchZoomSetting extends StatelessWidget {
   }
 }
 
-/// 音量+按键设置
 class _VolumeUpKeySetting extends StatelessWidget {
   const _VolumeUpKeySetting();
 
@@ -717,7 +983,6 @@ class _VolumeUpKeySetting extends StatelessWidget {
   }
 }
 
-/// 音量-按键设置
 class _VolumeDownKeySetting extends StatelessWidget {
   const _VolumeDownKeySetting();
 
@@ -737,7 +1002,6 @@ class _VolumeDownKeySetting extends StatelessWidget {
   }
 }
 
-/// 音量键动作选择器
 class _VolumeKeyActionPicker {
   static void show(BuildContext context, SettingsProvider settings,
       {required bool isVolumeUp}) {
@@ -767,7 +1031,6 @@ class _VolumeKeyActionPicker {
                 child: ListView(
                   controller: scrollController,
                   children: [
-                    // 预设动作
                     ...VolumeKeyActions.presets.entries.map((entry) {
                       final actionId = entry.key;
                       final displayName = entry.value.$1;
@@ -782,10 +1045,8 @@ class _VolumeKeyActionPicker {
                         ),
                         title: Text(displayName),
                         trailing: isSelected
-                            ? Icon(
-                                Icons.check,
-                                color: Theme.of(context).colorScheme.primary,
-                              )
+                            ? Icon(Icons.check,
+                                color: Theme.of(context).colorScheme.primary)
                             : null,
                         onTap: () {
                           Navigator.pop(context);
@@ -798,7 +1059,6 @@ class _VolumeKeyActionPicker {
                       );
                     }),
                     const Divider(),
-                    // 自定义选项
                     ListTile(
                       leading: Icon(
                         Icons.edit,
@@ -813,10 +1073,8 @@ class _VolumeKeyActionPicker {
                                   '')
                           : null,
                       trailing: VolumeKeyActions.isCustom(currentAction)
-                          ? Icon(
-                              Icons.check,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
+                          ? Icon(Icons.check,
+                              color: Theme.of(context).colorScheme.primary)
                           : null,
                       onTap: () {
                         Navigator.pop(context);
@@ -932,7 +1190,6 @@ class _VolumeKeyActionPicker {
   }
 }
 
-/// 重置设置
 class _ResetSettingsTile extends StatelessWidget {
   const _ResetSettingsTile();
 
@@ -977,7 +1234,6 @@ class _ResetSettingsTile extends StatelessWidget {
   }
 }
 
-/// 镜像源选择
 class _MirrorSetting extends StatelessWidget {
   const _MirrorSetting();
 
@@ -1060,11 +1316,9 @@ class _MirrorSetting extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             trailing: isSelected
-                                ? Icon(
-                                    Icons.check,
+                                ? Icon(Icons.check,
                                     color:
-                                        Theme.of(context).colorScheme.primary,
-                                  )
+                                        Theme.of(context).colorScheme.primary)
                                 : null,
                             onTap: () async {
                               Navigator.pop(context);
@@ -1106,7 +1360,6 @@ class _MirrorSetting extends StatelessWidget {
     SettingsProvider settings,
     TermuxMirror mirror,
   ) async {
-    // 显示加载对话框
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1115,9 +1368,7 @@ class _MirrorSetting extends StatelessWidget {
           children: [
             const CircularProgressIndicator(),
             const SizedBox(width: 16),
-            Expanded(
-              child: Text('Switching to ${mirror.name}...'),
-            ),
+            Expanded(child: Text('Switching to ${mirror.name}...')),
           ],
         ),
       ),
@@ -1125,12 +1376,10 @@ class _MirrorSetting extends StatelessWidget {
 
     final success = await settings.setMirror(mirror.id);
 
-    // 关闭加载对话框
     if (context.mounted) {
       Navigator.pop(context);
     }
 
-    // 显示结果
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1146,7 +1395,6 @@ class _MirrorSetting extends StatelessWidget {
   }
 }
 
-/// 默认 Shell 选择
 class _ShellSetting extends StatefulWidget {
   const _ShellSetting();
 
@@ -1231,37 +1479,29 @@ class _ShellSettingState extends State<_ShellSetting> {
                   ),
                   title: Text(
                     displayName,
-                    style: TextStyle(
-                      color: isInstalled ? null : Colors.grey,
-                    ),
+                    style: TextStyle(color: isInstalled ? null : Colors.grey),
                   ),
                   subtitle: isInstalled
                       ? null
                       : Text(
                           l10n.shellNotInstalled,
                           style: const TextStyle(
-                            color: Colors.orange,
-                            fontSize: 12,
-                          ),
+                              color: Colors.orange, fontSize: 12),
                         ),
                   trailing: isSelected
-                      ? Icon(
-                          Icons.check,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
+                      ? Icon(Icons.check,
+                          color: Theme.of(context).colorScheme.primary)
                       : null,
                   onTap: isInstalled
                       ? () async {
                           Navigator.pop(context);
                           await settings.setDefaultShell(shellName);
-                          // 同步写入 ~/.shell 文件
                           await _writeShellConfig(shellName);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Default shell changed to $displayName',
-                                ),
+                                    'Default shell changed to $displayName'),
                               ),
                             );
                           }
@@ -1289,7 +1529,6 @@ class _ShellSettingState extends State<_ShellSetting> {
     }
   }
 
-  /// 将 shell 配置写入 ~/.shell 文件，以便 chsh 和终端会话都能识别
   Future<void> _writeShellConfig(String shellName) async {
     try {
       final homeDir = TermuxConstants.homeDir;
@@ -1302,7 +1541,6 @@ class _ShellSettingState extends State<_ShellSetting> {
   }
 }
 
-/// 显示调试信息开关
 class _ShowDebugInfoSetting extends StatelessWidget {
   const _ShowDebugInfoSetting();
 
@@ -1321,7 +1559,6 @@ class _ShowDebugInfoSetting extends StatelessWidget {
   }
 }
 
-/// 字符宽度调试工具
 class _WcwidthDebugTile extends StatelessWidget {
   const _WcwidthDebugTile();
 
@@ -1505,25 +1742,21 @@ class _WcwidthDebugTile extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   _QuickTestButton(
-                    label: 'Powerline',
-                    text: '\uE0B0\uE0B1\uE0B2\uE0B3',
-                    controller: controller,
-                  ),
+                      label: 'Powerline',
+                      text: '\uE0B0\uE0B1\uE0B2\uE0B3',
+                      controller: controller),
                   _QuickTestButton(
-                    label: 'Box Draw',
-                    text: '┌─┬─┐│└─┴─┘',
-                    controller: controller,
-                  ),
+                      label: 'Box Draw',
+                      text: '┌─┬─┐│└─┴─┘',
+                      controller: controller),
                   _QuickTestButton(
-                    label: 'Block',
-                    text: '▀▄█▌▐░▒▓',
-                    controller: controller,
-                  ),
+                      label: 'Block',
+                      text: '▀▄█▌▐░▒▓',
+                      controller: controller),
                   _QuickTestButton(
-                    label: 'Git Icon',
-                    text: '\uE0A0\uF113\uF126',
-                    controller: controller,
-                  ),
+                      label: 'Git Icon',
+                      text: '\uE0A0\uF113\uF126',
+                      controller: controller),
                 ],
               ),
             ],
@@ -1587,7 +1820,6 @@ class _WcwidthDebugTile extends StatelessWidget {
     buffer.writeln('');
     buffer.writeln('--- Potential Issues ---');
 
-    // 检测潜在问题
     bool hasIssue = false;
     for (final item in analysis) {
       final c = item['codepoint'] as int;
@@ -1595,13 +1827,11 @@ class _WcwidthDebugTile extends StatelessWidget {
       final hex = item['hex'];
       final char = item['char'];
 
-      // Powerline 字符应该是宽度 1
       if (c >= 0xE0A0 && c <= 0xE0D4 && w != 1) {
         buffer.writeln('! $hex ($char): Powerline should be width 1, got $w');
         hasIssue = true;
       }
 
-      // Box drawing 字符应该是宽度 1
       if (c >= 0x2500 && c <= 0x257F && w != 1) {
         buffer.writeln('! $hex ($char): Box drawing should be width 1, got $w');
         hasIssue = true;
@@ -1679,9 +1909,7 @@ class _QuickTestButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OutlinedButton(
-      onPressed: () {
-        controller.text = text;
-      },
+      onPressed: () => controller.text = text,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         minimumSize: Size.zero,
@@ -1691,7 +1919,10 @@ class _QuickTestButton extends StatelessWidget {
   }
 }
 
-/// 历史记录统计
+// ═══════════════════════════════════════════════════
+// History Widgets
+// ═══════════════════════════════════════════════════
+
 class _HistoryStatsTile extends StatefulWidget {
   const _HistoryStatsTile();
 
@@ -1781,7 +2012,6 @@ class _HistoryStatsTileState extends State<_HistoryStatsTile> {
   }
 }
 
-/// 查看历史记录
 class _HistoryViewerTile extends StatelessWidget {
   const _HistoryViewerTile();
 
@@ -1798,7 +2028,6 @@ class _HistoryViewerTile extends StatelessWidget {
   }
 }
 
-/// 清除历史记录
 class _ClearHistoryTile extends StatelessWidget {
   const _ClearHistoryTile();
 
@@ -1826,9 +2055,7 @@ class _ClearHistoryTile extends StatelessWidget {
             child: Text(l10n.cancel),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(context);
               final historyService = HistoryService();
@@ -1847,7 +2074,6 @@ class _ClearHistoryTile extends StatelessWidget {
   }
 }
 
-/// 导出历史记录
 class _ExportHistoryTile extends StatelessWidget {
   const _ExportHistoryTile();
 
@@ -1866,7 +2092,6 @@ class _ExportHistoryTile extends StatelessWidget {
     try {
       final historyService = HistoryService();
 
-      // 获取下载目录
       Directory? dir;
       if (Platform.isAndroid) {
         dir = await getExternalStorageDirectory();
@@ -1890,9 +2115,8 @@ class _ExportHistoryTile extends StatelessWidget {
             duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Copy Path',
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: file.path));
-              },
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: file.path)),
             ),
           ),
         );
@@ -1910,7 +2134,6 @@ class _ExportHistoryTile extends StatelessWidget {
   }
 }
 
-/// 导入历史记录
 class _ImportHistoryTile extends StatelessWidget {
   const _ImportHistoryTile();
 
@@ -2020,61 +2243,6 @@ class _ImportHistoryTile extends StatelessWidget {
   }
 }
 
-/// 登录/登出设置
-class _AuthSetting extends StatelessWidget {
-  const _AuthSetting();
-
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-
-    if (authProvider.isLoggedIn) {
-      return ListTile(
-        leading: const Icon(Icons.logout),
-        title: const Text('Logout'),
-        subtitle: Text(authProvider.email ?? ''),
-        onTap: () => _showLogoutDialog(context, authProvider),
-      );
-    } else {
-      return ListTile(
-        leading: const Icon(Icons.login),
-        title: const Text('Login'),
-        subtitle: const Text('登录以同步SSH主机和历史记录'),
-        onTap: () {
-          Navigator.pop(context);
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
-        },
-      );
-    }
-  }
-
-  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              authProvider.logout();
-              Navigator.pop(context);
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BackendServerTile extends StatelessWidget {
   const _BackendServerTile();
 
@@ -2083,7 +2251,7 @@ class _BackendServerTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final backendDomain = ApiService.backendServer;
     return ListTile(
-      leading: const Icon(Icons.dns_outlined),
+      leading: const Icon(Icons.info_outline),
       title: Text(l10n.about),
       subtitle: Text(
         '${l10n.version}: ${AppConstants.version}\n'

@@ -296,6 +296,12 @@ class AppLocalizations {
   String get storageDirectories => _translate('storageDirectories');
   String get retry => _translate('retry');
   String get openCurrentDirectory => _translate('openCurrentDirectory');
+  String get newFolder => _translate('newFolder');
+  String get enterFolderName => _translate('enterFolderName');
+  String get hideHiddenFiles => _translate('hideHiddenFiles');
+  String get showHiddenFiles => _translate('showHiddenFiles');
+  String get openInSystem => _translate('openInSystem');
+  String get goBackHistory => _translate('goBackHistory');
   String get keyBackspace => _translate('keyBackspace');
   String get categorySymbols => _translate('categorySymbols');
   String get categoryFKeys => _translate('categoryFKeys');
@@ -565,6 +571,12 @@ const Map<String, String> _enTranslations = {
   'storageDirectories': 'Storage Locations',
   'retry': 'Retry',
   'openCurrentDirectory': 'Open Current Directory',
+  'newFolder': 'New Folder',
+  'enterFolderName': 'Enter folder name',
+  'hideHiddenFiles': 'Hide Hidden Files',
+  'showHiddenFiles': 'Show Hidden Files',
+  'openInSystem': 'Open in System',
+  'goBackHistory': 'Go Back',
 };
 
 // ===== 简体中文翻译 =====
@@ -809,6 +821,12 @@ const Map<String, String> _zhCNTranslations = {
   'storageDirectories': '存储位置',
   'retry': '重试',
   'openCurrentDirectory': '打开当前目录',
+  'newFolder': '新建文件夹',
+  'enterFolderName': '输入文件夹名称',
+  'hideHiddenFiles': '关闭隐藏文件',
+  'showHiddenFiles': '显示隐藏文件',
+  'openInSystem': '在系统打开',
+  'goBackHistory': '返回上一次位置',
 };
 
 // ===== 繁體中文翻译 =====
@@ -1053,4 +1071,10 @@ const Map<String, String> _zhTWTranslations = {
   'storageDirectories': '儲存位置',
   'retry': '重試',
   'openCurrentDirectory': '開啟目前目錄',
+  'newFolder': '新建資料夾',
+  'enterFolderName': '輸入資料夾名稱',
+  'hideHiddenFiles': '隱藏檔案',
+  'showHiddenFiles': '顯示隱藏檔案',
+  'openInSystem': '在系統開啟',
+  'goBackHistory': '返回上一個位置',
 };

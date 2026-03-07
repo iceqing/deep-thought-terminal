@@ -37,7 +37,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - .env
     - assets/bootstrap-aarch64.zip
     - assets/bootstrap-x86_64.zip
     - assets/icon/

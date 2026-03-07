@@ -113,11 +113,11 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
               _buildMenuItem('home', Icons.home_outlined, l10n.home),
               _buildMenuItem(
                   'storage', Icons.storage_outlined, l10n.storageDirectories),
-              _buildMenuItem('history_back', Icons.history, '返回上一次位置',
+              _buildMenuItem('history_back', Icons.history, l10n.goBackHistory,
                   enabled: provider.canGoBack),
               _buildMenuItem('toggle_hidden', Icons.visibility_outlined,
-                  provider.showHiddenFiles ? '关闭隐藏文件' : '显示隐藏文件'),
-              _buildMenuItem('open_current_folder', Icons.open_in_new, '在系统打开'),
+                  provider.showHiddenFiles ? l10n.hideHiddenFiles : l10n.showHiddenFiles),
+              _buildMenuItem('open_current_folder', Icons.open_in_new, l10n.openInSystem),
             ],
           ),
         ],
@@ -138,7 +138,7 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateFolderDialog(context),
         icon: const Icon(Icons.add),
-        label: const Text('新建文件夹'),
+        label: Text(AppLocalizations.of(context).newFolder),
         elevation: 2,
       ),
     );
@@ -425,12 +425,12 @@ class _FileManagerScreenState extends State<FileManagerScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('新建文件夹'),
+        title: Text(AppLocalizations.of(context).newFolder),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '输入文件夹名称',
+          decoration: InputDecoration(
+            hintText: AppLocalizations.of(context).enterFolderName,
             border: OutlineInputBorder(),
           ),
           onSubmitted: (value) =>
