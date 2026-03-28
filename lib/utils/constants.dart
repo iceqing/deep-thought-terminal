@@ -204,7 +204,7 @@ class DefaultSettings {
   static const double minFontSize = 8.0;
   static const double maxFontSize = 32.0;
   static const String fontFamily = 'JetBrains Mono Nerd'; // 默认使用内置 Nerd Font
-  static const String colorTheme = 'default';
+  static const String colorTheme = 'github_light';
   static const String cursorStyle = 'block';
   static const bool cursorBlink = true;
   static const bool keepScreenOn = false;

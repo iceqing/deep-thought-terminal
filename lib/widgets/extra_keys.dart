@@ -38,34 +38,44 @@ class ExtraKeys {
   static const alt = ExtraKey(label: 'ALT', isModifier: true);
 
   // 导航键
-  static const home = ExtraKey(label: 'HOME', displayLabel: 'HOME', terminalKey: TerminalKey.home);
-  static const end = ExtraKey(label: 'END', displayLabel: 'END', terminalKey: TerminalKey.end);
-  static const pgup =
-      ExtraKey(label: 'PGUP', displayLabel: 'PGUP', terminalKey: TerminalKey.pageUp);
-  static const pgdn =
-      ExtraKey(label: 'PGDN', displayLabel: 'PGDN', terminalKey: TerminalKey.pageDown);
-  static const insert =
-      ExtraKey(label: 'INS', displayLabel: 'INS', terminalKey: TerminalKey.insert);
+  static const home = ExtraKey(
+      label: 'HOME', displayLabel: 'HOME', terminalKey: TerminalKey.home);
+  static const end =
+      ExtraKey(label: 'END', displayLabel: 'END', terminalKey: TerminalKey.end);
+  static const pgup = ExtraKey(
+      label: 'PGUP', displayLabel: 'PGUP', terminalKey: TerminalKey.pageUp);
+  static const pgdn = ExtraKey(
+      label: 'PGDN', displayLabel: 'PGDN', terminalKey: TerminalKey.pageDown);
+  static const insert = ExtraKey(
+      label: 'INS', displayLabel: 'INS', terminalKey: TerminalKey.insert);
 
   // 方向键
   static const up = ExtraKey(
-      label: 'UP', terminalKey: TerminalKey.arrowUp, icon: Icons.keyboard_arrow_up);
+      label: 'UP',
+      terminalKey: TerminalKey.arrowUp,
+      icon: Icons.keyboard_arrow_up);
   static const down = ExtraKey(
-      label: 'DOWN', terminalKey: TerminalKey.arrowDown, icon: Icons.keyboard_arrow_down);
+      label: 'DOWN',
+      terminalKey: TerminalKey.arrowDown,
+      icon: Icons.keyboard_arrow_down);
   static const left = ExtraKey(
-      label: 'LEFT', terminalKey: TerminalKey.arrowLeft, icon: Icons.keyboard_arrow_left);
+      label: 'LEFT',
+      terminalKey: TerminalKey.arrowLeft,
+      icon: Icons.keyboard_arrow_left);
   static const right = ExtraKey(
       label: 'RIGHT',
       terminalKey: TerminalKey.arrowRight,
       icon: Icons.keyboard_arrow_right);
 
   // 编辑键
-  static const enter =
-      ExtraKey(label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
-  static const backspace =
-      ExtraKey(label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
-  static const deleteKey =
-      ExtraKey(label: 'FORWARD_DEL', displayLabel: 'DEL', terminalKey: TerminalKey.delete);
+  static const enter = ExtraKey(
+      label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
+  static const backspace = ExtraKey(
+      label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
+  static const deleteKey = ExtraKey(
+      label: 'FORWARD_DEL',
+      displayLabel: 'DEL',
+      terminalKey: TerminalKey.delete);
 
   // 常用符号
   static const minus = ExtraKey(label: '-', text: '-');
@@ -143,14 +153,46 @@ class QuickCommand {
 
   /// Termux 兼容命令
   static const List<QuickCommand> termuxCommands = [
-    QuickCommand(label: 'setup-storage', command: 'setup-storage\n', icon: Icons.folder_open),
-    QuickCommand(label: 'pkg install', command: 'pkg install '),
-    QuickCommand(label: 'pkg search', command: 'pkg search '),
-    QuickCommand(label: 'pkg list', command: 'pkg list-installed\n'),
-    QuickCommand(label: 'pkg upgrade', command: 'pkg upgrade\n'),
-    QuickCommand(label: 'pkg update', command: 'pkg update\n'),
-    QuickCommand(label: 'apt install', command: 'apt install '),
-    QuickCommand(label: 'apt update', command: 'apt update\n'),
+    QuickCommand(
+      label: 'Storage',
+      command: 'setup-storage\n',
+      icon: Icons.folder_open,
+    ),
+    QuickCommand(
+      label: 'Pkg Install',
+      command: 'pkg install ',
+      icon: Icons.download_rounded,
+    ),
+    QuickCommand(
+      label: 'Pkg Search',
+      command: 'pkg search ',
+      icon: Icons.search_rounded,
+    ),
+    QuickCommand(
+      label: 'Pkg List',
+      command: 'pkg list-installed\n',
+      icon: Icons.inventory_2_rounded,
+    ),
+    QuickCommand(
+      label: 'Pkg Upgrade',
+      command: 'pkg upgrade\n',
+      icon: Icons.system_update_alt_rounded,
+    ),
+    QuickCommand(
+      label: 'Pkg Update',
+      command: 'pkg update\n',
+      icon: Icons.sync_rounded,
+    ),
+    QuickCommand(
+      label: 'Apt Install',
+      command: 'apt install ',
+      icon: Icons.archive_rounded,
+    ),
+    QuickCommand(
+      label: 'Apt Update',
+      command: 'apt update\n',
+      icon: Icons.cloud_download_rounded,
+    ),
   ];
 }
 
@@ -201,19 +243,32 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   String _getLocalizedKeyLabel(BuildContext context, ExtraKey key) {
     final l10n = AppLocalizations.of(context);
     switch (key.label) {
-      case 'ESC': return l10n.keyEsc;
-      case 'TAB': return l10n.keyTab;
-      case 'CTRL': return l10n.keyCtrl;
-      case 'ALT': return l10n.keyAlt;
-      case 'HOME': return l10n.keyHome;
-      case 'END': return l10n.keyEnd;
-      case 'PGUP': return l10n.keyPgUp;
-      case 'PGDN': return l10n.keyPgDn;
-      case 'INS': return l10n.keyIns;
-      case 'FORWARD_DEL': return l10n.keyDel;
-      case 'ENTER': return l10n.keyEnter;
-      case 'DEL': return l10n.keyBackspace;
-      default: return key.displayLabel ?? key.label;
+      case 'ESC':
+        return l10n.keyEsc;
+      case 'TAB':
+        return l10n.keyTab;
+      case 'CTRL':
+        return l10n.keyCtrl;
+      case 'ALT':
+        return l10n.keyAlt;
+      case 'HOME':
+        return l10n.keyHome;
+      case 'END':
+        return l10n.keyEnd;
+      case 'PGUP':
+        return l10n.keyPgUp;
+      case 'PGDN':
+        return l10n.keyPgDn;
+      case 'INS':
+        return l10n.keyIns;
+      case 'FORWARD_DEL':
+        return l10n.keyDel;
+      case 'ENTER':
+        return l10n.keyEnter;
+      case 'DEL':
+        return l10n.keyBackspace;
+      default:
+        return key.displayLabel ?? key.label;
     }
   }
 
@@ -310,6 +365,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isWideLayout = _isWideLayout(context);
 
     return Container(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -317,18 +373,24 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         mainAxisSize: MainAxisSize.min,
         children: [
           // 展开面板
-          if (_expanded) _buildExpandedPanel(theme),
+          if (_expanded || isWideLayout)
+            _buildExpandedPanel(theme, isWideLayout),
           // 主键盘行
-          _buildMainRow(theme),
+          _buildMainRow(theme, isWideLayout),
         ],
       ),
     );
   }
 
+  bool _isWideLayout(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return mediaQuery.size.shortestSide >= 600 || mediaQuery.size.width >= 900;
+  }
+
   /// 主键盘行 - 两行布局，方向键在右侧
-  Widget _buildMainRow(ThemeData theme) {
+  Widget _buildMainRow(ThemeData theme, bool isWideLayout) {
     return SizedBox(
-      height: 76, // 38 * 2
+      height: isWideLayout ? 84 : 76,
       child: Row(
         children: [
           // 左侧主键区 (占 4/7 宽度)
@@ -368,7 +430,9 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                                   HapticFeedback.lightImpact();
                                 }
                                 setState(() {
-                                  if (_expanded && _expandedTab == 2) {
+                                  if (isWideLayout) {
+                                    _expandedTab = 2;
+                                  } else if (_expanded && _expandedTab == 2) {
                                     _expanded = false; // 如果已经在任务面板，则关闭
                                   } else {
                                     _expanded = true;
@@ -390,7 +454,9 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                           ),
                         ),
                       ),
-                      _buildExpandButton(theme),
+                      isWideLayout
+                          ? _buildKey(ExtraKeys.enter, theme)
+                          : _buildExpandButton(theme),
                     ],
                   ),
                 ),
@@ -507,7 +573,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   /// 展开的面板
-  Widget _buildExpandedPanel(ThemeData theme) {
+  Widget _buildExpandedPanel(ThemeData theme, bool isWideLayout) {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
@@ -522,19 +588,43 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         children: [
           // Tab 切换栏
           SizedBox(
-            height: 32,
-            child: Row(
-              children: [
-                _buildTabButton(AppLocalizations.of(context).categorySymbols, 0, theme),
-                _buildTabButton(AppLocalizations.of(context).categoryFKeys, 1, theme),
-                _buildTabButton(AppLocalizations.of(context).categoryCommands, 2, theme),
-                _buildTabButton(AppLocalizations.of(context).categoryNav, 3, theme),
-                _buildTabButton(AppLocalizations.of(context).categoryTermux, 4, theme),
-              ],
+            height: 40,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  _buildTabButton(
+                    AppLocalizations.of(context).categorySymbols,
+                    0,
+                    theme,
+                  ),
+                  _buildTabButton(
+                    AppLocalizations.of(context).categoryFKeys,
+                    1,
+                    theme,
+                  ),
+                  _buildTabButton(
+                    AppLocalizations.of(context).categoryCommands,
+                    2,
+                    theme,
+                  ),
+                  _buildTabButton(
+                    AppLocalizations.of(context).categoryNav,
+                    3,
+                    theme,
+                  ),
+                  _buildTabButton(
+                    AppLocalizations.of(context).categoryTermux,
+                    4,
+                    theme,
+                  ),
+                ],
+              ),
             ),
           ),
           // 内容区域
-          _buildTabContent(theme),
+          _buildTabContent(theme, isWideLayout),
         ],
       ),
     );
@@ -542,7 +632,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
 
   Widget _buildTabButton(String label, int index, ThemeData theme) {
     final isSelected = _expandedTab == index;
-    return Expanded(
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
         onTap: () {
           if (widget.vibrationEnabled) {
@@ -550,27 +641,28 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
           }
           setState(() => _expandedTab = index);
         },
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : Colors.transparent,
-                width: 2,
-              ),
+            color: isSelected
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
             ),
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected
+                  ? theme.colorScheme.onPrimaryContainer
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -578,18 +670,18 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
     );
   }
 
-  Widget _buildTabContent(ThemeData theme) {
+  Widget _buildTabContent(ThemeData theme, bool isWideLayout) {
     switch (_expandedTab) {
       case 0:
         return _buildSymbolsPanel(theme);
       case 1:
         return _buildFunctionKeysPanel(theme);
       case 2:
-        return _buildCommandsPanel(theme);
+        return _buildCommandsPanel(theme, isWideLayout);
       case 3:
         return _buildNavigationPanel(theme);
       case 4:
-        return _buildTermuxPanel(theme);
+        return _buildTermuxPanel(theme, isWideLayout);
       default:
         return _buildSymbolsPanel(theme);
     }
@@ -653,7 +745,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
     return SizedBox(
       height: 36,
       child: Row(
-        children: keys.map((key) => _buildKey(key, theme, fontSize: 14)).toList(),
+        children:
+            keys.map((key) => _buildKey(key, theme, fontSize: 14)).toList(),
       ),
     );
   }
@@ -684,66 +777,81 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         return SizedBox(
           height: 36,
           child: Row(
-            children: row.map((key) => _buildKey(key, theme, fontSize: 11)).toList(),
+            children:
+                row.map((key) => _buildKey(key, theme, fontSize: 11)).toList(),
           ),
         );
       }).toList(),
     );
   }
 
-  /// 快捷命令面板 - 优化为横向滚动
-  Widget _buildCommandsPanel(ThemeData theme) {
+  /// 快捷命令面板 - 平板使用自适应网格
+  Widget _buildCommandsPanel(ThemeData theme, bool isWideLayout) {
     final allCommands = [
       ...?widget.customCommands,
       ...QuickCommand.commands,
     ];
 
-    return Container(
-      height: 72,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: allCommands.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final cmd = allCommands[index];
-          return Material(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            // elevation: 1, // 扁平化风格更好
-            child: InkWell(
-              onTap: () => _handleCommandTap(cmd),
+    if (!isWideLayout) {
+      return Container(
+        height: 72,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          itemCount: allCommands.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final cmd = allCommands[index];
+            return Material(
+              color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
-                constraints: const BoxConstraints(minWidth: 72),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (cmd.icon != null) ...[
-                      Icon(cmd.icon, size: 20, color: theme.colorScheme.primary),
-                      const SizedBox(height: 4),
-                    ],
-                    Text(
-                      cmd.label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.onSurface,
+              child: InkWell(
+                onTap: () => _handleCommandTap(cmd),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  constraints: const BoxConstraints(minWidth: 72),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (cmd.icon != null) ...[
+                        Icon(
+                          cmd.icon,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Text(
+                        cmd.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          },
+        ),
+      );
+    }
+
+    return _buildCommandGrid(
+      theme,
+      allCommands,
+      baseColumns: 4,
+      accent: theme.colorScheme.secondaryContainer.withValues(alpha: 0.55),
+      foreground: theme.colorScheme.onSecondaryContainer,
+      iconColor: theme.colorScheme.secondary,
     );
   }
 
@@ -763,54 +871,89 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   /// Termux 命令面板
-  Widget _buildTermuxPanel(ThemeData theme) {
-    return SizedBox(
-      height: 72,
-      child: GridView.count(
-        crossAxisCount: 4,
-        childAspectRatio: 2.5,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(2),
-        children: QuickCommand.termuxCommands.map((cmd) {
-          return Padding(
-            padding: const EdgeInsets.all(2),
-            child: Material(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(4),
-              child: InkWell(
-                onTap: () => _handleCommandTap(cmd),
-                borderRadius: BorderRadius.circular(4),
-                child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (cmd.icon != null) ...[
-                        Icon(
-                          cmd.icon,
-                          size: 12,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                        const SizedBox(width: 2),
-                      ],
-                      Flexible(
-                        child: Text(
-                          cmd.label,
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: theme.colorScheme.onPrimaryContainer,
+  Widget _buildTermuxPanel(ThemeData theme, bool isWideLayout) {
+    return _buildCommandGrid(
+      theme,
+      QuickCommand.termuxCommands,
+      baseColumns: isWideLayout ? 5 : 4,
+      accent: theme.colorScheme.primaryContainer.withValues(alpha: 0.62),
+      foreground: theme.colorScheme.onPrimaryContainer,
+      iconColor: theme.colorScheme.onPrimaryContainer,
+    );
+  }
+
+  Widget _buildCommandGrid(
+    ThemeData theme,
+    List<QuickCommand> commands, {
+    required int baseColumns,
+    required Color accent,
+    required Color foreground,
+    required Color iconColor,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width >= 1080
+            ? baseColumns + 2
+            : width >= 820
+                ? baseColumns + 1
+                : baseColumns;
+        final rows = (commands.length / crossAxisCount).ceil();
+        const spacing = 8.0;
+        final mainAxisExtent = width >= 820 ? 58.0 : 52.0;
+        final height = rows * mainAxisExtent + (rows - 1) * spacing + 16;
+
+        return SizedBox(
+          height: height,
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(8),
+            itemCount: commands.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing,
+              mainAxisExtent: mainAxisExtent,
+            ),
+            itemBuilder: (context, index) {
+              final cmd = commands[index];
+              return Material(
+                color: accent,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  onTap: () => _handleCommandTap(cmd),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (cmd.icon != null) ...[
+                          Icon(cmd.icon, size: 16, color: iconColor),
+                          const SizedBox(width: 6),
+                        ],
+                        Flexible(
+                          child: Text(
+                            cmd.label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: width >= 820 ? 11 : 10,
+                              fontWeight: FontWeight.w600,
+                              color: foreground,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -822,9 +965,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: Material(
-          color: isPressed
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surface,
+          color:
+              isPressed ? theme.colorScheme.primary : theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(4),
           child: InkWell(
             onTap: () => _handleKeyTap(key),
