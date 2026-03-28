@@ -27,6 +27,7 @@ import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
 import 'file_manager_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/text_explosion.dart';
 
 /// 终端主屏幕
 /// 参考 termux-app: TermuxActivity.java
@@ -483,6 +484,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ),
             ),
           ),
+        ),
+        // Big Bang text explosion
+        IconButton(
+          icon: const Icon(Icons.auto_awesome),
+          onPressed: () => _showTextExplosion(
+              context, terminalProvider, settings),
+          tooltip: 'Text Picker',
         ),
         // 其他所有操作收纳进菜单，保持界面极简
         PopupMenuButton<String>(
@@ -1184,6 +1192,50 @@ class _TerminalScreenState extends State<TerminalScreen> {
     }
   }
 
+  /// Extract visible terminal text and show Big Bang text explosion
+  Future<void> _showTextExplosion(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) async {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    final terminal = session.terminal;
+    final buffer = terminal.buffer;
+
+    // Extract visible lines from the terminal buffer
+    final lines = <String>[];
+    for (int i = 0; i < buffer.lines.length; i++) {
+      final line = buffer.lines[i];
+      lines.add(line.getText().trimRight());
+    }
+
+    // Remove trailing empty lines
+    while (lines.isNotEmpty && lines.last.isEmpty) {
+      lines.removeLast();
+    }
+
+    final text = lines.join('\n');
+    if (text.trim().isEmpty) return;
+
+    // Clear any existing selection
+    session.controller.clearSelection();
+    setState(() => _hasSelection = false);
+
+    final result = await TextExplosionOverlay.show(
+      context,
+      text: text,
+      fontFamily: _getTerminalFontFamily(settings),
+      backgroundColor: settings.terminalTheme.background,
+      foregroundColor: settings.terminalTheme.foreground,
+    );
+    // If user chose "Paste to terminal", write the text
+    if (result != null && result.isNotEmpty) {
+      session.write(result);
+    }
+  }
+
   void _pasteClipboard(TerminalProvider terminalProvider) async {
     final session = terminalProvider.currentSession;
     if (session == null) return;
@@ -1259,6 +1311,19 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ],
           ),
         ),
+        if (!Platform.isLinux) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            value: 'text_picker',
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome, size: 20),
+                const SizedBox(width: 8),
+                Text('Text Picker'),
+              ],
+            ),
+          ),
+        ],
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'clear',
@@ -1276,6 +1341,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
         _copySelection(terminalProvider);
       } else if (value == 'paste') {
         _pasteClipboard(terminalProvider);
+      } else if (value == 'text_picker') {
+        final settings = context.read<SettingsProvider>();
+        _showTextExplosion(context, terminalProvider, settings);
       } else if (value == 'clear') {
         _clearTerminal(terminalProvider);
       }
