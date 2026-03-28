@@ -432,6 +432,11 @@ class TermuxBootstrap {
     await _configureApt();
     BootstrapProfiler.end('  _configureApt');
 
+    // 注册 Android UID/GID 到 /etc/passwd 和 /etc/group
+    BootstrapProfiler.start('  _registerAndroidIds');
+    await _registerAndroidIds();
+    BootstrapProfiler.end('  _registerAndroidIds');
+
     // 创建工具脚本
     BootstrapProfiler.start('  createSetupStorageScript');
     await createSetupStorageScript();
@@ -685,6 +690,119 @@ export LESS_TERMCAP_ue=\$'\\e[0m'
       debugPrint('GPG keyring installation complete: $installedKeys keys installed');
     } catch (e) {
       debugPrint('Failed to install GPG keyring: $e');
+    }
+  }
+
+  /// 注册 Android 特有的 UID/GID 到 /etc/passwd 和 /etc/group
+  /// 解决 proot-distro install 时 "id: cannot find name for group ID xxx" 的错误
+  static Future<void> _registerAndroidIds() async {
+    try {
+      final etcDir = TermuxConstants.etcDir;
+
+      // 获取当前进程的 UID/GID 信息
+      final uid = await _getProcessId('id -u');
+      final gid = await _getProcessId('id -g');
+      final allGids = await _getSupplementaryGids();
+
+      debugPrint('Android IDs: uid=$uid, gid=$gid, groups=$allGids');
+
+      // --- /etc/passwd ---
+      final passwdFile = File('$etcDir/passwd');
+      final existingPasswd =
+          await passwdFile.exists() ? await passwdFile.readAsString() : '';
+
+      if (!existingPasswd.contains(':$uid:')) {
+        final passwdEntry = 'u0_a${uid % 100000}:x:$uid:$gid'
+            '::/data/data/com.dpterm/files/home:/data/data/com.dpterm/files/usr/bin/bash\n';
+        await passwdFile.writeAsString(
+          existingPasswd + passwdEntry,
+          flush: true,
+        );
+        debugPrint('Registered UID $uid in /etc/passwd');
+      }
+
+      // --- /etc/group ---
+      final groupFile = File('$etcDir/group');
+      final existingGroup =
+          await groupFile.exists() ? await groupFile.readAsString() : '';
+      final buffer = StringBuffer(existingGroup);
+
+      // Android well-known GID → name mapping (from android_filesystem_config.h)
+      const androidGroups = <int, String>{
+        1003: 'aid_graphics',
+        1004: 'aid_input',
+        1007: 'aid_log',
+        1011: 'aid_adb',
+        1015: 'aid_sdcard_rw',
+        1023: 'aid_media_rw',
+        1028: 'aid_sdcard_r',
+        1065: 'aid_reserved_disk',
+        1077: 'aid_external_storage',
+        1078: 'aid_ext_data_rw',
+        1079: 'aid_ext_obb_rw',
+        3001: 'aid_net_bt_admin',
+        3002: 'aid_net_bt',
+        3003: 'aid_inet',
+        3004: 'aid_net_raw',
+        3006: 'aid_net_bw_stats',
+        3009: 'aid_readproc',
+        3011: 'aid_net_admin',
+        9997: 'aid_everybody',
+        20000: 'aid_cache',
+        50000: 'aid_all_a0',
+      };
+
+      for (final gidValue in allGids) {
+        if (existingGroup.contains(':$gidValue:')) continue;
+
+        // Use well-known name or generate one
+        final name = androidGroups[gidValue] ?? 'aid_$gidValue';
+        buffer.writeln('$name:x:$gidValue:');
+      }
+
+      // Also ensure the primary GID is registered
+      if (!existingGroup.contains(':$gid:') &&
+          !buffer.toString().contains(':$gid:')) {
+        final name = androidGroups[gid] ?? 'aid_$gid';
+        buffer.writeln('$name:x:$gid:');
+      }
+
+      final newGroupContent = buffer.toString();
+      if (newGroupContent != existingGroup) {
+        await groupFile.writeAsString(newGroupContent, flush: true);
+        debugPrint(
+            'Registered ${allGids.length} Android GIDs in /etc/group');
+      }
+    } catch (e) {
+      debugPrint('Warning: failed to register Android IDs: $e');
+      // Non-fatal — don't block bootstrap
+    }
+  }
+
+  /// Run `id -u` or `id -g` and parse the result
+  static Future<int> _getProcessId(String command) async {
+    try {
+      final result = await Process.run('/system/bin/sh', ['-c', command]);
+      return int.parse(result.stdout.toString().trim());
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Get all supplementary group IDs via `id -G`
+  static Future<List<int>> _getSupplementaryGids() async {
+    try {
+      final result = await Process.run('/system/bin/sh', ['-c', 'id -G']);
+      return result.stdout
+          .toString()
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((s) => s.isNotEmpty)
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 
@@ -1489,7 +1607,7 @@ exec "$realPath" "\$@"
         if (await dpkgFile.exists()) {
           try {
             final content = await dpkgFile.readAsString();
-            if (content.contains('dpkg-patch-v1')) {
+            if (content.contains('dpkg-patch-v3')) {
               return; // 已经是最新版本
             }
           } catch (_) {}
@@ -1519,7 +1637,10 @@ exec "$realPath" "\$@"
       final wrapperScript = '''#!/system/bin/sh
 # dpkg wrapper - patches .deb files from official Termux repo
 # Replaces com.termux -> com.dpterm before installation
-# Version: dpkg-patch-v1
+# Version: dpkg-patch-v5
+#
+# v5: use dpkg-deb for --build (-Z flag); patch DEBIAN/ text files
+#     separately; skip binary .so/.a files to avoid ELF corruption
 
 export PATH="$binDir:/system/bin:/system/xbin"
 export LD_LIBRARY_PATH="$libDir"
@@ -1527,6 +1648,16 @@ export TMPDIR="$tmpDir"
 export APT_CONFIG="$etcDir/apt/apt.conf"
 
 DPKG_REAL="$dpkgRealPath"
+PATCH_LOG="\$TMPDIR/dpkg-patch.log"
+
+# Find dpkg-deb binary for repacking
+if [ -x "$binDir/dpkg-deb.real" ]; then
+    DPKG_DEB="$binDir/dpkg-deb.real"
+elif [ -x "$binDir/dpkg-deb" ]; then
+    DPKG_DEB="$binDir/dpkg-deb"
+else
+    DPKG_DEB=""
+fi
 
 patch_deb() {
     local debfile="\$1"
@@ -1535,9 +1666,13 @@ patch_deb() {
     local tmpdir="\$TMPDIR/dpkg-patch-\$\$"
     mkdir -p "\$tmpdir/extract"
 
-    "\$DPKG_REAL" --extract "\$debfile" "\$tmpdir/extract" 2>/dev/null
-    "\$DPKG_REAL" --control "\$debfile" "\$tmpdir/extract/DEBIAN" 2>/dev/null
-    [ \$? -ne 0 ] && { rm -rf "\$tmpdir"; return 1; }
+    "\$DPKG_REAL" --extract "\$debfile" "\$tmpdir/extract" 2>>"\$PATCH_LOG"
+    "\$DPKG_REAL" --control "\$debfile" "\$tmpdir/extract/DEBIAN" 2>>"\$PATCH_LOG"
+    if [ \$? -ne 0 ]; then
+        echo "WARN: failed to extract \$debfile" >>"\$PATCH_LOG"
+        rm -rf "\$tmpdir"
+        return 1
+    fi
 
     local modified=0
 
@@ -1547,19 +1682,43 @@ patch_deb() {
         modified=1
     fi
 
-    # 补丁文件中的 com.termux 路径
-    for f in \$(find "\$tmpdir/extract" -type f 2>/dev/null); do
-        if grep -q "com\\.termux" "\$f" 2>/dev/null; then
-            LC_ALL=C sed -i 's|com\\.termux|com.dpterm|g' "\$f" 2>/dev/null
-            modified=1
-        fi
-    done
+    # 1) 补丁 DEBIAN 控制文件（conffiles, control 等 — 纯文本，必须先处理）
+    if grep -rl "com\\.termux" "\$tmpdir/extract/DEBIAN" >/dev/null 2>&1; then
+        LC_ALL=C sed -i 's|com\\.termux|com.dpterm|g' "\$tmpdir/extract/DEBIAN"/* 2>/dev/null
+        modified=1
+    fi
+
+    # 2) 补丁数据区所有文件（包括二进制，sed 替换硬编码的 com.termux 路径）
+    local matched
+    matched=\$(grep -rl "com\\.termux" "\$tmpdir/extract" --exclude-dir=DEBIAN 2>/dev/null)
+    if [ -n "\$matched" ]; then
+        echo "\$matched" | xargs sed -i 's|com\\.termux|com.dpterm|g' 2>/dev/null
+        modified=1
+    fi
 
     # 重新打包
     if [ \$modified -eq 1 ]; then
         [ -d "\$tmpdir/extract/DEBIAN" ] && chmod 755 "\$tmpdir/extract/DEBIAN"/* 2>/dev/null
-        "\$DPKG_REAL" --build "\$tmpdir/extract" "\$tmpdir/patched.deb" 2>/dev/null
-        [ -f "\$tmpdir/patched.deb" ] && cp "\$tmpdir/patched.deb" "\$debfile"
+
+        local built=0
+        if [ -n "\$DPKG_DEB" ]; then
+            # dpkg-deb supports -Z for compression control
+            if "\$DPKG_DEB" --build -Znone "\$tmpdir/extract" "\$tmpdir/patched.deb" 2>>"\$PATCH_LOG"; then
+                built=1
+            elif "\$DPKG_DEB" --build "\$tmpdir/extract" "\$tmpdir/patched.deb" 2>>"\$PATCH_LOG"; then
+                built=1
+            fi
+        fi
+        # Fallback: use dpkg --build (no -Z flag)
+        if [ \$built -eq 0 ]; then
+            "\$DPKG_REAL" --build "\$tmpdir/extract" "\$tmpdir/patched.deb" 2>>"\$PATCH_LOG"
+        fi
+
+        if [ -f "\$tmpdir/patched.deb" ]; then
+            cp "\$tmpdir/patched.deb" "\$debfile"
+        else
+            echo "ERROR: repack failed for \$debfile" >>"\$PATCH_LOG"
+        fi
     fi
 
     rm -rf "\$tmpdir"
@@ -1573,6 +1732,7 @@ done
 
 # 补丁 .deb 文件
 if [ \$SHOULD_PATCH -eq 1 ]; then
+    echo "--- \$(date) ---" >>"\$PATCH_LOG"
     for arg in "\$@"; do
         case "\$arg" in
             *.deb) [ -f "\$arg" ] && patch_deb "\$arg" ;;
@@ -1581,7 +1741,18 @@ if [ \$SHOULD_PATCH -eq 1 ]; then
     done
 fi
 
-exec "\$DPKG_REAL" "\$@"
+"\$DPKG_REAL" "\$@"
+__dpkg_ret=\$?
+
+# Post-install: fix proot-distro locale issue (dpkg-reconfigure returns 1 inside proot)
+if [ \$SHOULD_PATCH -eq 1 ] && [ -d "$binDir/../etc/proot-distro" ]; then
+    for __f in "$binDir/../etc/proot-distro/"*.sh; do
+        [ -f "\$__f" ] && grep -q 'dpkg-reconfigure locales\$' "\$__f" && \\
+            sed -i 's|dpkg-reconfigure locales\$|dpkg-reconfigure locales \\|\\| true|' "\$__f" 2>/dev/null
+    done
+fi
+
+exit \$__dpkg_ret
 ''';
 
       await dpkgFile.writeAsString(wrapperScript);

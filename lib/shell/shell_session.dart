@@ -305,6 +305,17 @@ class ShellSessionFactory {
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
         'export LESS="-R"; '
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
+        // 确保所有 Android GID 都注册到 /etc/group，避免 proot-distro 等工具报
+        // "id: cannot find name for group ID xxx" 的错误
+        'for __gid in \$(id -G 2>/dev/null); do '
+        'grep -q ":\$__gid:" "$etcPath/group" 2>/dev/null || '
+        'echo "aid_\$__gid:x:\$__gid:" >> "$etcPath/group" 2>/dev/null; '
+        'done; unset __gid; '
+        // 确保当前 UID 在 /etc/passwd 中
+        '__uid=\$(id -u 2>/dev/null); __gid_p=\$(id -g 2>/dev/null); '
+        'grep -q ":\$__uid:" "$etcPath/passwd" 2>/dev/null || '
+        'echo "u0_a\$((__uid % 100000)):x:\$__uid:\$__gid_p::/data/data/com.dpterm/files/home:$shellPath" >> "$etcPath/passwd" 2>/dev/null; '
+        'unset __uid __gid_p; '
         // 自动修复常见脚本的 shebang（/usr/bin/env → $PREFIX/bin/env）
         'for __f in "\$HOME/.autojump/bin/"*; do '
         '[ -f "\$__f" ] && head -1 "\$__f" | grep -q "^#!/usr/bin" && '

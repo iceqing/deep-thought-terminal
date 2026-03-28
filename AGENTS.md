@@ -100,6 +100,42 @@ lib/
 - Android 端通过 `SystemChannels.textInput` 处理终端输入
 - `SettingsProvider` 必须先调用 `init()`，app 在 `initialized` 为 true 前显示 loading 界面
 
+## ADB On-Device Debugging
+
+When the user's Android device is connected via USB with developer mode enabled, use `adb` to directly execute commands on the device instead of asking the user to type them manually.
+
+### Basic Patterns
+
+```bash
+# Check device connection
+adb devices
+
+# Run command as the app user (access app's private data)
+adb shell "run-as com.dpterm <command>"
+
+# Run with Termux environment (for Termux binaries like id, grep, proot-distro)
+adb shell "run-as com.dpterm /data/data/com.dpterm/files/usr/bin/bash -c '
+  export LD_LIBRARY_PATH=/data/data/com.dpterm/files/usr/lib
+  export PATH=/data/data/com.dpterm/files/usr/bin:/system/bin
+  export HOME=/data/data/com.dpterm/files/home
+  export PREFIX=/data/data/com.dpterm/files/usr
+  export TMPDIR=/data/data/com.dpterm/files/usr/tmp
+  export TERM=xterm-256color
+  <your command here>
+'"
+```
+
+### Key Notes
+
+- **`run-as com.dpterm`** — required to access `/data/data/com.dpterm/` (app sandbox). Without it, Permission denied.
+- **`/system/bin/sh` vs Termux bash** — `/system/bin/sh` is Android's minimal shell, does NOT support `<(...)` process substitution. Use Termux's bash (`/data/data/com.dpterm/files/usr/bin/bash`) for advanced shell features.
+- **`/system/bin/sh` heredoc limitation** — `cat << EOF` may fail with "can't create temporary file" because `TMPDIR` is not set. Always use Termux bash or set `TMPDIR` first.
+- **Environment variables** — `run-as` starts with a minimal environment. Always export `LD_LIBRARY_PATH`, `PATH`, `PREFIX`, `TMPDIR` when running Termux binaries.
+- **Process GIDs** — `run-as` has different supplementary GIDs than the actual app process. Use `cat /proc/$(pidof com.dpterm)/status | grep Groups` to see the app's real GIDs.
+- **Timeouts** — long-running commands (e.g., `proot-distro install`) may need extended timeouts (up to 600000ms).
+- **Reading files** — `adb shell "run-as com.dpterm cat <path>"` to read files inside the app sandbox.
+- **Writing files** — use Termux bash with `cat >` or `sed -i` instead of `/system/bin/sh` heredoc.
+
 ## Error Handling
 
 When a tool or approach fails (e.g., file too large, API error), do NOT repeat the same failing approach. Immediately propose 2-3 alternative strategies and let the user choose.
