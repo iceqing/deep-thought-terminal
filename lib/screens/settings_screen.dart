@@ -38,7 +38,7 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 8),
 
           // Language (quick access)
-          _SettingsGroup(children: [const _LanguageSetting()]),
+          const _SettingsGroup(children: [_LanguageSetting()]),
           const SizedBox(height: 8),
 
           // Navigation tiles to sub-pages
@@ -85,7 +85,8 @@ class SettingsScreen extends StatelessWidget {
               Divider(
                   height: 1,
                   indent: 56,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
               const _MirrorSetting(),
             ],
           ),
@@ -107,7 +108,8 @@ class SettingsScreen extends StatelessWidget {
               Divider(
                   height: 1,
                   indent: 56,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
               const _BackendServerTile(),
             ],
           ),
@@ -228,7 +230,7 @@ class _AccountCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: authProvider.isLoggedIn
             ? _buildLoggedIn(context, authProvider, theme)
-            : _buildLoggedOut(context, theme),
+            : _buildLoggedOut(context, authProvider, theme),
       ),
     );
   }
@@ -251,7 +253,8 @@ class _AccountCard extends StatelessWidget {
     );
   }
 
-  Widget _buildLoggedOut(BuildContext context, ThemeData theme) {
+  Widget _buildLoggedOut(
+      BuildContext context, AuthProvider authProvider, ThemeData theme) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       leading: CircleAvatar(
@@ -263,7 +266,10 @@ class _AccountCard extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w600)),
       subtitle: const Text('Login to sync SSH hosts and history'),
       trailing: FilledButton.tonal(
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          authProvider.requireLogin();
+          Navigator.pop(context);
+        },
         child: const Text('Login'),
       ),
     );
@@ -1750,9 +1756,7 @@ class _WcwidthDebugTile extends StatelessWidget {
                       text: '┌─┬─┐│└─┴─┘',
                       controller: controller),
                   _QuickTestButton(
-                      label: 'Block',
-                      text: '▀▄█▌▐░▒▓',
-                      controller: controller),
+                      label: 'Block', text: '▀▄█▌▐░▒▓', controller: controller),
                   _QuickTestButton(
                       label: 'Git Icon',
                       text: '\uE0A0\uF113\uF126',

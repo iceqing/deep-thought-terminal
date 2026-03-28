@@ -31,7 +31,8 @@ class AuthProvider extends ChangeNotifier {
     _userId = _prefs.getString(_userIdKey);
     _email = _prefs.getString(_emailKey);
     _isLoggedIn = _token != null && _token!.isNotEmpty;
-    debugPrint('[AuthProvider] init: token=${_token != null}, isLoggedIn=$_isLoggedIn');
+    debugPrint(
+        '[AuthProvider] init: token=${_token != null}, isLoggedIn=$_isLoggedIn');
     if (_isLoggedIn && _token != null) {
       ApiService.setToken(_token!);
     }
@@ -42,11 +43,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> login(String email, String password) async {
     try {
-      final response = await http.post(
-        ApiService.buildUri('/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            ApiService.buildUri('/auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -79,15 +82,17 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> register(String email, String password, String code) async {
     try {
-      final response = await http.post(
-        ApiService.buildUri('/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-          'code': code,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            ApiService.buildUri('/auth/register'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              'code': code,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -116,11 +121,13 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> sendVerificationCode(String email) async {
     try {
-      final response = await http.post(
-        ApiService.buildUri('/auth/send-code'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            ApiService.buildUri('/auth/send-code'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
         final error = jsonDecode(response.body);
@@ -156,6 +163,13 @@ class AuthProvider extends ChangeNotifier {
   /// 跳过登录（游客模式）
   void skipLogin() {
     _guestModeEnabled = true;
+    notifyListeners();
+  }
+
+  /// 从游客模式切回登录流程
+  void requireLogin() {
+    if (_isLoggedIn) return;
+    _guestModeEnabled = false;
     notifyListeners();
   }
 }
