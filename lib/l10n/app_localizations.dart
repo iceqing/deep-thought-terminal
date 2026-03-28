@@ -101,6 +101,17 @@ class AppLocalizations {
   String get noSSHKeyFound => _translate('noSSHKeyFound');
   String get generate => _translate('generate');
   String get rename => _translate('rename');
+  String get linuxDistros => _translate('linuxDistros');
+  String get linuxDistrosDesc => _translate('linuxDistrosDesc');
+  String get prootDistroNotInstalled => _translate('prootDistroNotInstalled');
+  String get prootDistroNotInstalledDesc =>
+      _translate('prootDistroNotInstalledDesc');
+  String get noLinuxDistrosInstalled => _translate('noLinuxDistrosInstalled');
+  String get noLinuxDistrosInstalledDesc =>
+      _translate('noLinuxDistrosInstalledDesc');
+  String get installUbuntu => _translate('installUbuntu');
+  String get installUbuntuDesc => _translate('installUbuntuDesc');
+  String get loginToDistro => _translate('loginToDistro');
 
   // ===== 设置 =====
   String get settings => _translate('settings');
@@ -373,6 +384,16 @@ const Map<String, String> _enTranslations = {
   'noSSHKeyFound': 'No SSH public key found. Run: ssh-keygen',
   'generate': 'Generate',
   'rename': 'Rename',
+  'linuxDistros': 'Linux Distros',
+  'linuxDistrosDesc': 'Detect installed proot-distro environments',
+  'prootDistroNotInstalled': 'proot-distro is not installed',
+  'prootDistroNotInstalledDesc': 'Install Ubuntu and proot-distro in one step',
+  'noLinuxDistrosInstalled': 'No Linux distros installed',
+  'noLinuxDistrosInstalledDesc':
+      'Install Ubuntu to get started with proot-distro',
+  'installUbuntu': 'Install Ubuntu',
+  'installUbuntuDesc': 'Run: proot-distro install ubuntu',
+  'loginToDistro': 'Open in proot-distro',
 
   // 设置
   'settings': 'Settings',
@@ -624,6 +645,15 @@ const Map<String, String> _zhCNTranslations = {
   'noSSHKeyFound': '未找到 SSH 公钥，请运行: ssh-keygen',
   'generate': '生成',
   'rename': '重命名',
+  'linuxDistros': 'Linux 发行版',
+  'linuxDistrosDesc': '检测已安装的 proot-distro 环境',
+  'prootDistroNotInstalled': '未安装 proot-distro',
+  'prootDistroNotInstalledDesc': '一键安装 proot-distro 和 Ubuntu',
+  'noLinuxDistrosInstalled': '还没有安装 Linux 发行版',
+  'noLinuxDistrosInstalledDesc': '可以先安装 Ubuntu 开始使用 proot-distro',
+  'installUbuntu': '安装 Ubuntu',
+  'installUbuntuDesc': '执行：proot-distro install ubuntu',
+  'loginToDistro': '进入该系统',
 
   // 设置
   'settings': '设置',
@@ -874,6 +904,15 @@ const Map<String, String> _zhTWTranslations = {
   'noSSHKeyFound': '未找到 SSH 公鑰，請執行: ssh-keygen',
   'generate': '產生',
   'rename': '重新命名',
+  'linuxDistros': 'Linux 發行版',
+  'linuxDistrosDesc': '偵測已安裝的 proot-distro 環境',
+  'prootDistroNotInstalled': '尚未安裝 proot-distro',
+  'prootDistroNotInstalledDesc': '一鍵安裝 proot-distro 與 Ubuntu',
+  'noLinuxDistrosInstalled': '尚未安裝 Linux 發行版',
+  'noLinuxDistrosInstalledDesc': '可以先安裝 Ubuntu 開始使用 proot-distro',
+  'installUbuntu': '安裝 Ubuntu',
+  'installUbuntuDesc': '執行：proot-distro install ubuntu',
+  'loginToDistro': '進入該系統',
 
   // 設定
   'settings': '設定',

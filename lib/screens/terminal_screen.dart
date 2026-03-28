@@ -13,6 +13,7 @@ import '../providers/terminal_provider.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/api_service.dart';
+import '../services/proot_distro_service.dart';
 import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
@@ -36,6 +37,267 @@ class TerminalScreen extends StatefulWidget {
 
   @override
   State<TerminalScreen> createState() => _TerminalScreenState();
+}
+
+class _ProotDistroSection extends StatefulWidget {
+  final Future<ProotDistroStatus> distrosFuture;
+  final Future<ProotDistroStatus> Function() onRefresh;
+  final Future<void> Function(ProotDistroInfo distro) onOpenDistro;
+  final Future<void> Function(String command) onInstallUbuntu;
+
+  const _ProotDistroSection({
+    required this.distrosFuture,
+    required this.onRefresh,
+    required this.onOpenDistro,
+    required this.onInstallUbuntu,
+  });
+
+  @override
+  State<_ProotDistroSection> createState() => _ProotDistroSectionState();
+}
+
+class _ProotDistroSectionState extends State<_ProotDistroSection> {
+  late Future<ProotDistroStatus> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.distrosFuture;
+  }
+
+  void _refresh() {
+    setState(() {
+      _future = widget.onRefresh();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return FutureBuilder<ProotDistroStatus>(
+      future: _future,
+      builder: (context, snapshot) {
+        final children = <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  l10n.linuxDistros,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.linuxDistrosDesc,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: l10n.refresh,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+        ];
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          children.add(
+            ListTile(
+              leading: const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              title: Text(l10n.loading),
+            ),
+          );
+          return Column(children: children);
+        }
+
+        if (snapshot.hasError) {
+          children.add(
+            ListTile(
+              leading: Icon(
+                Icons.warning_amber_rounded,
+                color: theme.colorScheme.error,
+              ),
+              title: Text(l10n.warning),
+              subtitle: Text(snapshot.error.toString()),
+            ),
+          );
+          return Column(children: children);
+        }
+
+        final status = snapshot.data ??
+            const ProotDistroStatus(
+              commandAvailable: false,
+              installedDistros: [],
+            );
+
+        if (status.error != null &&
+            !status.commandAvailable &&
+            !status.hasInstalledDistros) {
+          children.add(
+            ListTile(
+              leading: Icon(
+                Icons.warning_amber_rounded,
+                color: theme.colorScheme.error,
+              ),
+              title: Text(l10n.warning),
+              subtitle: Text(status.error!),
+            ),
+          );
+        }
+
+        if (!status.commandAvailable) {
+          children.add(
+            _DistroActionCard(
+              icon: Icons.download_rounded,
+              title: l10n.prootDistroNotInstalled,
+              subtitle: l10n.prootDistroNotInstalledDesc,
+              buttonLabel: l10n.installUbuntu,
+              onPressed: () => widget.onInstallUbuntu(
+                'pkg install proot-distro && proot-distro install ubuntu',
+              ),
+            ),
+          );
+          return Column(children: children);
+        }
+
+        if (!status.hasInstalledDistros) {
+          children.add(
+            _DistroActionCard(
+              icon: Icons.computer_rounded,
+              title: l10n.noLinuxDistrosInstalled,
+              subtitle: l10n.noLinuxDistrosInstalledDesc,
+              buttonLabel: l10n.installUbuntu,
+              onPressed: () =>
+                  widget.onInstallUbuntu('proot-distro install ubuntu'),
+            ),
+          );
+          return Column(children: children);
+        }
+
+        children.addAll(
+          status.installedDistros.map(
+            (distro) => ListTile(
+              leading: CircleAvatar(
+                backgroundColor: theme.colorScheme.tertiaryContainer,
+                foregroundColor: theme.colorScheme.onTertiaryContainer,
+                child: Icon(
+                  distro.alias.toLowerCase() == 'ubuntu'
+                      ? Icons.favorite_border
+                      : Icons.computer_rounded,
+                  size: 18,
+                ),
+              ),
+              title: Text(distro.displayName),
+              subtitle: Text(
+                '${l10n.loginToDistro}: proot-distro login ${distro.alias}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => widget.onOpenDistro(distro),
+            ),
+          ),
+        );
+
+        if (!status.hasUbuntu) {
+          children.add(
+            _DistroActionCard(
+              icon: Icons.add_circle_outline_rounded,
+              title: l10n.installUbuntu,
+              subtitle: l10n.installUbuntuDesc,
+              buttonLabel: l10n.installUbuntu,
+              onPressed: () =>
+                  widget.onInstallUbuntu('proot-distro install ubuntu'),
+            ),
+          );
+        }
+
+        return Column(children: children);
+      },
+    );
+  }
+}
+
+class _DistroActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String buttonLabel;
+  final VoidCallback onPressed;
+
+  const _DistroActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.buttonLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.55,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: onPressed,
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: Text(buttonLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TerminalScreenState extends State<TerminalScreen> {
@@ -111,12 +373,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
   void _updateDebugRefreshTimer(SettingsProvider settings) {
     if (settings.showDebugInfo) {
       // 启动刷新计时器
-      if (_debugRefreshTimer == null) {
-        _debugRefreshTimer =
-            Timer.periodic(const Duration(milliseconds: 200), (_) {
-          if (mounted && settings.showDebugInfo) setState(() {});
-        });
-      }
+      _debugRefreshTimer ??=
+          Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (mounted && settings.showDebugInfo) setState(() {});
+      });
     } else {
       // 停止刷新计时器
       _debugRefreshTimer?.cancel();
@@ -488,8 +748,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
         // Big Bang text explosion
         IconButton(
           icon: const Icon(Icons.auto_awesome),
-          onPressed: () => _showTextExplosion(
-              context, terminalProvider, settings),
+          onPressed: () =>
+              _showTextExplosion(context, terminalProvider, settings),
           tooltip: 'Text Picker',
         ),
         // 其他所有操作收纳进菜单，保持界面极简
@@ -549,6 +809,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   void _showNewSessionSheet(
       BuildContext context, TerminalProvider terminalProvider) {
+    final distrosFuture =
+        Platform.isAndroid ? ProotDistroService.instance.getStatus() : null;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Allow full height if needed
@@ -618,6 +881,24 @@ class _TerminalScreenState extends State<TerminalScreen> {
                           terminalProvider.createSession();
                         },
                       ),
+                      if (distrosFuture != null)
+                        _ProotDistroSection(
+                          distrosFuture: distrosFuture,
+                          onRefresh: () =>
+                              ProotDistroService.instance.getStatus(),
+                          onOpenDistro: (distro) async {
+                            Navigator.pop(context);
+                            await _openDistroSession(terminalProvider, distro);
+                          },
+                          onInstallUbuntu: (command) async {
+                            Navigator.pop(context);
+                            await _openCommandSession(
+                              terminalProvider,
+                              title: l10n.installUbuntu,
+                              command: command,
+                            );
+                          },
+                        ),
                       if (sshProvider.hosts.isNotEmpty) ...[
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -683,6 +964,28 @@ class _TerminalScreenState extends State<TerminalScreen> {
         );
       },
     );
+  }
+
+  Future<void> _openDistroSession(
+    TerminalProvider terminalProvider,
+    ProotDistroInfo distro,
+  ) async {
+    await _openCommandSession(
+      terminalProvider,
+      title: distro.displayName,
+      command: 'proot-distro login ${distro.alias}',
+    );
+  }
+
+  Future<void> _openCommandSession(
+    TerminalProvider terminalProvider, {
+    required String title,
+    required String command,
+  }) async {
+    final session = await terminalProvider.createSession(title: title);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      session.write('$command\r');
+    });
   }
 
   PreferredSizeWidget _buildAppBar(
@@ -1313,12 +1616,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
         if (!Platform.isLinux) ...[
           const PopupMenuDivider(),
-          PopupMenuItem(
+          const PopupMenuItem(
             value: 'text_picker',
             child: Row(
-              children: [
-                const Icon(Icons.auto_awesome, size: 20),
-                const SizedBox(width: 8),
+              children: <Widget>[
+                Icon(Icons.auto_awesome, size: 20),
+                SizedBox(width: 8),
                 Text('Text Picker'),
               ],
             ),
@@ -1337,6 +1640,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       ],
     ).then((value) {
+      if (!context.mounted) return;
       if (value == 'copy') {
         _copySelection(terminalProvider);
       } else if (value == 'paste') {
