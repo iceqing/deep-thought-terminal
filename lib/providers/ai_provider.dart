@@ -97,6 +97,93 @@ class AiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ==================== Multi-provider 管理 ====================
+
+  String get activeProviderKey => _config.activeProviderKey;
+  List<String> get configuredProviderKeys => _config.configuredProviderKeys;
+  Map<String, AiProviderConfig> get allProviderConfigs =>
+      _config.providerRegistry.providers;
+
+  AiPreset? get activePreset =>
+      AiConfig.allPresets[_config.activeProviderKey];
+
+  /// 切换活跃的 provider
+  Future<void> switchProvider(String providerKey) async {
+    final registry = _config.providerRegistry;
+    final provider = registry.providers[providerKey];
+    if (provider == null || !provider.isConfigured) return;
+    _config = _config.copyWith(
+      providerRegistry: registry.copyWith(activeProviderKey: providerKey),
+    );
+    await _saveConfig();
+    notifyListeners();
+  }
+
+  /// 更新某个 provider 的配置（不切换活跃）
+  Future<void> updateProviderConfig(AiProviderConfig providerConfig) async {
+    final registry = _config.providerRegistry;
+    final updated = Map<String, AiProviderConfig>.from(registry.providers);
+    updated[providerConfig.providerKey] = providerConfig;
+    _config = _config.copyWith(
+      providerRegistry: registry.copyWith(providers: updated),
+    );
+    await _saveConfig();
+    notifyListeners();
+  }
+
+  /// 保存并切换到某个 provider
+  Future<void> saveAndSwitchProvider(AiProviderConfig providerConfig) async {
+    final registry = _config.providerRegistry;
+    final updated = Map<String, AiProviderConfig>.from(registry.providers);
+    updated[providerConfig.providerKey] = providerConfig;
+    _config = _config.copyWith(
+      providerRegistry: AiProviderRegistry(
+        providers: updated,
+        activeProviderKey: providerConfig.providerKey,
+      ),
+    );
+    await _saveConfig();
+    notifyListeners();
+  }
+
+  /// 删除某个 provider 的配置
+  Future<void> removeProviderConfig(String providerKey) async {
+    final registry = _config.providerRegistry;
+    final updated = Map<String, AiProviderConfig>.from(registry.providers)
+      ..remove(providerKey);
+    var activeKey = registry.activeProviderKey;
+    if (activeKey == providerKey) {
+      activeKey = updated.keys.isNotEmpty ? updated.keys.first : 'openai';
+    }
+    _config = _config.copyWith(
+      providerRegistry: AiProviderRegistry(
+        providers: updated,
+        activeProviderKey: activeKey,
+      ),
+    );
+    await _saveConfig();
+    notifyListeners();
+  }
+
+  /// 快速切换当前 provider 的模��
+  Future<void> switchModel(String model) async {
+    final registry = _config.providerRegistry;
+    final activeKey = registry.activeProviderKey;
+    final current = registry.providers[activeKey];
+    if (current == null) return;
+    final updated = Map<String, AiProviderConfig>.from(registry.providers);
+    updated[activeKey] = current.copyWith(model: model);
+    _config = _config.copyWith(
+      providerRegistry: registry.copyWith(providers: updated),
+    );
+    await _saveConfig();
+    notifyListeners();
+  }
+
+  Future<void> _saveConfig() async {
+    await _prefs.setString('ai_config', jsonEncode(_config.toJson()));
+  }
+
   // ==================== 面板状态 ====================
 
   void togglePanel() {
