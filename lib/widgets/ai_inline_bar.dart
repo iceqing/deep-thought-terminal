@@ -64,7 +64,7 @@ class _AiInlineBarState extends State<AiInlineBar> {
   };
 
   void _cycleMode(AiProvider aiProvider) {
-    final modes = AiMode.values;
+    const modes = AiMode.values;
     final next = modes[(aiProvider.currentMode.index + 1) % modes.length];
     aiProvider.setMode(next);
   }
@@ -74,26 +74,40 @@ class _AiInlineBarState extends State<AiInlineBar> {
     final theme = Theme.of(context);
     final aiProvider = context.watch<AiProvider>();
     final mode = aiProvider.currentMode;
+    final width = MediaQuery.sizeOf(context).width;
+    final isMobile = width < 600;
+    final barHeight = isMobile ? 52.0 : 44.0;
+    final actionSize = isMobile ? 40.0 : 32.0;
 
     return Container(
-      height: 44,
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      height: barHeight,
+      margin: EdgeInsets.fromLTRB(10, isMobile ? 6 : 2, 10, isMobile ? 6 : 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(barHeight / 2),
         border: Border.all(
           color: theme.colorScheme.outline.withValues(alpha: 0.3),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: isMobile ? 12 : 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const SizedBox(width: 4),
           // Mode indicator (tap to cycle)
           InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () => _cycleMode(aiProvider),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 8,
+                vertical: isMobile ? 6 : 4,
+              ),
               decoration: BoxDecoration(
                 color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
@@ -103,14 +117,14 @@ class _AiInlineBarState extends State<AiInlineBar> {
                 children: [
                   Icon(
                     _modeIcons[mode],
-                    size: 14,
+                    size: isMobile ? 16 : 14,
                     color: theme.colorScheme.tertiary,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _modeLabels[mode]!,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: isMobile ? 12 : 11,
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.tertiary,
                     ),
@@ -126,33 +140,41 @@ class _AiInlineBarState extends State<AiInlineBar> {
               enabled: widget.enabled,
               decoration: InputDecoration(
                 hintText: _modeHints[mode],
-                hintStyle: const TextStyle(fontSize: 13),
+                hintStyle: TextStyle(fontSize: isMobile ? 14 : 13),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8 : 4,
+                  vertical: isMobile ? 14 : 10,
+                ),
                 isDense: true,
               ),
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: isMobile ? 14 : 13),
               textInputAction: TextInputAction.send,
               onSubmitted: (_) {
                 if (_hasText) widget.onSubmit();
               },
             ),
           ),
-          if (_hasText)
-            IconButton(
-              icon: const Icon(Icons.send, size: 18),
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.onSubmit,
-              tooltip: 'Send',
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.open_in_full, size: 18),
-              visualDensity: VisualDensity.compact,
-              onPressed: widget.onTapOpenPanel,
-              tooltip: 'Open AI panel',
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: SizedBox(
+              key: ValueKey(_hasText),
+              width: actionSize,
+              height: actionSize,
+              child: FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  shape: const CircleBorder(),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: _hasText ? widget.onSubmit : widget.onTapOpenPanel,
+                child: Icon(
+                  _hasText ? Icons.send_rounded : Icons.fullscreen_rounded,
+                  size: isMobile ? 20 : 18,
+                ),
+              ),
             ),
-          const SizedBox(width: 4),
+          ),
         ],
       ),
     );

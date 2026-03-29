@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ai_config.dart';
 import '../models/ai_chat_message.dart';
+import '../models/ai_chat_session.dart';
 import '../services/ai_service.dart';
 
 /// AI 状态管理
@@ -13,17 +14,29 @@ class AiProvider extends ChangeNotifier {
   bool _initialized = false;
 
   AiConfig _config = const AiConfig();
-  final List<AiChatMessage> _chatHistory = [];
+  final List<AiChatSession> _sessions = [];
+  String? _currentSessionId;
   bool _isPanelOpen = false;
   bool _isStreaming = false;
   String? _lastError;
   StreamSubscription? _streamSubscription;
-  int _maxHistoryLength = 100;
+  final int _maxHistoryLength = 100;
   AiMode _currentMode = AiMode.agent;
 
   // --- Getters ---
   bool get initialized => _initialized;
   AiConfig get config => _config;
+  List<AiChatSession> get chatSessions => List.unmodifiable(_sessions);
+  AiChatSession? get currentSession {
+    if (_currentSessionId == null) return null;
+    for (final session in _sessions) {
+      if (session.id == _currentSessionId) {
+        return session;
+      }
+    }
+    return _sessions.isEmpty ? null : _sessions.first;
+  }
+
   List<AiChatMessage> get chatHistory => List.unmodifiable(_chatHistory);
   bool get isPanelOpen => _isPanelOpen;
   bool get isStreaming => _isStreaming;
@@ -31,6 +44,18 @@ class AiProvider extends ChangeNotifier {
   bool get isConfigured => _config.isConfigured;
   String? get lastError => _lastError;
   AiMode get currentMode => _currentMode;
+  String? get currentSessionId => currentSession?.id;
+
+  List<AiChatMessage> get _chatHistory => _requireCurrentSession().messages;
+
+  AiChatSession _requireCurrentSession() {
+    final session = currentSession;
+    if (session != null) return session;
+    final fallback = AiChatSession.create(title: 'Chat 1');
+    _sessions.add(fallback);
+    _currentSessionId = fallback.id;
+    return fallback;
+  }
 
   void setMode(AiMode mode) {
     _currentMode = mode;
@@ -41,7 +66,8 @@ class AiProvider extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     _loadConfig();
-    _loadHistory();
+    _loadSessions();
+    _ensureSession();
     _initialized = true;
     notifyListeners();
   }
@@ -79,6 +105,7 @@ class AiProvider extends ChangeNotifier {
   }
 
   void openPanel() {
+    _ensureSession();
     _isPanelOpen = true;
     notifyListeners();
   }
@@ -86,6 +113,44 @@ class AiProvider extends ChangeNotifier {
   void closePanel() {
     _isPanelOpen = false;
     notifyListeners();
+  }
+
+  Future<void> createSession({String? title}) async {
+    cancelStreaming();
+    final nextIndex = _sessions.length + 1;
+    final session = AiChatSession.create(title: title ?? 'Chat $nextIndex');
+    _sessions.insert(0, session);
+    _currentSessionId = session.id;
+    _lastError = null;
+    notifyListeners();
+    await _saveSessions();
+  }
+
+  Future<void> switchSession(String id) async {
+    if (_currentSessionId == id) return;
+    if (_sessions.every((session) => session.id != id)) return;
+    cancelStreaming();
+    _currentSessionId = id;
+    _lastError = null;
+    notifyListeners();
+    await _saveSessions();
+  }
+
+  Future<void> deleteSession(String id) async {
+    final index = _sessions.indexWhere((session) => session.id == id);
+    if (index < 0) return;
+    final deletingCurrent = _sessions[index].id == _currentSessionId;
+    _sessions.removeAt(index);
+    if (_sessions.isEmpty) {
+      final fallback = AiChatSession.create(title: 'Chat 1');
+      _sessions.add(fallback);
+      _currentSessionId = fallback.id;
+    } else if (deletingCurrent) {
+      _currentSessionId = _sessions.first.id;
+    }
+    _lastError = null;
+    notifyListeners();
+    await _saveSessions();
   }
 
   // ==================== 聊天操作 ====================
@@ -97,7 +162,8 @@ class AiProvider extends ChangeNotifier {
     String? lastCommand,
     String? shellType,
     String? lastCommandOutput,
-    required String Function(String name, Map<String, dynamic> input) toolExecutor,
+    required String Function(String name, Map<String, dynamic> input)
+        toolExecutor,
   }) async {
     if (!isConfigured) {
       _lastError = 'AI is not configured. Please set API key in settings.';
@@ -119,6 +185,7 @@ class AiProvider extends ChangeNotifier {
     // 追加用户消息
     final userMsg = AiChatMessage.user(userMessage);
     _chatHistory.add(userMsg);
+    _touchCurrentSession(seed: userMessage);
 
     // 追加助手消息（初始为空，等待流式填充）
     final assistantMsg = AiChatMessage.assistant();
@@ -207,6 +274,7 @@ class AiProvider extends ChangeNotifier {
       naturalLanguage,
       type: AiMessageType.commandSuggestion,
     ));
+    _touchCurrentSession(seed: naturalLanguage);
     notifyListeners();
 
     try {
@@ -228,7 +296,7 @@ class AiProvider extends ChangeNotifier {
         suggestedCommand: cleaned,
       ));
       notifyListeners();
-      _saveHistory();
+      _saveSessions();
 
       return cleaned;
     } on AiException catch (e) {
@@ -261,6 +329,7 @@ class AiProvider extends ChangeNotifier {
       type: AiMessageType.errorDiagnosis,
     );
     _chatHistory.add(userMsg);
+    _touchCurrentSession(seed: command);
 
     final assistantMsg = AiChatMessage.assistant(
       type: AiMessageType.errorDiagnosis,
@@ -289,7 +358,7 @@ class AiProvider extends ChangeNotifier {
       }
       _isStreaming = false;
       notifyListeners();
-      _saveHistory();
+      _saveSessions();
     } on AiException catch (e) {
       final idx = _chatHistory.indexWhere((m) => m.id == assistantMsg.id);
       if (idx >= 0) {
@@ -313,6 +382,7 @@ class AiProvider extends ChangeNotifier {
       type: AiMessageType.explanation,
     );
     _chatHistory.add(userMsg);
+    _touchCurrentSession(seed: command);
 
     final assistantMsg = AiChatMessage.assistant(
       type: AiMessageType.explanation,
@@ -337,7 +407,7 @@ class AiProvider extends ChangeNotifier {
       }
       _isStreaming = false;
       notifyListeners();
-      _saveHistory();
+      _saveSessions();
     } on AiException catch (e) {
       final idx = _chatHistory.indexWhere((m) => m.id == assistantMsg.id);
       if (idx >= 0) {
@@ -368,8 +438,9 @@ class AiProvider extends ChangeNotifier {
       type: AiMessageType.commandSuggestion,
     );
     _chatHistory.add(msg);
+    _touchCurrentSession();
     notifyListeners();
-    _saveHistory();
+    _saveSessions();
   }
 
   // ==================== Agent Loop ====================
@@ -381,7 +452,8 @@ class AiProvider extends ChangeNotifier {
     String goal, {
     String? cwd,
     String? shellType,
-    required String Function(String name, Map<String, dynamic> input) toolExecutor,
+    required String Function(String name, Map<String, dynamic> input)
+        toolExecutor,
   }) async {
     if (!isConfigured) {
       _lastError = 'AI is not configured';
@@ -396,6 +468,10 @@ class AiProvider extends ChangeNotifier {
     // 添加用户消息到历史
     final userMsg = AiChatMessage.user(goal, type: AiMessageType.agent);
     _chatHistory.add(userMsg);
+    _touchCurrentSession(seed: goal);
+
+    // 同时加入 agent 消息列表，确保 API 调用包含用户指令
+    _agentMessages.add(AiChatMessage.user(goal));
 
     // 添加助手消息占位
     final assistantMsg = AiChatMessage.assistant(type: AiMessageType.agent);
@@ -408,6 +484,8 @@ class AiProvider extends ChangeNotifier {
     );
     final systemPrompt = '$basePrompt\n\n'
         'You are an autonomous terminal agent. Use tools to accomplish the user\'s goal.\n'
+        'For shell tasks, prefer the bash tool. The bash tool already runs inside the app\'s current shell environment and working directory.\n'
+        'Do not assume /bin/bash exists. Use the shell path provided in the context instead.\n'
         'Execute commands step by step. After each command, analyze the output and decide the next step.\n'
         'Be efficient — combine commands where possible.';
 
@@ -422,7 +500,7 @@ class AiProvider extends ChangeNotifier {
 
         // 更新助手消息：显示思考 + 文本
         _updateAssistantMessage(assistantMsg.id,
-          content: result.text, thinking: result.thinking);
+            content: result.text, thinking: result.thinking);
 
         if (!result.hasToolCalls) {
           // 没有工具调用，结束
@@ -441,7 +519,8 @@ class AiProvider extends ChangeNotifier {
           // 追加用户消息（工具结果）
           final output = result.stopReason == 'tool_use'
               ? AiService.executeTool(call.name, call.input, toolExecutor)
-              : AiService.executeTool(call.name, call.input, defaultToolExecutor);
+              : AiService.executeTool(
+                  call.name, call.input, defaultToolExecutor);
 
           // 在聊天中显示工具调用和结果
           _addToolResult(assistantMsg.id, call.name, call.input, output);
@@ -454,7 +533,6 @@ class AiProvider extends ChangeNotifier {
 
         // 追加工具结果到 agent 消息列表
         _agentMessages.add(AiChatMessage.userWithToolResults(toolResults));
-
       } on AiException catch (e) {
         _updateAssistantMessage(assistantMsg.id, error: e.message);
         _lastError = e.message;
@@ -497,15 +575,18 @@ class AiProvider extends ChangeNotifier {
     Map<String, dynamic> input,
     String output,
   ) {
-    final cmd = input['command'] as String? ?? input['path'] as String? ?? toolName;
+    final cmd =
+        input['command'] as String? ?? input['path'] as String? ?? toolName;
     final resultMsg = AiChatMessage(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       role: AiMessageRole.system,
-      content: '> $toolName: ${cmd.length > 60 ? '${cmd.substring(0, 60)}...' : cmd}\n$output',
+      content:
+          '> $toolName: ${cmd.length > 60 ? '${cmd.substring(0, 60)}...' : cmd}\n$output',
       timestamp: DateTime.now(),
       type: AiMessageType.agent,
     );
     _chatHistory.add(resultMsg);
+    _touchCurrentSession();
     notifyListeners();
   }
 
@@ -545,7 +626,8 @@ class AiProvider extends ChangeNotifier {
   Future<void> clearHistory() async {
     cancelStreaming();
     _chatHistory.clear();
-    await _prefs.remove('ai_chat_history');
+    _touchCurrentSession();
+    await _saveSessions();
     notifyListeners();
   }
 
@@ -580,7 +662,7 @@ class AiProvider extends ChangeNotifier {
       _chatHistory[idx] = _chatHistory[idx].copyWith(isStreaming: false);
     }
     notifyListeners();
-    _saveHistory();
+    _saveSessions();
   }
 
   /// 构建上下文消息（最近 N 条，排除空的流式消息）
@@ -620,30 +702,76 @@ class AiProvider extends ChangeNotifier {
     return cmd;
   }
 
-  void _loadHistory() {
-    final jsonStr = _prefs.getString('ai_chat_history');
+  void _loadSessions() {
+    final jsonStr = _prefs.getString('ai_chat_sessions_v2');
     if (jsonStr != null && jsonStr.isNotEmpty) {
       try {
         final list = jsonDecode(jsonStr) as List;
-        _chatHistory.clear();
+        _sessions.clear();
         for (final item in list) {
-          _chatHistory
-              .add(AiChatMessage.fromJson(item as Map<String, dynamic>));
+          _sessions.add(AiChatSession.fromJson(item as Map<String, dynamic>));
         }
+        _currentSessionId = _prefs.getString('ai_current_session_id') ??
+            (_sessions.isNotEmpty ? _sessions.first.id : null);
+        return;
       } catch (_) {
-        _chatHistory.clear();
+        _sessions.clear();
+      }
+    }
+
+    final legacyJson = _prefs.getString('ai_chat_history');
+    if (legacyJson == null || legacyJson.isEmpty) return;
+    try {
+      final list = jsonDecode(legacyJson) as List;
+      final session = AiChatSession.create(title: 'Chat 1');
+      for (final item in list) {
+        session.messages
+            .add(AiChatMessage.fromJson(item as Map<String, dynamic>));
+      }
+      _sessions
+        ..clear()
+        ..add(session);
+      _currentSessionId = session.id;
+    } catch (_) {
+      _sessions.clear();
+    }
+  }
+
+  void _ensureSession() {
+    if (_sessions.isNotEmpty) {
+      _currentSessionId ??= _sessions.first.id;
+      return;
+    }
+    final session = AiChatSession.create(title: 'Chat 1');
+    _sessions.add(session);
+    _currentSessionId = session.id;
+  }
+
+  void _touchCurrentSession({String? seed}) {
+    final session = _requireCurrentSession();
+    session.updatedAt = DateTime.now();
+    if ((session.title == 'New Chat' || session.title.startsWith('Chat ')) &&
+        seed != null &&
+        seed.trim().isNotEmpty) {
+      session.title = seed.trim().replaceAll('\n', ' ');
+      if (session.title.length > 24) {
+        session.title = '${session.title.substring(0, 24)}...';
       }
     }
   }
 
-  Future<void> _saveHistory() async {
+  Future<void> _saveSessions() async {
     // 只保留最近的消息
     if (_chatHistory.length > _maxHistoryLength) {
       _chatHistory.removeRange(0, _chatHistory.length - _maxHistoryLength);
     }
     try {
-      final jsonStr = jsonEncode(_chatHistory.map((m) => m.toJson()).toList());
-      await _prefs.setString('ai_chat_history', jsonStr);
+      final jsonStr =
+          jsonEncode(_sessions.map((session) => session.toJson()).toList());
+      await _prefs.setString('ai_chat_sessions_v2', jsonStr);
+      if (_currentSessionId != null) {
+        await _prefs.setString('ai_current_session_id', _currentSessionId!);
+      }
     } catch (_) {
       // 持久化失败不致命
     }

@@ -7,11 +7,13 @@ import '../models/ai_chat_message.dart';
 class AiChatBubble extends StatelessWidget {
   final AiChatMessage message;
   final VoidCallback? onRunCommand;
+  final VoidCallback? onReuseMessage;
 
   const AiChatBubble({
     super.key,
     required this.message,
     this.onRunCommand,
+    this.onReuseMessage,
   });
 
   @override
@@ -165,8 +167,8 @@ class AiChatBubble extends StatelessWidget {
               ),
             ),
 
-          // Action buttons for assistant messages
-          if (!isUser && message.content.isNotEmpty && !message.isStreaming)
+          // Action buttons
+          if (message.content.isNotEmpty && !message.isStreaming)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Row(
@@ -180,6 +182,13 @@ class AiChatBubble extends StatelessWidget {
                       Clipboard.setData(ClipboardData(text: message.content));
                     },
                   ),
+                  if (isUser && onReuseMessage != null)
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      tooltip: 'Reuse',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onReuseMessage,
+                    ),
                 ],
               ),
             ),

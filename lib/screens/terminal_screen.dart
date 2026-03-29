@@ -703,91 +703,132 @@ class _TerminalScreenState extends State<TerminalScreen> {
         onTaskExecute: (task) => _executeTask(terminalProvider, task),
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // 终端视图
-            Expanded(
-              child: Stack(
-                children: [
-                  _buildTerminalView(context, terminalProvider, settings),
-                  // 调试信息显示
-                  if (settings.showDebugInfo)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child:
-                          _buildDebugInfo(context, terminalProvider, settings),
-                    ),
-                  // AI 面板覆盖层
-                  if (aiProvider.isPanelOpen)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AiPanel(
-                        width: MediaQuery.of(context).size.width > 600
-                            ? 380
-                            : MediaQuery.of(context).size.width * 0.85,
-                        onClose: () => aiProvider.closePanel(),
-                        onRunCommand: (cmd) =>
-                            _runAiCommand(terminalProvider, cmd),
-                        currentCwd: _currentCwd,
-                        currentShell: settings.defaultShell,
-                        toolExecutor: (name, input) =>
-                            _createToolExecutor(terminalProvider, name, input),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // AI 命令建议卡片
-            if (_pendingAiCommand != null)
-              AiCommandSuggestion(
-                command: _pendingAiCommand!,
-                explanation: _pendingAiExplanation,
-                onRun: () => _showCommandConfirmDialog(
-                  terminalProvider,
-                  _pendingAiCommand!,
+            Column(
+              children: [
+                // 终端视图
+                Expanded(
+                  child: Stack(
+                    children: [
+                      _buildTerminalView(context, terminalProvider, settings),
+                      // 调试信息显示
+                      if (settings.showDebugInfo)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _buildDebugInfo(
+                              context, terminalProvider, settings),
+                        ),
+                    ],
+                  ),
                 ),
-                onDismiss: () {
-                  setState(() {
-                    _pendingAiCommand = null;
-                    _pendingAiExplanation = null;
-                  });
-                },
-              ),
-            // AI 快捷输入栏
-            if (aiProvider.isEnabled && aiProvider.config.showInlineBar)
-              AiInlineBar(
-                controller: _aiInlineBarController,
-                enabled: !aiProvider.isStreaming,
-                onSubmit: () => _handleAiInlineSubmit(terminalProvider),
-                onTapOpenPanel: () => aiProvider.openPanel(),
-              ),
-            // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
-            if (settings.showExtraKeys && !Platform.isLinux)
-              ExtraKeysView(
-                onTextKeyTap: (key) =>
-                    _sendTextKeyWithVolumeModifiers(terminalProvider, key),
-                onTerminalKeyTap: (key) =>
-                    _sendTerminalKey(terminalProvider, key),
-                vibrationEnabled: settings.vibrationEnabled,
-                ctrlPressed: _isCtrlActive(settings),
-                altPressed: _isAltActive(settings),
-                onCtrlToggle: () => _toggleCtrlModifier(settings),
-                onAltToggle: () => _toggleAltModifier(settings),
-                customCommands: taskProvider.tasks
-                    .map((t) => QuickCommand(
-                          label: t.name,
-                          command: t.script.endsWith('\n')
-                              ? t.script
-                              : '${t.script}\n',
-                          icon: Icons.play_arrow,
-                        ))
-                    .toList(),
+                // AI 命令建议卡片
+                if (_pendingAiCommand != null)
+                  AiCommandSuggestion(
+                    command: _pendingAiCommand!,
+                    explanation: _pendingAiExplanation,
+                    onRun: () => _showCommandConfirmDialog(
+                      terminalProvider,
+                      _pendingAiCommand!,
+                    ),
+                    onDismiss: () {
+                      setState(() {
+                        _pendingAiCommand = null;
+                        _pendingAiExplanation = null;
+                      });
+                    },
+                  ),
+                // AI 快捷输入栏
+                if (aiProvider.isEnabled &&
+                    aiProvider.config.showInlineBar &&
+                    !aiProvider.isPanelOpen)
+                  AiInlineBar(
+                    controller: _aiInlineBarController,
+                    enabled: !aiProvider.isStreaming,
+                    onSubmit: () => _handleAiInlineSubmit(terminalProvider),
+                    onTapOpenPanel: () => aiProvider.openPanel(),
+                  ),
+                // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
+                if (settings.showExtraKeys && !Platform.isLinux)
+                  ExtraKeysView(
+                    onTextKeyTap: (key) =>
+                        _sendTextKeyWithVolumeModifiers(terminalProvider, key),
+                    onTerminalKeyTap: (key) =>
+                        _sendTerminalKey(terminalProvider, key),
+                    vibrationEnabled: settings.vibrationEnabled,
+                    ctrlPressed: _isCtrlActive(settings),
+                    altPressed: _isAltActive(settings),
+                    onCtrlToggle: () => _toggleCtrlModifier(settings),
+                    onAltToggle: () => _toggleAltModifier(settings),
+                    customCommands: taskProvider.tasks
+                        .map((t) => QuickCommand(
+                              label: t.name,
+                              command: t.script.endsWith('\n')
+                                  ? t.script
+                                  : '${t.script}\n',
+                              icon: Icons.play_arrow,
+                            ))
+                        .toList(),
+                  ),
+              ],
+            ),
+            if (aiProvider.isPanelOpen)
+              _buildAiOverlay(
+                context,
+                aiProvider,
+                terminalProvider,
+                settings,
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAiOverlay(
+    BuildContext context,
+    AiProvider aiProvider,
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600;
+
+    final panel = AiPanel(
+      width: isMobile ? screenWidth : 380,
+      fullScreen: isMobile,
+      onClose: () => aiProvider.closePanel(),
+      onRunCommand: (cmd) => _runAiCommand(terminalProvider, cmd),
+      currentCwd: _currentCwd,
+      currentShell: settings.defaultShellPath,
+      toolExecutor: (name, input) =>
+          _createToolExecutor(terminalProvider, settings, name, input),
+    );
+
+    if (isMobile) {
+      return Positioned.fill(child: panel);
+    }
+
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: aiProvider.closePanel,
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.18),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: panel,
+          ),
+        ],
       ),
     );
   }
@@ -1717,29 +1758,81 @@ class _TerminalScreenState extends State<TerminalScreen> {
   /// 文件操作使用 defaultToolExecutor
   String _createToolExecutor(
     TerminalProvider terminalProvider,
+    SettingsProvider settings,
     String name,
     Map<String, dynamic> input,
   ) {
     if (name == 'bash') {
       final command = input['command'] as String? ?? '';
       try {
-        final result = Process.runSync(
-          '/bin/bash',
-          ['-c', command],
-          runInShell: true,
-          stdoutEncoding: const SystemEncoding(),
-          stderrEncoding: const SystemEncoding(),
-        );
+        final shellPath = settings.defaultShellPath;
+        final workDir = (_currentCwd?.trim().isNotEmpty ?? false)
+            ? _currentCwd!
+            : TermuxConstants.homeDir;
+        final result = Platform.isAndroid
+            ? _runAndroidAgentCommand(
+                shellPath: shellPath,
+                workingDirectory: workDir,
+                command: command,
+              )
+            : Process.runSync(
+                shellPath,
+                ['-lc', command],
+                workingDirectory: workDir,
+                stdoutEncoding: const SystemEncoding(),
+                stderrEncoding: const SystemEncoding(),
+              );
         final out = (result.stdout as String).trim() +
             ((result.stderr as String).trim().isNotEmpty
                 ? '\n${(result.stderr as String).trim()}'
                 : '');
-        return out.isEmpty ? '(no output)' : out;
+        if (out.isNotEmpty) return out;
+        return result.exitCode == 0
+            ? '(no output)'
+            : 'Command failed with exit code ${result.exitCode}';
       } catch (e) {
         return 'Error: $e';
       }
     }
     return defaultToolExecutor(name, input);
+  }
+
+  ProcessResult _runAndroidAgentCommand({
+    required String shellPath,
+    required String workingDirectory,
+    required String command,
+  }) {
+    final env = <String, String>{
+      'LD_LIBRARY_PATH': TermuxConstants.libDir,
+      'HOME': TermuxConstants.homeDir,
+      'PREFIX': TermuxConstants.prefixDir,
+      'PATH': '${TermuxConstants.binDir}:/system/bin:/system/xbin',
+      'TMPDIR': TermuxConstants.tmpDir,
+      'TERM': 'xterm-256color',
+      'TERMINFO': '${TermuxConstants.prefixDir}/share/terminfo',
+      'LANG': 'en_US.UTF-8',
+      'SHELL': shellPath,
+      'APT_CONFIG': '${TermuxConstants.etcDir}/apt/apt.conf',
+      'SSL_CERT_FILE': '${TermuxConstants.etcDir}/tls/cert.pem',
+      'CURL_CA_BUNDLE': '${TermuxConstants.etcDir}/tls/cert.pem',
+      'GIT_SSL_CAINFO': '${TermuxConstants.etcDir}/tls/cert.pem',
+      'DPTERM_VERSION': AppConstants.version,
+    };
+    final launcher = 'cd ${_shellQuote(workingDirectory)} 2>/dev/null || '
+        'cd ${_shellQuote(TermuxConstants.homeDir)}; '
+        'exec ${_shellQuote(shellPath)} -lc ${_shellQuote(command)}';
+    return Process.runSync(
+      '/system/bin/sh',
+      ['-c', launcher],
+      environment: env,
+      workingDirectory: TermuxConstants.homeDir,
+      stdoutEncoding: const SystemEncoding(),
+      stderrEncoding: const SystemEncoding(),
+    );
+  }
+
+  String _shellQuote(String value) {
+    return "'${value.replaceAll("'", "'\"'\"'")}'";
   }
 
   /// 显示命令确认对话框（参考 Claude Code 风格）
@@ -1909,10 +2002,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     // 获取上下文
     _currentCwd ??=
-        await terminalProvider.currentSession?.queryCurrentWorkingDirectory() ??
-            null;
+        await terminalProvider.currentSession?.queryCurrentWorkingDirectory();
     final cwd = _currentCwd;
-    final shellType = settings.defaultShell;
+    final shellType = settings.defaultShellPath;
 
     // 生成命令
     final command = await aiProvider.generateCommand(
@@ -2023,7 +2115,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       errorOutput: '', // 简化版本，后续可扩展获取实际输出
       exitCode: exitCode,
       cwd: _currentCwd,
-      shellType: context.read<SettingsProvider>().defaultShell,
+      shellType: context.read<SettingsProvider>().defaultShellPath,
     );
   }
 
@@ -2040,14 +2132,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     final settings = context.read<SettingsProvider>();
     _currentCwd ??=
-        await terminalProvider.currentSession?.queryCurrentWorkingDirectory() ??
-            null;
+        await terminalProvider.currentSession?.queryCurrentWorkingDirectory();
 
     // 生成命令并直接显示在建议卡片中
     final command = await aiProvider.generateCommand(
       query,
       cwd: _currentCwd,
-      shellType: settings.defaultShell,
+      shellType: settings.defaultShellPath,
     );
 
     if (command != null && command.isNotEmpty && mounted) {

@@ -9,6 +9,7 @@ import 'ai_chat_bubble.dart';
 /// 从右侧滑入，支持 Chat 模式
 class AiPanel extends StatefulWidget {
   final double width;
+  final bool fullScreen;
   final VoidCallback onClose;
   final void Function(String command)? onRunCommand;
   final String? currentCwd;
@@ -18,6 +19,7 @@ class AiPanel extends StatefulWidget {
   const AiPanel({
     super.key,
     required this.width,
+    this.fullScreen = false,
     required this.onClose,
     this.onRunCommand,
     this.currentCwd,
@@ -32,11 +34,22 @@ class AiPanel extends StatefulWidget {
 class _AiPanelState extends State<AiPanel> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _inputFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _inputFocusNode.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 
@@ -66,50 +79,66 @@ class _AiPanelState extends State<AiPanel> {
     });
   }
 
+  void _reuseMessage(String text) {
+    _inputController
+      ..text = text
+      ..selection = TextSelection.collapsed(offset: text.length);
+    _inputFocusNode.requestFocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final aiProvider = context.watch<AiProvider>();
 
     return Container(
-      width: widget.width,
+      width: widget.fullScreen ? double.infinity : widget.width,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(
-          left: BorderSide(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(-2, 0),
-          ),
-        ],
+        border: widget.fullScreen
+            ? null
+            : Border(
+                left: BorderSide(
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                ),
+              ),
+        boxShadow: widget.fullScreen
+            ? const []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 8,
+                  offset: const Offset(-2, 0),
+                ),
+              ],
       ),
-      child: Column(
-        children: [
-          // Header
-          _buildHeader(theme, aiProvider),
+      child: SafeArea(
+        top: !widget.fullScreen,
+        bottom: true,
+        child: Column(
+          children: [
+            // Header
+            _buildHeader(theme, aiProvider),
 
-          // Chat area
-          Expanded(
-            child: aiProvider.chatHistory.isEmpty
-                ? _buildEmptyState(theme)
-                : _buildChatList(aiProvider),
-          ),
+            // Chat area
+            Expanded(
+              child: aiProvider.chatHistory.isEmpty
+                  ? _buildEmptyState(theme)
+                  : _buildChatList(aiProvider),
+            ),
 
-          // Input area
-          _buildInputArea(theme, aiProvider),
-        ],
+            // Input area
+            _buildInputArea(theme, aiProvider),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeader(ThemeData theme, AiProvider aiProvider) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.fromLTRB(8, widget.fullScreen ? 8 : 4, 8, 4),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
@@ -120,13 +149,29 @@ class _AiPanelState extends State<AiPanel> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.fullScreen)
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
           // Top row: title + action buttons
           Row(
             children: [
               Icon(Icons.auto_awesome,
-                  size: 18, color: theme.colorScheme.tertiary),
+                  size: widget.fullScreen ? 20 : 18,
+                  color: theme.colorScheme.tertiary),
               const SizedBox(width: 8),
-              Text('AI', style: theme.textTheme.titleSmall),
+              Text(
+                'AI Assistant',
+                style: widget.fullScreen
+                    ? theme.textTheme.titleMedium
+                    : theme.textTheme.titleSmall,
+              ),
               const Spacer(),
               if (aiProvider.isStreaming)
                 IconButton(
@@ -151,6 +196,52 @@ class _AiPanelState extends State<AiPanel> {
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 34,
+            width: double.infinity,
+            child: Row(
+              children: [
+                Expanded(
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: aiProvider.chatSessions.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (context, index) {
+                      final session = aiProvider.chatSessions[index];
+                      final selected =
+                          session.id == aiProvider.currentSessionId;
+                      return InputChip(
+                        label: Text(
+                          session.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        selected: selected,
+                        onPressed: () => aiProvider.switchSession(session.id),
+                        onDeleted: aiProvider.chatSessions.length > 1
+                            ? () => aiProvider.deleteSession(session.id)
+                            : null,
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity:
+                            const VisualDensity(horizontal: -3, vertical: -3),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.add_comment_outlined, size: 18),
+                  tooltip: 'New chat',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: aiProvider.isStreaming
+                      ? null
+                      : () => aiProvider.createSession(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
           // Mode selector
           SizedBox(
             width: double.infinity,
@@ -219,39 +310,51 @@ class _AiPanelState extends State<AiPanel> {
         ),
     };
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: theme.colorScheme.outline),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final topPadding = constraints.maxHeight > 520 ? 56.0 : 24.0;
+        final contentMaxWidth = widget.fullScreen ? 560.0 : 420.0;
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(24, topPadding, 24, 24),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: contentMaxWidth),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 48, color: theme.colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    desc,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: chips
+                        .map((c) => _buildSuggestionChip(theme, c))
+                        .toList(),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              desc,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children:
-                  chips.map((c) => _buildSuggestionChip(theme, c)).toList(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -281,6 +384,9 @@ class _AiPanelState extends State<AiPanel> {
           onRunCommand: message.suggestedCommand != null
               ? () => widget.onRunCommand?.call(message.suggestedCommand!)
               : null,
+          onReuseMessage: message.role == AiMessageRole.user
+              ? () => _reuseMessage(message.content)
+              : null,
         );
       },
     );
@@ -291,7 +397,7 @@ class _AiPanelState extends State<AiPanel> {
     final isPlan = aiProvider.currentMode == AiMode.plan;
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.fromLTRB(8, 8, 8, widget.fullScreen ? 12 : 8),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
@@ -364,8 +470,9 @@ class _AiPanelState extends State<AiPanel> {
               Expanded(
                 child: TextField(
                   controller: _inputController,
+                  focusNode: _inputFocusNode,
                   enabled: !aiProvider.isStreaming,
-                  maxLines: 3,
+                  maxLines: widget.fullScreen ? 6 : 3,
                   minLines: 1,
                   decoration: InputDecoration(
                     hintText: switch (aiProvider.currentMode) {
@@ -374,11 +481,11 @@ class _AiPanelState extends State<AiPanel> {
                       AiMode.plan => 'What do you want to plan?',
                     },
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 8,
+                      vertical: 10,
                     ),
                     isDense: true,
                   ),
@@ -390,17 +497,17 @@ class _AiPanelState extends State<AiPanel> {
               IconButton(
                 icon: aiProvider.isStreaming
                     ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            onPressed: aiProvider.isStreaming ? null : _sendMessage,
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                onPressed: aiProvider.isStreaming ? null : _sendMessage,
+              ),
+            ],
           ),
         ],
       ),
-    ],
-    ),
     );
   }
 }
