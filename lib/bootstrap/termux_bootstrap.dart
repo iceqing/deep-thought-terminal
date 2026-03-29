@@ -4,13 +4,15 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/mirror.dart';
 import '../utils/constants.dart';
 
 /// 耗时统计工具
 class BootstrapProfiler {
   static final Map<String, int> _timings = {};
   static final Map<String, Stopwatch> _stopwatches = {};
-  static bool enabled = true;  // 设置为 false 可禁用统计
+  static bool enabled = true; // 设置为 false 可禁用统计
 
   static void start(String name) {
     if (!enabled) return;
@@ -36,9 +38,11 @@ class BootstrapProfiler {
 
     final buffer = StringBuffer();
     buffer.writeln('');
-    buffer.writeln('╔══════════════════════════════════════════════════════════════╗');
+    buffer.writeln(
+        '╔══════════════════════════════════════════════════════════════╗');
     buffer.writeln('║           Bootstrap 初始化耗时分析报告                        ║');
-    buffer.writeln('╠══════════════════════════════════════════════════════════════╣');
+    buffer.writeln(
+        '╠══════════════════════════════════════════════════════════════╣');
 
     // 按耗时排序
     final sorted = _timings.entries.toList()
@@ -52,10 +56,12 @@ class BootstrapProfiler {
       buffer.writeln('║ $name $time    ║');
     }
 
-    buffer.writeln('╠══════════════════════════════════════════════════════════════╣');
+    buffer.writeln(
+        '╠══════════════════════════════════════════════════════════════╣');
     final totalStr = '$total ms'.padLeft(10);
     buffer.writeln('║ ${'总计'.padRight(40)} $totalStr    ║');
-    buffer.writeln('╚══════════════════════════════════════════════════════════════╝');
+    buffer.writeln(
+        '╚══════════════════════════════════════════════════════════════╝');
 
     return buffer.toString();
   }
@@ -364,8 +370,8 @@ class TermuxBootstrap {
   /// 判断文件是否应该有执行权限
   static bool _shouldBeExecutable(String filename) {
     return filename.startsWith('bin/') ||
-           filename.startsWith('libexec/') ||
-           filename.startsWith('lib/apt/');
+        filename.startsWith('libexec/') ||
+        filename.startsWith('lib/apt/');
   }
 
   /// 创建符号链接
@@ -658,7 +664,8 @@ export LESS_TERMCAP_ue=\$'\\e[0m'
       }
 
       if (!await keyringSourceDir.exists()) {
-        debugPrint('GPG keyring source directory not found: ${keyringSourceDir.path}');
+        debugPrint(
+            'GPG keyring source directory not found: ${keyringSourceDir.path}');
         return;
       }
 
@@ -687,7 +694,8 @@ export LESS_TERMCAP_ue=\$'\\e[0m'
         }
       }
 
-      debugPrint('GPG keyring installation complete: $installedKeys keys installed');
+      debugPrint(
+          'GPG keyring installation complete: $installedKeys keys installed');
     } catch (e) {
       debugPrint('Failed to install GPG keyring: $e');
     }
@@ -770,8 +778,7 @@ export LESS_TERMCAP_ue=\$'\\e[0m'
       final newGroupContent = buffer.toString();
       if (newGroupContent != existingGroup) {
         await groupFile.writeAsString(newGroupContent, flush: true);
-        debugPrint(
-            'Registered ${allGids.length} Android GIDs in /etc/group');
+        debugPrint('Registered ${allGids.length} Android GIDs in /etc/group');
       }
     } catch (e) {
       debugPrint('Warning: failed to register Android IDs: $e');
@@ -825,8 +832,16 @@ export LESS_TERMCAP_ue=\$'\\e[0m'
       final varCacheApt = Directory('$varDir/cache/apt/archives/partial');
       final varLogApt = Directory('$varDir/log/apt');
 
-      for (final dir in [aptDir, aptConfDir, aptSourcesDir, aptPreferencesDir,
-                         aptTrustedDir, varLibApt, varCacheApt, varLogApt]) {
+      for (final dir in [
+        aptDir,
+        aptConfDir,
+        aptSourcesDir,
+        aptPreferencesDir,
+        aptTrustedDir,
+        varLibApt,
+        varCacheApt,
+        varLogApt
+      ]) {
         if (!await dir.exists()) {
           await dir.create(recursive: true);
         }
@@ -867,11 +882,9 @@ Acquire::https::Verify-Host "true";
       await aptConfFile.writeAsString(aptConfContent);
       debugPrint('APT apt.conf configured');
 
-      // 写入sources.list
+      // 写入 sources.list，优先使用用户已保存的镜像选择
       final sourcesListFile = File(TermuxConstants.aptSourcesList);
-      const sourcesListContent = '''# Termux main repository
-deb https://packages-cf.termux.dev/apt/termux-main stable main
-''';
+      final sourcesListContent = await _loadPreferredSourcesListContent();
       await sourcesListFile.writeAsString(sourcesListContent);
       debugPrint('APT sources.list configured');
 
@@ -902,6 +915,24 @@ deb https://packages-cf.termux.dev/apt/termux-main stable main
       debugPrint('APT/DPKG configured');
     } catch (e) {
       debugPrint('Failed to configure APT: $e');
+    }
+  }
+
+  static Future<String> _loadPreferredSourcesListContent() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUrl = prefs.getString('mirrorUrl');
+      if (savedUrl != null && savedUrl.isNotEmpty) {
+        return AvailableMirrors.sourcesListContentForUrl(savedUrl);
+      }
+      final mirrorId =
+          prefs.getString('mirrorId') ?? AvailableMirrors.defaultMirror.id;
+      final mirror =
+          AvailableMirrors.getById(mirrorId) ?? AvailableMirrors.defaultMirror;
+      return mirror.sourcesListContent;
+    } catch (e) {
+      debugPrint('Failed to load preferred mirror, using default: $e');
+      return AvailableMirrors.defaultMirror.sourcesListContent;
     }
   }
 
@@ -1303,7 +1334,8 @@ exit 0
     String prefix,
     Map<String, FileSystemEntityType> allEntities,
   ) async {
-    final matches = allEntities.keys.where((f) => f.startsWith(prefix)).toList();
+    final matches =
+        allEntities.keys.where((f) => f.startsWith(prefix)).toList();
     if (matches.isEmpty) return;
 
     matches.sort((a, b) => b.length.compareTo(a.length));
@@ -1390,8 +1422,11 @@ exit 0
 
       // 检查是否是 ELF 文件
       final bytes = await bashFile.openRead(0, 4).first;
-      if (bytes.length < 4 || bytes[0] != 0x7f || bytes[1] != 0x45 ||
-          bytes[2] != 0x4c || bytes[3] != 0x46) {
+      if (bytes.length < 4 ||
+          bytes[0] != 0x7f ||
+          bytes[1] != 0x45 ||
+          bytes[2] != 0x4c ||
+          bytes[3] != 0x46) {
         debugPrint('bash is not an ELF file, skipping');
         return;
       }
@@ -1538,16 +1573,18 @@ exec "$bashRealPath" --rcfile "$homeDir/.bashrc" "\$@"
         // 检查是否是 ELF 二进制
         final bytes = await binFile.openRead(0, 4).first;
         if (bytes.length < 4 ||
-            bytes[0] != 0x7f || bytes[1] != 0x45 ||
-            bytes[2] != 0x4c || bytes[3] != 0x46) {
+            bytes[0] != 0x7f ||
+            bytes[1] != 0x45 ||
+            bytes[2] != 0x4c ||
+            bytes[3] != 0x46) {
           // 不是 ELF，可能已经是脚本
           // 检查是否是需要修复的脚本
           try {
             final content = await binFile.readAsString();
             if (content.contains('/data/data/com.termux/')) {
               // 需要修复路径
-              final newContent = content
-                  .replaceAll('/data/data/com.termux/', '/data/data/com.dpterm/');
+              final newContent = content.replaceAll(
+                  '/data/data/com.termux/', '/data/data/com.dpterm/');
               await binFile.writeAsString(newContent);
               debugPrint('Fixed paths in script: $binaryName');
             }
@@ -1618,8 +1655,10 @@ exec "$realPath" "\$@"
         // 检查是否是 ELF 二进制
         final bytes = await dpkgFile.openRead(0, 4).first;
         if (bytes.length < 4 ||
-            bytes[0] != 0x7f || bytes[1] != 0x45 ||
-            bytes[2] != 0x4c || bytes[3] != 0x46) {
+            bytes[0] != 0x7f ||
+            bytes[1] != 0x45 ||
+            bytes[2] != 0x4c ||
+            bytes[3] != 0x46) {
           return;
         }
 
@@ -1811,7 +1850,8 @@ exit \$__dpkg_ret
       }
 
       // 检查文件或符号链接是否存在
-      final entityType = await FileSystemEntity.type(methodPath, followLinks: false);
+      final entityType =
+          await FileSystemEntity.type(methodPath, followLinks: false);
       if (entityType == FileSystemEntityType.notFound) {
         return;
       }
@@ -1825,8 +1865,10 @@ exit \$__dpkg_ret
       final file = File(methodPath);
       final bytes = await file.openRead(0, 4).first;
       if (bytes.length < 4 ||
-          bytes[0] != 0x7f || bytes[1] != 0x45 ||
-          bytes[2] != 0x4c || bytes[3] != 0x46) {
+          bytes[0] != 0x7f ||
+          bytes[1] != 0x45 ||
+          bytes[2] != 0x4c ||
+          bytes[3] != 0x46) {
         return; // 不是 ELF
       }
 
@@ -1860,7 +1902,8 @@ exec "$realPath" "\$@"
   }
 
   /// 确保方法别名存在（如 https -> http.real）
-  static Future<void> _ensureMethodAlias(String aliasName, String targetName) async {
+  static Future<void> _ensureMethodAlias(
+      String aliasName, String targetName) async {
     final methodsDir = '${TermuxConstants.libDir}/apt/methods';
     final aliasPath = '$methodsDir/$aliasName';
     final targetRealPath = '$methodsDir/$targetName.real';
@@ -1869,13 +1912,15 @@ exec "$realPath" "\$@"
       // 检查目标的 .real 文件是否存在
       final targetRealFile = File(targetRealPath);
       if (!await targetRealFile.exists()) {
-        debugPrint('Target real file not found for alias $aliasName: $targetRealPath');
+        debugPrint(
+            'Target real file not found for alias $aliasName: $targetRealPath');
         return;
       }
 
       // 检查别名文件是否已存在且是最新版本
       final aliasFile = File(aliasPath);
-      final entityType = await FileSystemEntity.type(aliasPath, followLinks: false);
+      final entityType =
+          await FileSystemEntity.type(aliasPath, followLinks: false);
 
       if (entityType == FileSystemEntityType.file) {
         try {
@@ -1917,7 +1962,8 @@ exec "$targetRealPath" "\$@"
       await aliasFile.writeAsString(wrapperScript);
       await Process.run('chmod', ['755', aliasPath]);
 
-      debugPrint('Created/fixed apt method alias: $aliasName -> $targetRealPath');
+      debugPrint(
+          'Created/fixed apt method alias: $aliasName -> $targetRealPath');
     } catch (e) {
       debugPrint('Failed to ensure method alias $aliasName: $e');
     }
@@ -1968,7 +2014,8 @@ class TermuxEnvironment {
       }
 
       final env = generateEnvironment();
-      final lines = env.entries.map((e) => 'export ${e.key}="${e.value}"').toList();
+      final lines =
+          env.entries.map((e) => 'export ${e.key}="${e.value}"').toList();
 
       final envFile = File(TermuxConstants.envFile);
       await envFile.writeAsString(lines.join('\n'));

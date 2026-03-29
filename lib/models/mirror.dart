@@ -15,16 +15,15 @@ class TermuxMirror {
   });
 
   /// 生成 sources.list 内容
-  String get sourcesListContent => '''
-# Termux package repository mirror
-# Mirror: $name ($region)
-deb $url stable main
-''';
+  String get sourcesListContent =>
+      AvailableMirrors.sourcesListContentForUrl(url);
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is TermuxMirror && runtimeType == other.runtimeType && id == other.id;
+      other is TermuxMirror &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
 
   @override
   int get hashCode => id.hashCode;
@@ -33,6 +32,10 @@ deb $url stable main
 /// 可用的 Termux 镜像源列表
 class AvailableMirrors {
   AvailableMirrors._();
+
+  static String sourcesListContentForUrl(String url) {
+    return 'deb $url stable main\n';
+  }
 
   /// 默认镜像 (CloudFlare CDN)
   static const defaultMirror = TermuxMirror(

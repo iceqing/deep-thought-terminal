@@ -1398,7 +1398,7 @@ class _MirrorSetting extends StatelessWidget {
       ),
     );
 
-    final success = await settings.setMirror(mirror.id);
+    final success = await settings.setMirror(mirror);
 
     if (context.mounted) {
       Navigator.pop(context);

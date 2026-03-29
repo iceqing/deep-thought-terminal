@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:ui' as ui;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
@@ -21,7 +20,6 @@ class SettingsProvider extends ChangeNotifier {
 
   // 自定义字体支持
   bool _customFontLoaded = false;
-  String _customFontPath = '';
 
   // 主题设置
   String _colorTheme = DefaultSettings.colorTheme;
@@ -32,9 +30,10 @@ class SettingsProvider extends ChangeNotifier {
     // 计算背景亮度 (Perceived brightness)
     // Formula: 0.299*R + 0.587*G + 0.114*B
     final luminance = (0.299 * theme.background.red +
-        0.587 * theme.background.green +
-        0.114 * theme.background.blue) / 255;
-    
+            0.587 * theme.background.green +
+            0.114 * theme.background.blue) /
+        255;
+
     // 如果背景很亮 (>0.5)，则使用浅色主题，否则使用深色主题
     return luminance > 0.5 ? ThemeMode.light : ThemeMode.dark;
   }
@@ -95,6 +94,7 @@ class SettingsProvider extends ChangeNotifier {
     if (_customFontLoaded) return true;
     return AvailableFonts.isBuiltInNerdFont(_fontFamily);
   }
+
   String get colorTheme => _colorTheme;
   String get cursorStyle => _cursorStyle;
   bool get cursorBlink => _cursorBlink;
@@ -116,7 +116,8 @@ class SettingsProvider extends ChangeNotifier {
   // Shell Getters
   String get defaultShell => _defaultShell;
   String get defaultShellPath => AvailableShells.getFullPath(_defaultShell);
-  String get defaultShellDisplayName => AvailableShells.getDisplayName(_defaultShell);
+  String get defaultShellDisplayName =>
+      AvailableShells.getDisplayName(_defaultShell);
 
   // 语言 Getters
   Locale? get locale => _locale;
@@ -139,6 +140,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     _loadSettings();
+    await _syncMirrorSourcesList();
 
     // 加载自定义字体（如果存在）
     await _loadCustomFont();
@@ -160,7 +162,6 @@ class SettingsProvider extends ChangeNotifier {
         fontLoader.addFont(Future.value(ByteData.view(bytes.buffer)));
         await fontLoader.load();
         _customFontLoaded = true;
-        _customFontPath = _customFontFilePath;
         debugPrint('Custom font loaded from: $_customFontFilePath');
       } else {
         _customFontLoaded = false;
@@ -183,19 +184,28 @@ class SettingsProvider extends ChangeNotifier {
     _fontFamily = _prefs.getString('fontFamily') ?? DefaultSettings.fontFamily;
     _fontSize = _prefs.getDouble('fontSize') ?? DefaultSettings.fontSize;
     _colorTheme = _prefs.getString('colorTheme') ?? DefaultSettings.colorTheme;
-    _cursorStyle = _prefs.getString('cursorStyle') ?? DefaultSettings.cursorStyle;
+    _cursorStyle =
+        _prefs.getString('cursorStyle') ?? DefaultSettings.cursorStyle;
     _cursorBlink = _prefs.getBool('cursorBlink') ?? DefaultSettings.cursorBlink;
-    _keepScreenOn = _prefs.getBool('keepScreenOn') ?? DefaultSettings.keepScreenOn;
-    _showExtraKeys = _prefs.getBool('showExtraKeys') ?? DefaultSettings.showExtraKeys;
-    _terminalMargin = _prefs.getInt('terminalMargin') ?? DefaultSettings.terminalMargin;
-    _vibrationEnabled = _prefs.getBool('vibrationEnabled') ?? DefaultSettings.vibrationEnabled;
+    _keepScreenOn =
+        _prefs.getBool('keepScreenOn') ?? DefaultSettings.keepScreenOn;
+    _showExtraKeys =
+        _prefs.getBool('showExtraKeys') ?? DefaultSettings.showExtraKeys;
+    _terminalMargin =
+        _prefs.getInt('terminalMargin') ?? DefaultSettings.terminalMargin;
+    _vibrationEnabled =
+        _prefs.getBool('vibrationEnabled') ?? DefaultSettings.vibrationEnabled;
     _bellEnabled = _prefs.getBool('bellEnabled') ?? DefaultSettings.bellEnabled;
-    _pinchZoomEnabled = _prefs.getBool('pinchZoomEnabled') ?? DefaultSettings.pinchZoomEnabled;
-    _volumeUpAction = _prefs.getString('volumeUpAction') ?? DefaultSettings.volumeUpAction;
-    _volumeDownAction = _prefs.getString('volumeDownAction') ?? DefaultSettings.volumeDownAction;
+    _pinchZoomEnabled =
+        _prefs.getBool('pinchZoomEnabled') ?? DefaultSettings.pinchZoomEnabled;
+    _volumeUpAction =
+        _prefs.getString('volumeUpAction') ?? DefaultSettings.volumeUpAction;
+    _volumeDownAction = _prefs.getString('volumeDownAction') ??
+        DefaultSettings.volumeDownAction;
     _showDebugInfo = _prefs.getBool('showDebugInfo') ?? false;
     _mirrorId = _prefs.getString('mirrorId') ?? 'default';
-    _defaultShell = _prefs.getString('defaultShell') ?? AvailableShells.defaultShell;
+    _defaultShell =
+        _prefs.getString('defaultShell') ?? AvailableShells.defaultShell;
 
     // 加载语言设置
     final localeCode = _prefs.getString('locale');
@@ -222,7 +232,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> setFontSize(double value) async {
-    _fontSize = value.clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
+    _fontSize =
+        value.clamp(DefaultSettings.minFontSize, DefaultSettings.maxFontSize);
     await _prefs.setDouble('fontSize', _fontSize);
     notifyListeners();
   }
@@ -329,37 +340,183 @@ class SettingsProvider extends ChangeNotifier {
 
   /// 设置镜像源
   /// 会自动更新 sources.list 文件
-  Future<bool> setMirror(String mirrorId) async {
-    final mirror = AvailableMirrors.getById(mirrorId);
-    if (mirror == null) return false;
+  Future<bool> setMirror(TermuxMirror mirror) async {
+    _mirrorId = mirror.id;
+    await _prefs.setString('mirrorId', mirror.id);
+    await _prefs.setString('mirrorUrl', mirror.url);
 
-    _mirrorId = mirrorId;
-    await _prefs.setString('mirrorId', mirrorId);
+    debugPrint(
+      'Saving mirror selection: id=${mirror.id}, url=${mirror.url}',
+    );
 
     // 更新 sources.list 文件
-    final success = await _updateSourcesList(mirror);
+    final success = await _updateSourcesListForUrl(mirror.url);
+    await _syncChosenMirror(mirror.url);
 
     notifyListeners();
     return success;
   }
 
   /// 更新 APT sources.list 文件
-  Future<bool> _updateSourcesList(TermuxMirror mirror) async {
-    try {
-      final file = File(TermuxConstants.aptSourcesList);
+  Future<bool> _updateSourcesListForUrl(String url) async {
+    final content = AvailableMirrors.sourcesListContentForUrl(url);
+    final targetPath = TermuxConstants.aptSourcesList;
+    final file = File(targetPath);
 
+    try {
       // 确保目录存在
       if (!await file.parent.exists()) {
         await file.parent.create(recursive: true);
       }
 
-      await file.writeAsString(mirror.sourcesListContent);
-      debugPrint('Updated sources.list at: ${TermuxConstants.aptSourcesList}');
+      final tempFile = File('$targetPath.tmp');
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+
+      await tempFile.writeAsString(content, flush: true);
+
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      await tempFile.rename(targetPath);
+
+      final verifiedContent = await file.readAsString();
+      if (verifiedContent != content) {
+        debugPrint(
+          'sources.list verification mismatch: expected=$url actual=${verifiedContent.trim()}',
+        );
+        return false;
+      }
+
+      debugPrint(
+        'Updated sources.list at: $targetPath -> $url',
+      );
       return true;
     } catch (e) {
       debugPrint('Failed to update sources.list: $e');
       return false;
     }
+  }
+
+  /// 启动时根据已保存的镜像设置修正 sources.list，避免 UI 状态与实际源不一致
+  Future<void> _syncMirrorSourcesList() async {
+    if (!Platform.isAndroid) return;
+
+    final savedUrl = _prefs.getString('mirrorUrl');
+    final fallbackMirror = currentMirror;
+    final mirrorUrl = (savedUrl != null && savedUrl.isNotEmpty)
+        ? savedUrl
+        : fallbackMirror.url;
+    final file = File(TermuxConstants.aptSourcesList);
+    final desiredContent =
+        AvailableMirrors.sourcesListContentForUrl(mirrorUrl).trim();
+
+    try {
+      debugPrint(
+        'Syncing mirror sources.list: id=$_mirrorId, url=$mirrorUrl',
+      );
+
+      if (savedUrl == null || savedUrl.isEmpty) {
+        await _prefs.setString('mirrorUrl', fallbackMirror.url);
+      }
+
+      await _syncChosenMirror(mirrorUrl);
+
+      if (await file.exists()) {
+        final currentContent = (await file.readAsString()).trim();
+        if (currentContent == desiredContent) return;
+      }
+
+      final success = await _updateSourcesListForUrl(mirrorUrl);
+      if (!success) {
+        debugPrint('Failed to sync sources.list for mirror: $_mirrorId');
+      }
+    } catch (e) {
+      debugPrint('Failed to sync mirror sources.list: $e');
+    }
+  }
+
+  Future<void> _syncChosenMirror(String url) async {
+    final mirrorsDir =
+        Directory('${TermuxConstants.prefixDir}/etc/termux/mirrors');
+    final chosenMirrorsPath =
+        '${TermuxConstants.prefixDir}/etc/termux/chosen_mirrors';
+
+    try {
+      if (!await mirrorsDir.exists()) return;
+
+      final mirrorDefinition =
+          await _findMirrorDefinitionByUrl(url, mirrorsDir);
+      if (mirrorDefinition == null) {
+        debugPrint('No mirror definition found for url: $url');
+        return;
+      }
+
+      final chosenType = await FileSystemEntity.type(chosenMirrorsPath);
+      if (chosenType != FileSystemEntityType.notFound) {
+        switch (chosenType) {
+          case FileSystemEntityType.file:
+            await File(chosenMirrorsPath).delete();
+            break;
+          case FileSystemEntityType.directory:
+            await Directory(chosenMirrorsPath).delete(recursive: true);
+            break;
+          case FileSystemEntityType.link:
+            await Link(chosenMirrorsPath).delete();
+            break;
+          case FileSystemEntityType.unixDomainSock:
+          case FileSystemEntityType.pipe:
+            await File(chosenMirrorsPath).delete();
+            break;
+          case FileSystemEntityType.notFound:
+            break;
+        }
+      }
+
+      await Link(chosenMirrorsPath).create(mirrorDefinition.path);
+      debugPrint(
+        'Updated chosen_mirrors: $chosenMirrorsPath -> ${mirrorDefinition.path}',
+      );
+    } catch (e) {
+      debugPrint('Failed to sync chosen_mirrors: $e');
+    }
+  }
+
+  Future<File?> _findMirrorDefinitionByUrl(
+    String url,
+    Directory mirrorsDir,
+  ) async {
+    final normalizedTarget = _normalizeMirrorUrl(url);
+
+    await for (final entity in mirrorsDir.list(recursive: true)) {
+      if (entity is! File) continue;
+
+      try {
+        final content = await entity.readAsString();
+        final match = RegExp(
+          r'^MAIN="([^"]+)"$',
+          multiLine: true,
+        ).firstMatch(content);
+        if (match == null) continue;
+
+        final mainUrl = match.group(1);
+        if (mainUrl == null) continue;
+
+        if (_normalizeMirrorUrl(mainUrl) == normalizedTarget) {
+          return entity;
+        }
+      } catch (_) {
+        // Ignore unreadable mirror definitions.
+      }
+    }
+
+    return null;
+  }
+
+  String _normalizeMirrorUrl(String url) {
+    return url.trim().replaceFirst(RegExp(r'/+$'), '');
   }
 
   /// 获取 sources.list 文件路径
@@ -396,7 +553,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   /// 获取配置文件路径
-  static String get _propertiesFilePath => '$_termuxConfigDir/termux.properties';
+  static String get _propertiesFilePath =>
+      '$_termuxConfigDir/termux.properties';
 
   /// 获取重载信号文件路径
   static String get _reloadSignalPath => '$_termuxConfigDir/.reload-settings';
