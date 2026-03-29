@@ -404,15 +404,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 这里简单地在任何变化时尝试唤醒，也可以更精细地控制
     if (mounted) {
       _updateSessionInputTransformer();
-      _updateCwd();
       _requestKeyboard();
-    }
-  }
-
-  Future<void> _updateCwd() async {
-    final session = context.read<TerminalProvider>().currentSession;
-    if (session != null) {
-      _currentCwd = await session.queryCurrentWorkingDirectory();
     }
   }
 

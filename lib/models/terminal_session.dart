@@ -14,6 +14,13 @@ typedef InputModifierTransformer = String Function(String input);
 /// 终端会话模型
 /// 参考 termux-app: TerminalSession.java
 class TerminalSession {
+  static const String _cwdProbeCommand =
+      ' printf "\\033]7777;cwd:%s\\007" "\$PWD"\r';
+  static final RegExp _cwdProbeEchoPattern = RegExp(
+    r'(^|\r?\n)\s*printf "\\033\]7777;cwd:%s\\007" "\$PWD"\r?\n?',
+    multiLine: true,
+  );
+
   final String id;
   // 使用 TermuxTerminal 以支持 Termux 兼容的 wcwidth
   final TermuxTerminal terminal;
@@ -204,18 +211,15 @@ class TerminalSession {
       // 检测自定义 OSC 序列: ESC ] 7777 ; command BEL
       // 用于与 Flutter 应用通信
       final oscPattern = RegExp(r'\x1b\]7777;([^\x07]+)\x07');
-      final match = oscPattern.firstMatch(text);
+      final matches = oscPattern.allMatches(text).toList();
+      for (final match in matches) {
+        _handleOscCommand(match.group(1));
+      }
 
-      if (match != null) {
-        final command = match.group(1);
-        _handleOscCommand(command);
-        // 移除 OSC 序列，不显示在终端中
-        final cleanText = text.replaceAll(oscPattern, '');
-        if (cleanText.isNotEmpty) {
-          terminal.write(cleanText);
-        }
-      } else {
-        terminal.write(text);
+      final cleanText =
+          text.replaceAll(oscPattern, '').replaceAll(_cwdProbeEchoPattern, '');
+      if (cleanText.isNotEmpty) {
+        terminal.write(cleanText);
       }
 
       // Append to capture buffer if active (strip ANSI for clean output)
@@ -512,8 +516,9 @@ class TerminalSession {
     final completer = Completer<String?>();
     _cwdRequestCompleter = completer;
 
-    // 请求 shell 主动通过 OSC 回传 PWD，避免解析提示符造成误判
-    write('printf "\\033]7777;cwd:%s\\007" "\$PWD"\r');
+    // 通过内部 probe 请求 shell 回传 PWD。
+    // 这里故意加前导空格，避免 bash HISTCONTROL 记录到历史里。
+    write(_cwdProbeCommand);
 
     try {
       final cwd = await completer.future.timeout(
