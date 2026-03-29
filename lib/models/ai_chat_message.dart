@@ -5,7 +5,29 @@ enum AiMode { chat, agent, plan }
 enum AiMessageRole { user, assistant, system, tool }
 
 /// AI 消息类型
-enum AiMessageType { chat, commandSuggestion, errorDiagnosis, explanation }
+enum AiMessageType { chat, commandSuggestion, errorDiagnosis, explanation, agent }
+
+/// 单个工具调用
+class AiToolCall {
+  final String id;
+  final String name;
+  final Map<String, dynamic> input;
+  const AiToolCall({
+    required this.id,
+    required this.name,
+    required this.input,
+  });
+}
+
+/// 单个工具结果
+class AiToolResult {
+  final String toolCallId;
+  final String output;
+  const AiToolResult({
+    required this.toolCallId,
+    required this.output,
+  });
+}
 
 /// AI 聊天消息模型
 class AiChatMessage {
@@ -18,6 +40,10 @@ class AiChatMessage {
   final bool isStreaming;
   final String? error;
   final String? thinking;
+  /// 助手消息中的工具调用列表
+  final List<AiToolCall>? toolCalls;
+  /// 用户消息中的工具结果列表（Anthropic 格式）
+  final List<AiToolResult>? toolResults;
 
   const AiChatMessage({
     required this.id,
@@ -29,6 +55,8 @@ class AiChatMessage {
     this.isStreaming = false,
     this.error,
     this.thinking,
+    this.toolCalls,
+    this.toolResults,
   });
 
   /// 创建用户消息
@@ -58,6 +86,33 @@ class AiChatMessage {
     );
   }
 
+  /// 创建包含工具调用的助手消息
+  factory AiChatMessage.assistantWithToolCalls(
+    List<AiToolCall> toolCalls, {
+    AiMessageType type = AiMessageType.agent,
+  }) {
+    return AiChatMessage(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      role: AiMessageRole.assistant,
+      content: '',
+      timestamp: DateTime.now(),
+      type: type,
+      toolCalls: toolCalls,
+      isStreaming: false,
+    );
+  }
+
+  /// 创建包含工具结果的用户消息（用于 Anthropic API）
+  factory AiChatMessage.userWithToolResults(List<AiToolResult> results) {
+    return AiChatMessage(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      role: AiMessageRole.user,
+      content: '',
+      timestamp: DateTime.now(),
+      toolResults: results,
+    );
+  }
+
   /// 创建系统消息
   factory AiChatMessage.system(String content) {
     return AiChatMessage(
@@ -68,8 +123,42 @@ class AiChatMessage {
     );
   }
 
-  /// 转换为 OpenAI API 格式
+  /// 转换为 API 消息格式
+  /// Anthropic 格式支持 content blocks（工具调用/工具结果）
   Map<String, dynamic> toApiMessage() {
+    if (role == AiMessageRole.assistant && toolCalls != null) {
+      // Anthropic assistant 消息 with tool_use content blocks
+      final blocks = <Map<String, dynamic>>[];
+      if (content.isNotEmpty) {
+        blocks.add({'type': 'text', 'text': content});
+      }
+      for (final tc in toolCalls!) {
+        blocks.add({
+          'type': 'tool_use',
+          'id': tc.id,
+          'name': tc.name,
+          'input': tc.input,
+        });
+      }
+      return {
+        'role': role.name,
+        'content': blocks.isEmpty ? null : blocks,
+      };
+    }
+    if (role == AiMessageRole.user && toolResults != null) {
+      // Anthropic user 消息 with tool_result content blocks
+      final blocks = toolResults!
+          .map((tr) => {
+                'type': 'tool_result',
+                'tool_use_id': tr.toolCallId,
+                'content': tr.output,
+              })
+          .toList();
+      return {
+        'role': role.name,
+        'content': blocks,
+      };
+    }
     return {
       'role': role.name,
       'content': content,
@@ -82,6 +171,8 @@ class AiChatMessage {
     String? suggestedCommand,
     String? error,
     String? thinking,
+    List<AiToolCall>? toolCalls,
+    List<AiToolResult>? toolResults,
   }) {
     return AiChatMessage(
       id: id,
@@ -93,10 +184,12 @@ class AiChatMessage {
       isStreaming: isStreaming ?? this.isStreaming,
       error: error ?? this.error,
       thinking: thinking ?? this.thinking,
+      toolCalls: toolCalls ?? this.toolCalls,
+      toolResults: toolResults ?? this.toolResults,
     );
   }
 
-  /// 持久化
+  /// 持久化（不包含 tool 调用结果，仅保留文本）
   Map<String, dynamic> toJson() => {
         'id': id,
         'role': role.name,

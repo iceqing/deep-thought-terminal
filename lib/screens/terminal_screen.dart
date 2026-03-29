@@ -14,6 +14,7 @@ import '../providers/ssh_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/ai_provider.dart';
 import '../services/api_service.dart';
+import '../services/ai_service.dart';
 import '../services/proot_distro_service.dart';
 import '../services/volume_key_service.dart';
 import '../utils/constants.dart';
@@ -308,6 +309,8 @@ class _DistroActionCard extends StatelessWidget {
 
 class _TerminalScreenState extends State<TerminalScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaledTerminalViewState> _terminalViewKey =
+      GlobalKey<ScaledTerminalViewState>();
   final FocusNode _terminalFocusNode = FocusNode();
   bool _hasSelection = false;
 
@@ -414,11 +417,24 @@ class _TerminalScreenState extends State<TerminalScreen> {
   }
 
   void _requestKeyboard() {
-    if (!_terminalFocusNode.hasFocus) {
+    void openKeyboard() {
+      if (!mounted) return;
       _terminalFocusNode.canRequestFocus = true;
       _terminalFocusNode.requestFocus();
-      SystemChannels.textInput.invokeMethod('TextInput.show');
+      _terminalViewKey.currentState?.requestKeyboard();
     }
+
+    if (_terminalFocusNode.hasFocus) {
+      _terminalViewKey.currentState?.closeKeyboard();
+      _terminalFocusNode.unfocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) => openKeyboard());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => openKeyboard());
+    }
+  }
+
+  bool _isKeyboardVisible(BuildContext context) {
+    return MediaQuery.viewInsetsOf(context).bottom > 0;
   }
 
   void _initVolumeKeyService() {
@@ -725,6 +741,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
                             _runAiCommand(terminalProvider, cmd),
                         currentCwd: _currentCwd,
                         currentShell: settings.defaultShell,
+                        toolExecutor: (name, input) =>
+                            _createToolExecutor(terminalProvider, name, input),
                       ),
                     ),
                 ],
@@ -1109,12 +1127,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
         // 切换键盘 - 最高频操作，保留在外面
         IconButton(
-          icon: Icon(_terminalFocusNode.hasFocus
+          icon: Icon(_isKeyboardVisible(context)
               ? Icons.keyboard_hide
               : Icons.keyboard),
           onPressed: () => _toggleKeyboard(context),
           tooltip:
-              _terminalFocusNode.hasFocus ? 'Hide keyboard' : 'Show keyboard',
+              _isKeyboardVisible(context) ? 'Hide keyboard' : 'Show keyboard',
         ),
         // 其他所有操作收纳进菜单，防止误触
         PopupMenuButton<String>(
@@ -1304,6 +1322,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   }
                 },
                 child: ScaledTerminalView(
+                  key: _terminalViewKey,
                   currentSession.terminal,
                   controller: currentSession.controller,
                   scrollController: currentSession.scrollController,
@@ -1363,15 +1382,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
   }
 
   void _toggleKeyboard(BuildContext context) {
-    // 在Android上使用FocusNode来切换键盘
-    if (_terminalFocusNode.hasFocus) {
-      // 如果已有焦点，失去焦点以隐藏键盘
+    if (_isKeyboardVisible(context)) {
+      _terminalViewKey.currentState?.closeKeyboard();
       _terminalFocusNode.unfocus();
-      // 这里的 canRequestFocus = false 会在 listener 中设置
     } else {
-      // 解锁并请求焦点以显示键盘
-      _terminalFocusNode.canRequestFocus = true;
-      _terminalFocusNode.requestFocus();
+      _requestKeyboard();
     }
   }
 
@@ -1703,6 +1718,36 @@ class _TerminalScreenState extends State<TerminalScreen> {
     } else {
       executeAndCapture(session);
     }
+  }
+
+  /// 创建 Agent 工具执行器
+  /// bash 命令通过 Process.run 同步执行（不在终端会话中）
+  /// 文件操作使用 defaultToolExecutor
+  String _createToolExecutor(
+    TerminalProvider terminalProvider,
+    String name,
+    Map<String, dynamic> input,
+  ) {
+    if (name == 'bash') {
+      final command = input['command'] as String? ?? '';
+      try {
+        final result = Process.runSync(
+          '/bin/bash',
+          ['-c', command],
+          runInShell: true,
+          stdoutEncoding: const SystemEncoding(),
+          stderrEncoding: const SystemEncoding(),
+        );
+        final out = (result.stdout as String).trim() +
+            ((result.stderr as String).trim().isNotEmpty
+                ? '\n${(result.stderr as String).trim()}'
+                : '');
+        return out.isEmpty ? '(no output)' : out;
+      } catch (e) {
+        return 'Error: $e';
+      }
+    }
+    return defaultToolExecutor(name, input);
   }
 
   /// 显示命令确认对话框（参考 Claude Code 风格）

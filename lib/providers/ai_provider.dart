@@ -90,17 +90,29 @@ class AiProvider extends ChangeNotifier {
 
   // ==================== 聊天操作 ====================
 
-  /// 发送聊天消息（流式响应）
+  /// 发送聊天消息（流式响应或 Agent 循环）
   Future<void> sendMessage(
     String userMessage, {
     String? cwd,
     String? lastCommand,
     String? shellType,
     String? lastCommandOutput,
+    required String Function(String name, Map<String, dynamic> input) toolExecutor,
   }) async {
     if (!isConfigured) {
       _lastError = 'AI is not configured. Please set API key in settings.';
       notifyListeners();
+      return;
+    }
+
+    // Agent 模式走循环执行
+    if (_currentMode == AiMode.agent) {
+      await runAgentLoop(
+        userMessage,
+        cwd: cwd,
+        shellType: shellType,
+        toolExecutor: toolExecutor,
+      );
       return;
     }
 
@@ -340,6 +352,9 @@ class AiProvider extends ChangeNotifier {
     }
   }
 
+  /// Agent/LLM 回合记录
+  final List<AiChatMessage> _agentMessages = [];
+
   /// 添加命令执行结果到聊天记录
   void addCommandResult(String command, String output, {int? exitCode}) {
     final resultContent = exitCode != null && exitCode != 0
@@ -355,6 +370,158 @@ class AiProvider extends ChangeNotifier {
     _chatHistory.add(msg);
     notifyListeners();
     _saveHistory();
+  }
+
+  // ==================== Agent Loop ====================
+
+  /// Agent 模式的循环执行
+  /// 用户发一条消息 → Agent 自动循环调用工具直到完成
+  /// toolExecutor 由调用方（terminal_screen）提供，用于执行 bash 命令
+  Future<void> runAgentLoop(
+    String goal, {
+    String? cwd,
+    String? shellType,
+    required String Function(String name, Map<String, dynamic> input) toolExecutor,
+  }) async {
+    if (!isConfigured) {
+      _lastError = 'AI is not configured';
+      notifyListeners();
+      return;
+    }
+
+    _isStreaming = true;
+    _lastError = null;
+    _agentMessages.clear();
+
+    // 添加用户消息到历史
+    final userMsg = AiChatMessage.user(goal, type: AiMessageType.agent);
+    _chatHistory.add(userMsg);
+
+    // 添加助手消息占位
+    final assistantMsg = AiChatMessage.assistant(type: AiMessageType.agent);
+    _chatHistory.add(assistantMsg);
+    notifyListeners();
+
+    final basePrompt = _config.resolveSystemPrompt(
+      shellType: shellType,
+      cwd: cwd,
+    );
+    final systemPrompt = '$basePrompt\n\n'
+        'You are an autonomous terminal agent. Use tools to accomplish the user\'s goal.\n'
+        'Execute commands step by step. After each command, analyze the output and decide the next step.\n'
+        'Be efficient — combine commands where possible.';
+
+    // Agent 循环：最多 20 轮
+    for (var turn = 0; turn < 20; turn++) {
+      try {
+        final result = await AiService.agentTurn(
+          config: _config,
+          messages: _agentMessages,
+          systemPromptOverride: systemPrompt,
+        );
+
+        // 更新助手消息：显示思考 + 文本
+        _updateAssistantMessage(assistantMsg.id,
+          content: result.text, thinking: result.thinking);
+
+        if (!result.hasToolCalls) {
+          // 没有工具调用，结束
+          break;
+        }
+
+        // 执行每个工具调用
+        final toolResults = <AiToolResult>[];
+        for (final call in result.toolCalls) {
+          // 记录 assistant 的 tool_use
+          _agentMessages.add(AiChatMessage.assistantWithToolCalls(
+            [call],
+            type: AiMessageType.agent,
+          ));
+
+          // 追加用户消息（工具结果）
+          final output = result.stopReason == 'tool_use'
+              ? AiService.executeTool(call.name, call.input, toolExecutor)
+              : AiService.executeTool(call.name, call.input, defaultToolExecutor);
+
+          // 在聊天中显示工具调用和结果
+          _addToolResult(assistantMsg.id, call.name, call.input, output);
+
+          toolResults.add(AiToolResult(
+            toolCallId: call.id,
+            output: output,
+          ));
+        }
+
+        // 追加工具结果到 agent 消息列表
+        _agentMessages.add(AiChatMessage.userWithToolResults(toolResults));
+
+      } on AiException catch (e) {
+        _updateAssistantMessage(assistantMsg.id, error: e.message);
+        _lastError = e.message;
+        break;
+      } catch (e) {
+        _updateAssistantMessage(assistantMsg.id, error: e.toString());
+        _lastError = e.toString();
+        break;
+      }
+    }
+
+    _isStreaming = false;
+    _finalizeStreaming(assistantMsg.id);
+  }
+
+  /// 更新助手消息内容
+  void _updateAssistantMessage(
+    String msgId, {
+    String? content,
+    String? thinking,
+    String? error,
+  }) {
+    final idx = _chatHistory.indexWhere((m) => m.id == msgId);
+    if (idx < 0) return;
+
+    final current = _chatHistory[idx];
+    _chatHistory[idx] = current.copyWith(
+      content: content ?? current.content,
+      thinking: thinking ?? current.thinking,
+      error: error,
+      isStreaming: error == null && content == null && thinking == null,
+    );
+    notifyListeners();
+  }
+
+  /// 在聊天中添加工具调用结果
+  void _addToolResult(
+    String assistantMsgId,
+    String toolName,
+    Map<String, dynamic> input,
+    String output,
+  ) {
+    final cmd = input['command'] as String? ?? input['path'] as String? ?? toolName;
+    final resultMsg = AiChatMessage(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      role: AiMessageRole.system,
+      content: '> $toolName: ${cmd.length > 60 ? '${cmd.substring(0, 60)}...' : cmd}\n$output',
+      timestamp: DateTime.now(),
+      type: AiMessageType.agent,
+    );
+    _chatHistory.add(resultMsg);
+    notifyListeners();
+  }
+
+  /// 取消当前 Agent 执行
+  void cancelAgentLoop() {
+    _isStreaming = false;
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
+    for (var i = _chatHistory.length - 1; i >= 0; i--) {
+      if (_chatHistory[i].role == AiMessageRole.assistant &&
+          _chatHistory[i].isStreaming) {
+        _chatHistory[i] = _chatHistory[i].copyWith(isStreaming: false);
+        break;
+      }
+    }
+    notifyListeners();
   }
 
   /// 取消当前流式响应

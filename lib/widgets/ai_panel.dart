@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/ai_chat_message.dart';
 import '../providers/ai_provider.dart';
+import '../services/ai_service.dart';
 import 'ai_chat_bubble.dart';
 
 /// AI 侧边面板
@@ -12,6 +13,7 @@ class AiPanel extends StatefulWidget {
   final void Function(String command)? onRunCommand;
   final String? currentCwd;
   final String? currentShell;
+  final String Function(String name, Map<String, dynamic> input)? toolExecutor;
 
   const AiPanel({
     super.key,
@@ -20,6 +22,7 @@ class AiPanel extends StatefulWidget {
     this.onRunCommand,
     this.currentCwd,
     this.currentShell,
+    this.toolExecutor,
   });
 
   @override
@@ -42,10 +45,12 @@ class _AiPanelState extends State<AiPanel> {
     if (text.isEmpty) return;
 
     final provider = context.read<AiProvider>();
+    final executor = widget.toolExecutor ?? defaultToolExecutor;
     provider.sendMessage(
       text,
       cwd: widget.currentCwd,
       shellType: widget.currentShell,
+      toolExecutor: executor,
     );
     _inputController.clear();
 
@@ -282,6 +287,9 @@ class _AiPanelState extends State<AiPanel> {
   }
 
   Widget _buildInputArea(ThemeData theme, AiProvider aiProvider) {
+    final isAgent = aiProvider.currentMode == AiMode.agent;
+    final isPlan = aiProvider.currentMode == AiMode.plan;
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -291,37 +299,97 @@ class _AiPanelState extends State<AiPanel> {
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _inputController,
-              enabled: !aiProvider.isStreaming,
-              maxLines: 3,
-              minLines: 1,
-              decoration: InputDecoration(
-                hintText: switch (aiProvider.currentMode) {
-                  AiMode.chat => 'Ask AI...',
-                  AiMode.agent => 'Describe a goal...',
-                  AiMode.plan => 'What do you want to plan?',
-                },
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                isDense: true,
+          // Agent status bar
+          if (isAgent && aiProvider.isStreaming)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.tertiary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Agent running...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: aiProvider.isStreaming
-                ? const SizedBox(
+          // Plan mode buttons
+          if (isPlan && aiProvider.isStreaming)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.route,
+                      size: 14, color: theme.colorScheme.secondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Plan ready — review and approve',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Input row
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _inputController,
+                  enabled: !aiProvider.isStreaming,
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: switch (aiProvider.currentMode) {
+                      AiMode.chat => 'Ask AI...',
+                      AiMode.agent => 'Describe a goal...',
+                      AiMode.plan => 'What do you want to plan?',
+                    },
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: aiProvider.isStreaming
+                    ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
@@ -331,6 +399,8 @@ class _AiPanelState extends State<AiPanel> {
           ),
         ],
       ),
+    ],
+    ),
     );
   }
 }

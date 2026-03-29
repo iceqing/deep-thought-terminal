@@ -298,6 +298,8 @@ class AiChatBubble extends StatelessWidget {
         return 'Diagnosis';
       case AiMessageType.explanation:
         return 'Explanation';
+      case AiMessageType.agent:
+        return '';
     }
   }
 }
