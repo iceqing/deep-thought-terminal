@@ -43,11 +43,21 @@ class TerminalSession {
   // 命令执行回调 - 用于将命令保存到后端
   void Function(String command, String sessionName)? onCommandExecuted;
 
+  // AI 命令请求回调 - 当用户输入 ?? 前缀时触发
+  void Function(String query)? onAiCommandRequested;
+
+  // 命令完成回调 - 包含退出码，用于自动错误诊断
+  void Function(String command, int exitCode)? onCommandFinished;
+
   // 输入缓冲区 - 跟踪用户输入以检测命令
   String _inputBuffer = '';
   bool _inEscapeSequence = false;
   String? _lastReportedCommand;
   DateTime? _lastReportedAt;
+
+  // 输出捕获 - 用于 AI 命令结果
+  StringBuffer? _outputCaptureBuffer;
+  void Function(String output)? _outputCaptureCallback;
 
   // 调试信息：最后发送给 shell 的尺寸
   int? lastShellColumns;
@@ -208,6 +218,14 @@ class TerminalSession {
         terminal.write(text);
       }
 
+      // Append to capture buffer if active (strip ANSI for clean output)
+      if (_outputCaptureBuffer != null && _outputCaptureBuffer!.length < 4096) {
+        final clean = text
+            .replaceAll(RegExp(r'\x1b\[[0-9;]*[a-zA-Z]'), '')
+            .replaceAll(RegExp(r'\x1b\][^\x07]*\x07'), '');
+        _outputCaptureBuffer!.write(clean);
+      }
+
       _onTextChanged?.call();
     } catch (e) {
       terminal.write(utf8.decode(data, allowMalformed: true));
@@ -297,6 +315,11 @@ class TerminalSession {
   void _handleExit() {
     _isRunning = false;
     _exitCode = _shellSession?.exitCode;
+
+    // 触发命令完成回调（用于自动错误诊断）
+    if (_lastReportedCommand != null && _exitCode != null && _exitCode != 0) {
+      onCommandFinished?.call(_lastReportedCommand!, _exitCode!);
+    }
 
     // 显示退出信息
     terminal.write('\r\n\x1b[33m[Process completed');
@@ -430,6 +453,16 @@ class TerminalSession {
     }
     _lastReportedCommand = cmd;
     _lastReportedAt = now;
+
+    // AI 命令拦截：检测 ?? 前缀
+    if (cmd.startsWith('??')) {
+      final query = cmd.substring(2).trim();
+      if (query.isNotEmpty) {
+        onAiCommandRequested?.call(query);
+      }
+      return;
+    }
+
     onCommandExecuted?.call(cmd, displayName);
   }
 
@@ -437,6 +470,23 @@ class TerminalSession {
   void write(String text) {
     if (_shellSession != null && _isRunning) {
       _shellSession!.write(text);
+    }
+  }
+
+  /// 开始捕获输出（用于 AI 命令结果展示）
+  void startOutputCapture(void Function(String output) callback) {
+    _outputCaptureBuffer = StringBuffer();
+    _outputCaptureCallback = callback;
+  }
+
+  /// 停止捕获并通过回调返回结果
+  void stopOutputCapture() {
+    final buffer = _outputCaptureBuffer;
+    final callback = _outputCaptureCallback;
+    _outputCaptureBuffer = null;
+    _outputCaptureCallback = null;
+    if (buffer != null && callback != null) {
+      callback(buffer.toString());
     }
   }
 

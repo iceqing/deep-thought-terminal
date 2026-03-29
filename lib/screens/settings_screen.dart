@@ -14,7 +14,9 @@ import '../services/history_service.dart';
 import '../services/api_service.dart';
 import '../widgets/history_viewer.dart';
 import '../providers/auth_provider.dart';
+import '../providers/ai_provider.dart';
 import '../l10n/app_localizations.dart';
+import 'ai_settings_screen.dart';
 
 // ═══════════════════════════════════════════════════
 // 主设置页面
@@ -72,6 +74,15 @@ class SettingsScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const _HistorySettingsPage()),
+                ),
+              ),
+              _NavTile(
+                icon: Icons.auto_awesome,
+                title: 'AI Assistant',
+                subtitle: _buildAiSummary(context),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AiSettingsScreen()),
                 ),
               ),
             ],
@@ -135,6 +146,13 @@ class SettingsScreen extends StatelessWidget {
     if (settings.showExtraKeys) parts.add(l10n.showExtraKeys);
     if (settings.cursorBlink) parts.add(l10n.cursorBlink);
     return parts.isEmpty ? '' : parts.join(', ');
+  }
+
+  String _buildAiSummary(BuildContext context) {
+    final ai = context.watch<AiProvider>();
+    if (!ai.isEnabled) return 'Disabled';
+    if (!ai.isConfigured) return 'Not configured';
+    return '${ai.config.model} - ${ai.config.baseUrl}';
   }
 }
 

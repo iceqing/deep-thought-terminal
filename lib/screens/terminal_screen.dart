@@ -12,6 +12,7 @@ import '../providers/settings_provider.dart';
 import '../providers/terminal_provider.dart';
 import '../providers/ssh_provider.dart';
 import '../providers/task_provider.dart';
+import '../providers/ai_provider.dart';
 import '../services/api_service.dart';
 import '../services/proot_distro_service.dart';
 import '../services/volume_key_service.dart';
@@ -21,9 +22,14 @@ import '../widgets/session_drawer.dart';
 import '../widgets/task_drawer.dart';
 import '../models/task.dart';
 import '../utils/gesture_utils.dart';
+import '../models/terminal_session.dart';
 import '../widgets/terminal_selection_handles.dart';
 import '../widgets/scaled_terminal_view.dart';
 import '../widgets/history_viewer.dart';
+import '../widgets/ai_panel.dart';
+import '../widgets/ai_inline_bar.dart';
+import '../widgets/ai_command_suggestion.dart';
+import '../utils/command_rule.dart';
 import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
 import 'file_manager_screen.dart';
@@ -315,6 +321,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
   // 调试信息刷新计时器
   Timer? _debugRefreshTimer;
 
+  // AI 相关
+  final TextEditingController _aiInlineBarController = TextEditingController();
+  String? _pendingAiCommand;
+  String? _pendingAiExplanation;
+  String? _currentCwd;
+
   @override
   void initState() {
     super.initState();
@@ -389,7 +401,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 这里简单地在任何变化时尝试唤醒，也可以更精细地控制
     if (mounted) {
       _updateSessionInputTransformer();
+      _updateCwd();
       _requestKeyboard();
+    }
+  }
+
+  Future<void> _updateCwd() async {
+    final session = context.read<TerminalProvider>().currentSession;
+    if (session != null) {
+      _currentCwd = await session.queryCurrentWorkingDirectory();
     }
   }
 
@@ -518,6 +538,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
         debugPrint('[HistoryDiag] Skip upload because user is not logged in.');
       }
     };
+
+    // 设置 AI 命令拦截回调
+    session.onAiCommandRequested = (String query) {
+      _handleAiCommandIntercept(query, terminalProvider);
+    };
+
+    // 设置命令完成回调（用于自动错误诊断）
+    session.onCommandFinished = (String command, int exitCode) {
+      _handleCommandFinished(command, exitCode, terminalProvider);
+    };
   }
 
   /// 应用修饰符转换输入
@@ -627,6 +657,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // 移除监听器
     context.read<TerminalProvider>().removeListener(_onTerminalProviderChanged);
     _terminalFocusNode.dispose();
+    _aiInlineBarController.dispose();
     VolumeKeyService.instance.onVolumeKey = null;
     super.dispose();
   }
@@ -648,6 +679,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
     final volumeKeysEnabled = settings.volumeUpAction != 'none' ||
         settings.volumeDownAction != 'none';
     VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
+
+    final aiProvider = context.watch<AiProvider>();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -677,9 +710,50 @@ class _TerminalScreenState extends State<TerminalScreen> {
                       child:
                           _buildDebugInfo(context, terminalProvider, settings),
                     ),
+                  // AI 面板覆盖层
+                  if (aiProvider.isPanelOpen)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AiPanel(
+                        width: MediaQuery.of(context).size.width > 600
+                            ? 380
+                            : MediaQuery.of(context).size.width * 0.85,
+                        onClose: () => aiProvider.closePanel(),
+                        onRunCommand: (cmd) =>
+                            _runAiCommand(terminalProvider, cmd),
+                        currentCwd: _currentCwd,
+                        currentShell: settings.defaultShell,
+                      ),
+                    ),
                 ],
               ),
             ),
+            // AI 命令建议卡片
+            if (_pendingAiCommand != null)
+              AiCommandSuggestion(
+                command: _pendingAiCommand!,
+                explanation: _pendingAiExplanation,
+                onRun: () => _showCommandConfirmDialog(
+                  terminalProvider,
+                  _pendingAiCommand!,
+                ),
+                onDismiss: () {
+                  setState(() {
+                    _pendingAiCommand = null;
+                    _pendingAiExplanation = null;
+                  });
+                },
+              ),
+            // AI 快捷输入栏
+            if (aiProvider.isEnabled && aiProvider.config.showInlineBar)
+              AiInlineBar(
+                controller: _aiInlineBarController,
+                enabled: !aiProvider.isStreaming,
+                onSubmit: () => _handleAiInlineSubmit(terminalProvider),
+                onTapOpenPanel: () => aiProvider.openPanel(),
+              ),
             // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
             if (settings.showExtraKeys && !Platform.isLinux)
               ExtraKeysView(
@@ -1018,6 +1092,21 @@ class _TerminalScreenState extends State<TerminalScreen> {
         ),
       ),
       actions: [
+        // AI 功能入口
+        Consumer<AiProvider>(
+          builder: (context, ai, _) {
+            if (!ai.isEnabled) return const SizedBox.shrink();
+            final t = Theme.of(context);
+            return IconButton(
+              icon: Icon(
+                Icons.auto_awesome,
+                color: ai.isPanelOpen ? t.colorScheme.tertiary : null,
+              ),
+              onPressed: () => ai.togglePanel(),
+              tooltip: 'AI Assistant',
+            );
+          },
+        ),
         // 切换键盘 - 最高频操作，保留在外面
         IconButton(
           icon: Icon(_terminalFocusNode.hasFocus
@@ -1579,6 +1668,232 @@ class _TerminalScreenState extends State<TerminalScreen> {
     session.write(script);
   }
 
+  /// 运行 AI 生成的命令
+  void _runAiCommand(TerminalProvider terminalProvider, String command) {
+    final aiProvider = context.read<AiProvider>();
+    final cleanCmd = command.trim();
+
+    void executeAndCapture(TerminalSession session) {
+      // Start capturing output
+      session.startOutputCapture((output) {
+        final trimmed = output.trim();
+        aiProvider.addCommandResult(
+          cleanCmd,
+          trimmed.isEmpty ? '(no output)' : trimmed,
+        );
+      });
+
+      session.write(cleanCmd.endsWith('\n') ? cleanCmd : '$cleanCmd\n');
+
+      // Stop capture after delay
+      Future.delayed(const Duration(seconds: 3), () {
+        session.stopOutputCapture();
+      });
+    }
+
+    var session = terminalProvider.currentSession;
+    if (session == null) {
+      terminalProvider.createSession();
+      Future.delayed(const Duration(milliseconds: 100), () {
+        final newSession = terminalProvider.currentSession;
+        if (newSession != null) {
+          executeAndCapture(newSession);
+        }
+      });
+    } else {
+      executeAndCapture(session);
+    }
+  }
+
+  /// 显示命令确认对话框（参考 Claude Code 风格）
+  void _showCommandConfirmDialog(
+      TerminalProvider terminalProvider, String command) {
+    final aiProvider = context.read<AiProvider>();
+    final matcher = CommandRuleMatcher(aiProvider.config.commandRules);
+    final action = matcher.check(command);
+
+    // allow 规则直接执行
+    if (action == CommandRuleAction.allow) {
+      _dismissPendingCommand();
+      _runAiCommand(terminalProvider, command);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              action == CommandRuleAction.deny ? Icons.block : Icons.terminal,
+              color:
+                  action == CommandRuleAction.deny ? Colors.red : Colors.orange,
+            ),
+            const SizedBox(width: 8),
+            Text(action == CommandRuleAction.deny ? '命令被禁止' : '确认执行命令'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (action == CommandRuleAction.deny)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  '此命令被您的规则阻止，不允许执行。',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
+              ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                command,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'AI 生成的命令可能包含风险操作，请仔细确认后再执行。',
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(ctx).colorScheme.outline,
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _dismissPendingCommand();
+            },
+            child: const Text('取消'),
+          ),
+          // 一律允许选项
+          if (action != CommandRuleAction.deny)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _dismissPendingCommand();
+                // 添加 allow 规则
+                final cmdName = command.trim().split(RegExp(r'\s+'))[0];
+                final newRule = 'allow:$cmdName:*';
+                final current = aiProvider.config.commandRules;
+                if (!current.contains(newRule)) {
+                  aiProvider.updateConfig(
+                    aiProvider.config.copyWith(
+                      commandRules: [...current, newRule],
+                    ),
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('已添加规则: $newRule（后续自动执行）'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: const Text('一律允许'),
+            ),
+          FilledButton(
+            onPressed: action == CommandRuleAction.deny
+                ? null
+                : () {
+                    Navigator.pop(ctx);
+                    _dismissPendingCommand();
+                    _runAiCommand(terminalProvider, command);
+                  },
+            child: Text(action == CommandRuleAction.deny ? '禁止执行' : '确认执行'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dismissPendingCommand() {
+    setState(() {
+      _pendingAiCommand = null;
+      _pendingAiExplanation = null;
+    });
+  }
+
+  /// 根据命令规则检查权限并处理
+  void _handleAiCommandResult(
+      String command, TerminalProvider terminalProvider) {
+    final aiProvider = context.read<AiProvider>();
+    final matcher = CommandRuleMatcher(aiProvider.config.commandRules);
+    final action = matcher.check(command);
+
+    switch (action) {
+      case CommandRuleAction.allow:
+        // 自动执行
+        _runAiCommand(terminalProvider, command);
+        break;
+      case CommandRuleAction.ask:
+        // 显示确认卡片（默认行为）
+        setState(() {
+          _pendingAiCommand = command;
+          _pendingAiExplanation = null;
+        });
+        break;
+      case CommandRuleAction.deny:
+        // 禁止执行
+        terminalProvider.currentSession?.write('\r\n\x1b[31m[AI Blocked] '
+            'This command is blocked by your rule settings.\x1b[0m\r\n');
+        break;
+    }
+  }
+
+  Future<void> _handleAiInlineSubmit(TerminalProvider terminalProvider) async {
+    final query = _aiInlineBarController.text.trim();
+    if (query.isEmpty) return;
+
+    final aiProvider = context.read<AiProvider>();
+    final settings = context.read<SettingsProvider>();
+
+    if (!aiProvider.isEnabled) {
+      _showTerminalMessage(
+          terminalProvider, '[AI] AI is disabled. Enable it in Settings.');
+      return;
+    }
+
+    if (!aiProvider.isConfigured) {
+      _showTerminalMessage(
+          terminalProvider, '[AI] Not configured. Set API key in Settings.');
+      return;
+    }
+
+    _aiInlineBarController.clear();
+
+    // 获取上下文
+    _currentCwd ??=
+        await terminalProvider.currentSession?.queryCurrentWorkingDirectory() ??
+            null;
+    final cwd = _currentCwd;
+    final shellType = settings.defaultShell;
+
+    // 生成命令
+    final command = await aiProvider.generateCommand(
+      query,
+      cwd: cwd,
+      shellType: shellType,
+    );
+
+    if (!mounted) return;
+
+    if (command != null && command.isNotEmpty) {
+      _handleAiCommandResult(command, terminalProvider);
+    } else {
+      final error = aiProvider.lastError ?? 'Failed to generate command';
+      _showTerminalMessage(terminalProvider, '[AI Error] $error');
+    }
+  }
+
   void _showContextMenu(
     BuildContext context,
     TapDownDetails details,
@@ -1652,6 +1967,61 @@ class _TerminalScreenState extends State<TerminalScreen> {
         _clearTerminal(terminalProvider);
       }
     });
+  }
+
+  void _showTerminalMessage(TerminalProvider terminalProvider, String msg) {
+    terminalProvider.currentSession?.write('\r\n$msg\r\n');
+  }
+
+  /// 处理命令执行完成（用于自动错误诊断）
+  void _handleCommandFinished(
+      String command, int exitCode, TerminalProvider terminalProvider) {
+    final aiProvider = context.read<AiProvider>();
+    if (!aiProvider.isEnabled || !aiProvider.config.autoErrorDiagnosis) {
+      return;
+    }
+    // 诊断已经在 provider 中处理，这里只负责通知
+    aiProvider.diagnoseError(
+      command: command,
+      errorOutput: '', // 简化版本，后续可扩展获取实际输出
+      exitCode: exitCode,
+      cwd: _currentCwd,
+      shellType: context.read<SettingsProvider>().defaultShell,
+    );
+  }
+
+  /// 处理终端内的 ?? 前缀命令拦截
+  Future<void> _handleAiCommandIntercept(
+      String query, TerminalProvider terminalProvider) async {
+    final aiProvider = context.read<AiProvider>();
+    if (!aiProvider.isEnabled || !aiProvider.isConfigured) {
+      // 如果 AI 未启用，在终端内显示提示
+      terminalProvider.currentSession?.write(
+          '\r\n\x1b[33m[AI] AI is not configured. Enable it in Settings.\x1b[0m\r\n');
+      return;
+    }
+
+    final settings = context.read<SettingsProvider>();
+    _currentCwd ??=
+        await terminalProvider.currentSession?.queryCurrentWorkingDirectory() ??
+            null;
+
+    // 生成命令并直接显示在建议卡片中
+    final command = await aiProvider.generateCommand(
+      query,
+      cwd: _currentCwd,
+      shellType: settings.defaultShell,
+    );
+
+    if (command != null && command.isNotEmpty && mounted) {
+      _handleAiCommandResult(command, terminalProvider);
+    } else if (aiProvider.lastError != null) {
+      _showTerminalMessage(
+          terminalProvider, '[AI Error] ${aiProvider.lastError}');
+    } else {
+      _showTerminalMessage(
+          terminalProvider, '[AI Error] Failed to generate command');
+    }
   }
 
   void _selectAll(TerminalProvider terminalProvider) {

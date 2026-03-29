@@ -11,6 +11,7 @@ import 'providers/ssh_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/file_manager_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/ai_provider.dart';
 import 'screens/bootstrap_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/terminal_screen.dart';
@@ -42,6 +43,7 @@ class DeepThoughtApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TaskProvider()..init()),
         ChangeNotifierProvider(create: (_) => FileManagerProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
+        ChangeNotifierProvider(create: (_) => AiProvider()..init()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
@@ -79,7 +81,7 @@ class DeepThoughtApp extends StatelessWidget {
     // Calculate a slightly different surface color for contrast
     // In dark mode, make it slightly lighter. In light mode, slightly darker.
     final isDark = brightness == Brightness.dark;
-    final surface = isDark 
+    final surface = isDark
         ? Color.alphaBlend(Colors.white.withOpacity(0.05), bg)
         : Color.alphaBlend(Colors.black.withOpacity(0.05), bg);
 
@@ -155,7 +157,8 @@ class _AppContentState extends State<_AppContent> {
   }
 
   void _onAuthChanged() {
-    debugPrint('[DeepThought] AuthProvider changed, isLoggedIn: ${context.read<AuthProvider>().isLoggedIn}');
+    debugPrint(
+        '[DeepThought] AuthProvider changed, isLoggedIn: ${context.read<AuthProvider>().isLoggedIn}');
     if (mounted) {
       setState(() {});
     }
@@ -169,7 +172,8 @@ class _AppContentState extends State<_AppContent> {
   }
 
   Future<void> _checkBootstrap() async {
-    debugPrint('[DeepThought] _checkBootstrap start, platform: ${Platform.operatingSystem}');
+    debugPrint(
+        '[DeepThought] _checkBootstrap start, platform: ${Platform.operatingSystem}');
 
     if (Platform.isAndroid) {
       // Android: 检查bootstrap是否已安装
@@ -199,7 +203,8 @@ class _AppContentState extends State<_AppContent> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('[DeepThought] build: _checking=$_checking, _bootstrapReady=$_bootstrapReady, platform=${Platform.operatingSystem}');
+    debugPrint(
+        '[DeepThought] build: _checking=$_checking, _bootstrapReady=$_bootstrapReady, platform=${Platform.operatingSystem}');
 
     if (_checking) {
       debugPrint('[DeepThought] showing LoadingScreen');
@@ -208,7 +213,8 @@ class _AppContentState extends State<_AppContent> {
 
     // 检查登录状态
     final authProvider = context.watch<AuthProvider>();
-    debugPrint('[DeepThought] isLoggedIn=${authProvider.isLoggedIn}, guestMode=${authProvider.guestModeEnabled}');
+    debugPrint(
+        '[DeepThought] isLoggedIn=${authProvider.isLoggedIn}, guestMode=${authProvider.guestModeEnabled}');
 
     // 未登录且未启用游客模式时显示登录页面
     if (!authProvider.isLoggedIn && !authProvider.guestModeEnabled) {
