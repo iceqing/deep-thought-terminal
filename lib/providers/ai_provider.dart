@@ -487,6 +487,7 @@ class AiProvider extends ChangeNotifier {
         'For shell tasks, prefer the bash tool. The bash tool already runs inside the app\'s current shell environment and working directory.\n'
         'Do not assume /bin/bash exists. Use the shell path provided in the context instead.\n'
         'Execute commands step by step. After each command, analyze the output and decide the next step.\n'
+        'Always expose your progress clearly: briefly state what you are about to do, then inspect the tool output before continuing.\n'
         'Be efficient — combine commands where possible.';
 
     // Agent 循环：最多 20 轮
@@ -498,9 +499,12 @@ class AiProvider extends ChangeNotifier {
           systemPromptOverride: systemPrompt,
         );
 
-        // 更新助手消息：显示思考 + 文本
-        _updateAssistantMessage(assistantMsg.id,
-            content: result.text, thinking: result.thinking);
+        // 追加助手消息：保留每轮思考和说明，便于排查
+        _appendAssistantMessage(
+          assistantMsg.id,
+          content: result.text,
+          thinking: result.thinking,
+        );
 
         if (!result.hasToolCalls) {
           // 没有工具调用，结束
@@ -568,6 +572,34 @@ class AiProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _appendAssistantMessage(
+    String msgId, {
+    String? content,
+    String? thinking,
+  }) {
+    final idx = _chatHistory.indexWhere((m) => m.id == msgId);
+    if (idx < 0) return;
+
+    final current = _chatHistory[idx];
+    final nextContent = _appendTraceBlock(current.content, content);
+    final nextThinking = _appendTraceBlock(current.thinking, thinking);
+
+    _chatHistory[idx] = current.copyWith(
+      content: nextContent,
+      thinking: nextThinking,
+      isStreaming: false,
+    );
+    notifyListeners();
+  }
+
+  String? _appendTraceBlock(String? existing, String? incoming) {
+    final next = incoming?.trim();
+    if (next == null || next.isEmpty) return existing;
+    final current = existing?.trim();
+    if (current == null || current.isEmpty) return next;
+    return '$current\n\n$next';
+  }
+
   /// 在聊天中添加工具调用结果
   void _addToolResult(
     String assistantMsgId,
@@ -577,11 +609,13 @@ class AiProvider extends ChangeNotifier {
   ) {
     final cmd =
         input['command'] as String? ?? input['path'] as String? ?? toolName;
+    final normalizedOutput = output.trim().isEmpty ? '(no output)' : output;
     final resultMsg = AiChatMessage(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       role: AiMessageRole.system,
-      content:
-          '> $toolName: ${cmd.length > 60 ? '${cmd.substring(0, 60)}...' : cmd}\n$output',
+      content: toolName == 'bash'
+          ? '\$ $cmd\n$normalizedOutput'
+          : '$toolName: $cmd\n$normalizedOutput',
       timestamp: DateTime.now(),
       type: AiMessageType.agent,
     );

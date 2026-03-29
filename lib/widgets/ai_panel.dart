@@ -35,6 +35,11 @@ class _AiPanelState extends State<AiPanel> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocusNode = FocusNode();
+  static const _modeMeta = {
+    AiMode.chat: ('Chat', Icons.chat_bubble_outline),
+    AiMode.agent: ('Agent', Icons.smart_toy_outlined),
+    AiMode.plan: ('Plan', Icons.route_outlined),
+  };
 
   @override
   void initState() {
@@ -242,41 +247,107 @@ class _AiPanelState extends State<AiPanel> {
             ),
           ),
           const SizedBox(height: 6),
-          // Mode selector
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<AiMode>(
-              segments: const [
-                ButtonSegment(
-                  value: AiMode.chat,
-                  icon: Icon(Icons.chat_bubble_outline, size: 14),
-                  label: Text('Chat'),
-                ),
-                ButtonSegment(
-                  value: AiMode.agent,
-                  icon: Icon(Icons.smart_toy_outlined, size: 14),
-                  label: Text('Agent'),
-                ),
-                ButtonSegment(
-                  value: AiMode.plan,
-                  icon: Icon(Icons.route_outlined, size: 14),
-                  label: Text('Plan'),
-                ),
-              ],
-              selected: {aiProvider.currentMode},
-              onSelectionChanged: (selected) {
-                aiProvider.setMode(selected.first);
-              },
-              style: SegmentedButton.styleFrom(
-                visualDensity:
-                    const VisualDensity(horizontal: -3, vertical: -3),
-                textStyle: const TextStyle(fontSize: 11),
-                padding: EdgeInsets.zero,
+          _buildModeSelector(theme, aiProvider),
+          const SizedBox(height: 2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeSelector(ThemeData theme, AiProvider aiProvider) {
+    if (widget.fullScreen) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<AiMode>(
+                value: aiProvider.currentMode,
+                isDense: true,
+                borderRadius: BorderRadius.circular(12),
+                icon: const Icon(Icons.expand_more, size: 18),
+                items: AiMode.values.map((mode) {
+                  final (itemLabel, itemIcon) = _modeMeta[mode]!;
+                  return DropdownMenuItem<AiMode>(
+                    value: mode,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(itemIcon, size: 16),
+                        const SizedBox(width: 8),
+                        Text(itemLabel),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                selectedItemBuilder: (context) => AiMode.values.map((mode) {
+                  final (itemLabel, itemIcon) = _modeMeta[mode]!;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(itemIcon,
+                          size: 16, color: theme.colorScheme.tertiary),
+                      const SizedBox(width: 8),
+                      Text(
+                        itemLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+                onChanged: aiProvider.isStreaming
+                    ? null
+                    : (mode) {
+                        if (mode != null) aiProvider.setMode(mode);
+                      },
               ),
             ),
           ),
-          const SizedBox(height: 2),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<AiMode>(
+        segments: const [
+          ButtonSegment(
+            value: AiMode.chat,
+            icon: Icon(Icons.chat_bubble_outline, size: 14),
+            label: Text('Chat'),
+          ),
+          ButtonSegment(
+            value: AiMode.agent,
+            icon: Icon(Icons.smart_toy_outlined, size: 14),
+            label: Text('Agent'),
+          ),
+          ButtonSegment(
+            value: AiMode.plan,
+            icon: Icon(Icons.route_outlined, size: 14),
+            label: Text('Plan'),
+          ),
         ],
+        selected: {aiProvider.currentMode},
+        onSelectionChanged: (selected) {
+          aiProvider.setMode(selected.first);
+        },
+        style: SegmentedButton.styleFrom(
+          visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
+          textStyle: const TextStyle(fontSize: 11),
+          padding: EdgeInsets.zero,
+        ),
       ),
     );
   }
@@ -375,8 +446,9 @@ class _AiPanelState extends State<AiPanel> {
       itemCount: aiProvider.chatHistory.length,
       itemBuilder: (context, index) {
         final message = aiProvider.chatHistory[index];
-        if (message.role == AiMessageRole.system &&
-            message.type != AiMessageType.commandSuggestion) {
+        if (message.content.isEmpty &&
+            message.role == AiMessageRole.system &&
+            message.suggestedCommand == null) {
           return const SizedBox.shrink();
         }
         return AiChatBubble(

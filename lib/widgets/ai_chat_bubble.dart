@@ -80,6 +80,7 @@ class AiChatBubble extends StatelessWidget {
 
   Widget _buildBubble(ThemeData theme, bool isUser, bool isError) {
     final colorScheme = theme.colorScheme;
+    final typeLabel = _typeLabel(message.type);
     final bgColor = isUser
         ? colorScheme.primary
         : isError
@@ -107,7 +108,7 @@ class AiChatBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Type badge
-          if (message.type != AiMessageType.chat)
+          if (typeLabel.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Container(
@@ -117,7 +118,7 @@ class AiChatBubble extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  _typeLabel(message.type),
+                  typeLabel,
                   style: TextStyle(
                     fontSize: 10,
                     color: fgColor.withValues(alpha: 0.8),
@@ -199,50 +200,9 @@ class AiChatBubble extends StatelessWidget {
 
   /// 命令执行结果气泡（system role）
   Widget _buildCommandResultBubble(ThemeData theme) {
-    final colorScheme = theme.colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
-        margin: const EdgeInsets.only(left: 36),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.terminal,
-                    size: 14, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 6),
-                Text(
-                  'Command Output',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            SelectableText(
-              message.content,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: _CommandResultBubble(content: message.content),
     );
   }
 
@@ -311,6 +271,199 @@ class AiChatBubble extends StatelessWidget {
         return '';
     }
   }
+}
+
+class _CommandResultBubble extends StatefulWidget {
+  final String content;
+
+  const _CommandResultBubble({required this.content});
+
+  @override
+  State<_CommandResultBubble> createState() => _CommandResultBubbleState();
+}
+
+class _CommandResultBubbleState extends State<_CommandResultBubble> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = _shouldStartExpanded(widget.content);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommandResultBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.content != widget.content) {
+      _expanded = _shouldStartExpanded(widget.content);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final parsed = _parseCommandResult(widget.content);
+    final outputLines = '\n'.allMatches(parsed.output).length + 1;
+    final canCollapse = parsed.output.trim().isNotEmpty && outputLines > 3;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 600),
+      margin: const EdgeInsets.only(left: 36),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.terminal,
+                  size: 14, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Text(
+                'Command Output',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 16),
+                tooltip: 'Copy command',
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: parsed.command));
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: SelectableText(
+              parsed.command,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          if (parsed.output.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: canCollapse
+                  ? () => setState(() => _expanded = !_expanded)
+                  : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                child: Row(
+                  children: [
+                    Text(
+                      'Output',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$outputLines lines',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (canCollapse)
+                      Icon(
+                        _expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 16,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 180),
+              crossFadeState: _expanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox.shrink(),
+              secondChild: Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  parsed.output,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool _shouldStartExpanded(String content) {
+    final parsed = _parseCommandResult(content);
+    final outputLines = '\n'.allMatches(parsed.output).length + 1;
+    return outputLines <= 8;
+  }
+
+  _ParsedCommandResult _parseCommandResult(String raw) {
+    final lines = raw.split('\n');
+    if (lines.isEmpty) {
+      return const _ParsedCommandResult(
+          command: '(unknown command)', output: '');
+    }
+
+    final firstLine = lines.first.trimRight();
+    final remaining = lines.skip(1).join('\n').trimRight();
+    if (firstLine.startsWith(r'$ ')) {
+      return _ParsedCommandResult(command: firstLine, output: remaining);
+    }
+    if (firstLine.contains(': ')) {
+      return _ParsedCommandResult(command: firstLine, output: remaining);
+    }
+    return _ParsedCommandResult(
+        command: '(output only)', output: raw.trimRight());
+  }
+}
+
+class _ParsedCommandResult {
+  final String command;
+  final String output;
+
+  const _ParsedCommandResult({
+    required this.command,
+    required this.output,
+  });
 }
 
 /// 可折叠的思考过程区块，参考 Claude Code 风格
