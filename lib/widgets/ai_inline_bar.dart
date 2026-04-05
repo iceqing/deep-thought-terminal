@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/ai_config.dart';
 import '../models/ai_chat_message.dart';
 import '../providers/ai_provider.dart';
+import 'ai_composer_row.dart';
+import 'ai_quick_actions.dart';
 
 /// AI 底部快捷输入栏
 class AiInlineBar extends StatefulWidget {
@@ -27,18 +29,6 @@ class _AiInlineBarState extends State<AiInlineBar> {
   bool _hasText = false;
   OverlayEntry? _slashOverlay;
   final LayerLink _layerLink = LayerLink();
-
-  static const _modeIcons = {
-    AiMode.chat: Icons.chat_bubble_outline,
-    AiMode.agent: Icons.smart_toy_outlined,
-    AiMode.plan: Icons.route_outlined,
-  };
-
-  static const _modeLabels = {
-    AiMode.chat: 'Chat',
-    AiMode.agent: 'Agent',
-    AiMode.plan: 'Plan',
-  };
 
   static const _modeHints = {
     AiMode.chat: 'Ask AI...',
@@ -145,16 +135,11 @@ class _AiInlineBarState extends State<AiInlineBar> {
 
     if (q.startsWith('/mode ') || q == '/mode') {
       for (final mode in AiMode.values) {
-        final icons = {
-          AiMode.chat: Icons.chat_bubble_outline,
-          AiMode.agent: Icons.smart_toy_outlined,
-          AiMode.plan: Icons.route_outlined
-        };
         if (q.length > 6 && !mode.name.toLowerCase().contains(q.substring(6))) {
           continue;
         }
         results.add(_SlashMatch(
-          icon: icons[mode]!,
+          icon: AiQuickActions.modeIcons[mode]!,
           label: '/mode ${mode.name}',
           subtitle: 'Switch to ${mode.name} mode',
           onTap: () {
@@ -175,9 +160,17 @@ class _AiInlineBarState extends State<AiInlineBar> {
           subtitle: cmd.description,
           onTap: cmd.hasSubItems
               ? () {
-                  widget.controller.text = '${cmd.command} ';
-                  widget.controller.selection = TextSelection.collapsed(
-                      offset: widget.controller.text.length);
+                  if (cmd.command == '/model') {
+                    _dismissSlashOverlay();
+                    AiQuickActions.showModelPicker(
+                      context: context,
+                      aiProvider: aiProvider,
+                    );
+                  } else {
+                    widget.controller.text = '${cmd.command} ';
+                    widget.controller.selection = TextSelection.collapsed(
+                        offset: widget.controller.text.length);
+                  }
                 }
               : () {
                   _dismissSlashOverlay();
@@ -236,123 +229,6 @@ class _AiInlineBarState extends State<AiInlineBar> {
     );
   }
 
-  void _showQuickActions(AiProvider aiProvider) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return SafeArea(
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.58,
-            minChildSize: 0.35,
-            maxChildSize: 0.82,
-            builder: (context, scrollController) => Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurfaceVariant
-                        .withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.only(bottom: 8),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Mode',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      ...AiMode.values.map((mode) {
-                        final selected = mode == aiProvider.currentMode;
-                        return ListTile(
-                          leading: Icon(_modeIcons[mode], size: 20),
-                          title: Text(_modeLabels[mode]!),
-                          trailing: selected
-                              ? Icon(Icons.check,
-                                  size: 18, color: theme.colorScheme.primary)
-                              : null,
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            aiProvider.setMode(mode);
-                          },
-                        );
-                      }),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Commands',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      ...SlashCommand.all
-                          .where((cmd) => cmd.command != '/mode')
-                          .map((cmd) => ListTile(
-                                leading: Icon(cmd.icon, size: 20),
-                                title: Text(cmd.command),
-                                subtitle: Text(cmd.description),
-                                trailing: cmd.hasSubItems
-                                    ? const Icon(Icons.chevron_right, size: 18)
-                                    : null,
-                                onTap: () {
-                                  Navigator.pop(ctx);
-                                  _handleQuickCommand(cmd.command, aiProvider);
-                                },
-                              )),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _handleQuickCommand(String command, AiProvider aiProvider) {
-    switch (command) {
-      case '/clear':
-        aiProvider.clearHistory();
-        return;
-      case '/providers':
-        final keys = aiProvider.configuredProviderKeys;
-        if (keys.isNotEmpty) {
-          final lines = keys.map((k) {
-            final p = AiConfig.allPresets[k];
-            final m = aiProvider.allProviderConfigs[k]?.model ?? '';
-            final act = k == aiProvider.activeProviderKey ? ' (active)' : '';
-            return '- **${p?.name ?? k}**: `$m`$act';
-          }).join('\n');
-          aiProvider.addCommandResult('/providers', lines);
-        }
-        return;
-      default:
-        widget.controller
-          ..text = '$command '
-          ..selection = TextSelection.collapsed(offset: command.length + 1);
-    }
-  }
-
   void _handleSubmit() {
     final text = widget.controller.text.trim();
     if (text.isEmpty) return;
@@ -389,84 +265,46 @@ class _AiInlineBarState extends State<AiInlineBar> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Command trigger
-          InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _showQuickActions(aiProvider),
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 12 : 10,
-                vertical: isMobile ? 6 : 4,
+      child: AiComposerRow(
+        controller: widget.controller,
+        enabled: widget.enabled,
+        hintText: _modeHints[mode]!,
+        minLines: 1,
+        maxLines: 1,
+        layerLink: _layerLink,
+        onCommandTap: () => AiQuickActions.showSheet(
+          context: context,
+          aiProvider: aiProvider,
+          controller: widget.controller,
+        ),
+        onSubmit: _handleSubmit,
+        trailing: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: SizedBox(
+            key: ValueKey(_hasText),
+            width: actionSize,
+            height: actionSize,
+            child: FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: const CircleBorder(),
+                visualDensity: VisualDensity.compact,
               ),
-              decoration: BoxDecoration(
-                color: (activePreset?.color ?? theme.colorScheme.tertiary)
-                    .withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.terminal_rounded,
-                    size: isMobile ? 17 : 15,
-                    color: activePreset?.color ?? theme.colorScheme.tertiary,
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(
-                    Icons.expand_more_rounded,
-                    size: 12,
-                    color: activePreset?.color ?? theme.colorScheme.tertiary,
-                  ),
-                ],
+              onPressed: _hasText ? _handleSubmit : widget.onTapOpenPanel,
+              child: Icon(
+                _hasText ? Icons.send_rounded : Icons.fullscreen_rounded,
+                size: isMobile ? 20 : 18,
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: CompositedTransformTarget(
-              link: _layerLink,
-              child: TextField(
-                controller: widget.controller,
-                enabled: widget.enabled,
-                decoration: InputDecoration(
-                  hintText: _modeHints[mode],
-                  hintStyle: TextStyle(fontSize: isMobile ? 14 : 13),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 8 : 4,
-                    vertical: isMobile ? 14 : 10,
-                  ),
-                  isDense: true,
-                ),
-                style: TextStyle(fontSize: isMobile ? 14 : 13),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _handleSubmit(),
-              ),
-            ),
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: SizedBox(
-              key: ValueKey(_hasText),
-              width: actionSize,
-              height: actionSize,
-              child: FilledButton.tonal(
-                style: FilledButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  shape: const CircleBorder(),
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: _hasText ? _handleSubmit : widget.onTapOpenPanel,
-                child: Icon(
-                  _hasText ? Icons.send_rounded : Icons.fullscreen_rounded,
-                  size: isMobile ? 20 : 18,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
+        accentColor: activePreset?.color ?? theme.colorScheme.tertiary,
+        iconSize: isMobile ? 17 : 15,
+        fontSize: isMobile ? 14 : 13,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 8 : 4,
+          vertical: isMobile ? 14 : 10,
+        ),
       ),
     );
   }

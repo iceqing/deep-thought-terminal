@@ -36,9 +36,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final preset = AiConfig.allPresets[_editingKey];
     _apiKeyController = TextEditingController(text: pc?.apiKey ?? '');
     _baseUrlController =
-        TextEditingController(text: pc?.baseUrl ?? preset?.baseUrl ?? '');
+        TextEditingController(text: preset?.baseUrl ?? '');
     _modelController =
-        TextEditingController(text: pc?.model ?? preset?.defaultModel ?? '');
+        TextEditingController(text: preset?.defaultModel ?? '');
     _systemPromptController =
         TextEditingController(text: aiProvider.config.systemPrompt);
     _commandRulesController =
@@ -67,9 +67,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
 
     setState(() {
       _editingKey = key;
+      // 优先使用 preset 的默认值（如用户未手动修改过），避免旧数据干扰
       _apiKeyController.text = pc?.apiKey ?? '';
-      _baseUrlController.text = pc?.baseUrl ?? preset?.baseUrl ?? '';
-      _modelController.text = pc?.model ?? preset?.defaultModel ?? '';
+      _baseUrlController.text = preset?.baseUrl ?? '';
+      _modelController.text = preset?.defaultModel ?? '';
       _testResult = null;
     });
   }
@@ -385,116 +386,117 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
+                // Base URL
+                TextField(
+                  controller: _baseUrlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Base URL',
+                    hintText: 'https://api.openai.com/v1',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.link, size: 20),
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 12),
+
+                // Model
+                LayoutBuilder(builder: (ctx, _) {
+                  final preset = AiConfig.allPresets[_editingKey];
+                  final suggestions = preset?.commonModels ?? [];
+                  return Autocomplete<String>(
+                    key: ValueKey('model_$_editingKey'),
+                    initialValue: TextEditingValue(
+                      text: _modelController.text,
+                      selection: TextSelection.collapsed(
+                          offset: _modelController.text.length),
+                    ),
+                    optionsBuilder: (textEditingValue) {
+                      // Always show all suggestions in the dropdown so user can switch
+                      return suggestions;
+                    },
+                    fieldViewBuilder: (ctx, controller, focusNode, onSubmit) {
+                      controller.addListener(() {
+                        if (controller.text != _modelController.text) {
+                          _modelController.text = controller.text;
+                        }
+                      });
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: InputDecoration(
+                          labelText: 'Model',
+                          hintText: suggestions.isNotEmpty
+                              ? suggestions.first
+                              : 'Enter model name',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.model_training, size: 20),
+                          suffixIcon: suggestions.isNotEmpty
+                              ? Icon(Icons.arrow_drop_down,
+                                  color: theme.colorScheme.onSurfaceVariant)
+                              : null,
+                        ),
+                      );
+                    },
+                    optionsViewBuilder: (ctx, onSelect, options) {
+                      final screenW = MediaQuery.of(ctx).size.width;
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 4,
+                          borderRadius: BorderRadius.circular(12),
+                          color: theme.colorScheme.surfaceContainerHigh,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: 200,
+                              maxWidth: screenW - 64,
+                            ),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              itemBuilder: (ctx, i) {
+                                final opt = options.elementAt(i);
+                                return InkWell(
+                                  onTap: () => onSelect(opt),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.model_training,
+                                            size: 16,
+                                            color: theme.colorScheme.primary),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(opt,
+                                              style: const TextStyle(
+                                                  fontSize: 14)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    onSelected: (model) {
+                      _modelController.text = model;
+                    },
+                  );
+                }),
+                const SizedBox(height: 12),
+
                 // Advanced settings
                 ExpansionTile(
                   leading: const Icon(Icons.tune, size: 20),
                   title: const Text('Advanced'),
-                  subtitle: const Text('Base URL, model, temperature'),
-                  initiallyExpanded: _editingKey == 'custom',
+                  subtitle: const Text('Temperature'),
                   tilePadding: const EdgeInsets.symmetric(horizontal: 16),
                   childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   children: [
-                    TextField(
-                      controller: _baseUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Base URL',
-                        hintText: 'https://api.openai.com/v1',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.link, size: 20),
-                      ),
-                      keyboardType: TextInputType.url,
-                    ),
-                    const SizedBox(height: 12),
-                    LayoutBuilder(builder: (ctx, constraints) {
-                      final preset = AiConfig.allPresets[_editingKey];
-                      final suggestions = preset?.commonModels ?? [];
-                      return Autocomplete<String>(
-                        initialValue: TextEditingValue(
-                          text: _modelController.text,
-                          selection: TextSelection.collapsed(
-                              offset: _modelController.text.length),
-                        ),
-                        optionsBuilder: (textEditingValue) {
-                          if (textEditingValue.text.isEmpty) {
-                            return suggestions;
-                          }
-                          return suggestions.where((m) =>
-                              m.toLowerCase().contains(
-                                  textEditingValue.text.toLowerCase()));
-                        },
-                        fieldViewBuilder: (ctx, controller, focusNode, onSubmit) {
-                          // Sync controller with our _modelController
-                          controller.addListener(() {
-                            if (controller.text != _modelController.text) {
-                              _modelController.text = controller.text;
-                            }
-                          });
-                          return TextField(
-                            controller: controller,
-                            focusNode: focusNode,
-                            decoration: InputDecoration(
-                              labelText: 'Model',
-                              hintText: suggestions.isNotEmpty
-                                  ? suggestions.first
-                                  : 'Enter model name',
-                              border: const OutlineInputBorder(),
-                              prefixIcon: const Icon(Icons.model_training, size: 20),
-                              suffixIcon: suggestions.isNotEmpty
-                                  ? Icon(Icons.arrow_drop_down,
-                                      color: theme.colorScheme.onSurfaceVariant)
-                                  : null,
-                            ),
-                          );
-                        },
-                        optionsViewBuilder: (ctx, onSelect, options) {
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4,
-                              borderRadius: BorderRadius.circular(12),
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                    maxHeight: 200,
-                                    maxWidth: constraints.maxWidth),
-                                child: ListView.builder(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  shrinkWrap: true,
-                                  itemCount: options.length,
-                                  itemBuilder: (ctx, i) {
-                                    final opt = options.elementAt(i);
-                                    return InkWell(
-                                      onTap: () => onSelect(opt),
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 14, vertical: 10),
-                                        child: Row(
-                                          children: [
-                                            Icon(Icons.model_training,
-                                                size: 16,
-                                                color: theme.colorScheme.primary),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(opt,
-                                                  style: const TextStyle(
-                                                      fontSize: 14)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        onSelected: (model) {
-                          _modelController.text = model;
-                        },
-                      );
-                    }),
-                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Text('Temperature',

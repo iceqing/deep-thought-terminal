@@ -110,12 +110,12 @@ class AiService {
     );
   }
 
-  /// 执行工具调用
-  static String executeTool(
+  /// 执行工具调用（支持同步和异步执行器）
+  static Future<String> executeTool(
     String name,
     Map<String, dynamic> input,
-    ToolExecutor executor,
-  ) {
+    Future<String> Function(String name, Map<String, dynamic> input) executor,
+  ) async {
     return executor(name, input);
   }
 
@@ -692,15 +692,15 @@ typedef ToolExecutor = String Function(
 
 /// 默认工具执行器（文件系统操作 + 模拟 bash）
 /// 实际 bash 命令执行由调用方通过 TerminalSession 提供
-String defaultToolExecutor(
-    String name, Map<String, dynamic> input) {
+Future<String> defaultToolExecutor(
+    String name, Map<String, dynamic> input) async {
   switch (name) {
     case 'read_file':
       final path = input['path'] as String? ?? '';
       final limit = input['limit'] as int?;
       try {
         final file = File(path);
-        var content = file.readAsStringSync();
+        var content = await file.readAsString();
         final lines = content.split('\n');
         if (limit != null && limit < lines.length) {
           content =
@@ -715,8 +715,8 @@ String defaultToolExecutor(
       final path = input['path'] as String? ?? '';
       final content = input['content'] as String? ?? '';
       try {
-        File(path).parent.createSync(recursive: true);
-        File(path).writeAsStringSync(content);
+        await File(path).parent.create(recursive: true);
+        await File(path).writeAsString(content);
         return 'Wrote ${content.length} bytes to $path';
       } catch (e) {
         return 'Error writing $path: $e';
@@ -728,12 +728,12 @@ String defaultToolExecutor(
       final newText = input['new_text'] as String? ?? '';
       try {
         final file = File(path);
-        final content = file.readAsStringSync();
+        final content = await file.readAsString();
         if (!content.contains(oldText)) {
           return 'Error: old_text not found in $path';
         }
         final newContent = content.replaceFirst(oldText, newText);
-        file.writeAsStringSync(newContent);
+        await file.writeAsString(newContent);
         return 'Edited $path';
       } catch (e) {
         return 'Error editing $path: $e';

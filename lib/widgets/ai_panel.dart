@@ -5,6 +5,8 @@ import '../models/ai_config.dart';
 import '../providers/ai_provider.dart';
 import '../services/ai_service.dart';
 import 'ai_chat_bubble.dart';
+import 'ai_composer_row.dart';
+import 'ai_quick_actions.dart';
 import 'provider_icon.dart';
 
 /// AI 侧边面板
@@ -14,9 +16,10 @@ class AiPanel extends StatefulWidget {
   final bool fullScreen;
   final VoidCallback onClose;
   final void Function(String command)? onRunCommand;
+  final TextEditingController? controller;
   final String? currentCwd;
   final String? currentShell;
-  final String Function(String name, Map<String, dynamic> input)? toolExecutor;
+  final Future<String> Function(String name, Map<String, dynamic> input)? toolExecutor;
 
   const AiPanel({
     super.key,
@@ -24,6 +27,7 @@ class AiPanel extends StatefulWidget {
     this.fullScreen = false,
     required this.onClose,
     this.onRunCommand,
+    this.controller,
     this.currentCwd,
     this.currentShell,
     this.toolExecutor,
@@ -34,11 +38,15 @@ class AiPanel extends StatefulWidget {
 }
 
 class _AiPanelState extends State<AiPanel> {
-  final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final FocusNode _inputFocusNode = FocusNode();
   final LayerLink _inputLayerLink = LayerLink();
+  TextEditingController? _ownedInputController;
+  FocusNode? _ownedInputFocusNode;
   OverlayEntry? _slashOverlay;
+
+  TextEditingController get _inputController =>
+      widget.controller ?? _ownedInputController!;
+  FocusNode get _inputFocusNode => _ownedInputFocusNode!;
 
   static const _modeMeta = {
     AiMode.chat: ('Chat', Icons.chat_bubble_outline),
@@ -49,6 +57,9 @@ class _AiPanelState extends State<AiPanel> {
   @override
   void initState() {
     super.initState();
+    _ownedInputController =
+        widget.controller == null ? TextEditingController() : null;
+    _ownedInputFocusNode = FocusNode();
     _inputController.addListener(_onInputChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -60,9 +71,9 @@ class _AiPanelState extends State<AiPanel> {
   void dispose() {
     _dismissSlashOverlay();
     _inputController.removeListener(_onInputChanged);
-    _inputController.dispose();
+    _ownedInputController?.dispose();
     _scrollController.dispose();
-    _inputFocusNode.dispose();
+    _ownedInputFocusNode?.dispose();
     super.dispose();
   }
 
@@ -171,9 +182,17 @@ class _AiPanelState extends State<AiPanel> {
           subtitle: cmd.description,
           action: cmd.hasSubItems
               ? () {
-                  _inputController.text = '${cmd.command} ';
-                  _inputController.selection = TextSelection.collapsed(
-                      offset: _inputController.text.length);
+                  if (cmd.command == '/model') {
+                    _dismissSlashOverlay();
+                    AiQuickActions.showModelPicker(
+                      context: context,
+                      aiProvider: aiProvider,
+                    );
+                  } else {
+                    _inputController.text = '${cmd.command} ';
+                    _inputController.selection = TextSelection.collapsed(
+                        offset: _inputController.text.length);
+                  }
                 }
               : () => _executeTopLevel(cmd.command),
         ));
@@ -324,12 +343,12 @@ class _AiPanelState extends State<AiPanel> {
     _scrollToBottom();
   }
 
-  void _handleSlashText(String text) {
+  Future<void> _handleSlashText(String text) async {
     _dismissSlashOverlay();
-    _inputController.clear();
     final aiProvider = context.read<AiProvider>();
 
     if (text.startsWith('/switch ')) {
+      _inputController.clear();
       final arg = text.substring(8).trim().toLowerCase();
       final key = aiProvider.configuredProviderKeys.firstWhere(
         (k) =>
@@ -339,6 +358,7 @@ class _AiPanelState extends State<AiPanel> {
       );
       if (key.isNotEmpty) _doSwitch(key);
     } else if (text.startsWith('/mode ')) {
+      _inputController.clear();
       final arg = text.substring(6).trim().toLowerCase();
       for (final mode in AiMode.values) {
         if (mode.name == arg) {
@@ -348,10 +368,26 @@ class _AiPanelState extends State<AiPanel> {
       }
     } else if (text.startsWith('/model ')) {
       final model = text.substring(7).trim();
-      if (model.isNotEmpty) aiProvider.switchModel(model);
+      if (model.isEmpty) {
+        _inputController.clear();
+        AiQuickActions.showModelPicker(
+          context: context,
+          aiProvider: aiProvider,
+        );
+        return;
+      }
+      _inputController.clear();
+      await aiProvider.switchModel(model);
+      final preset = AiConfig.allPresets[aiProvider.activeProviderKey];
+      aiProvider.addCommandResult(
+        '/model $model',
+        'Switched ${preset?.name ?? aiProvider.activeProviderKey} model to `$model`',
+      );
     } else if (text == '/clear') {
+      _inputController.clear();
       aiProvider.clearHistory();
     } else if (text == '/providers') {
+      _inputController.clear();
       _showProvidersList(aiProvider);
     }
   }
@@ -793,50 +829,42 @@ class _AiPanelState extends State<AiPanel> {
                 ],
               ),
             ),
-          // Input row with LayerLink for slash overlay
-          Row(
-            children: [
-              Expanded(
-                child: CompositedTransformTarget(
-                  link: _inputLayerLink,
-                  child: TextField(
-                    controller: _inputController,
-                    focusNode: _inputFocusNode,
-                    enabled: !aiProvider.isStreaming,
-                    maxLines: widget.fullScreen ? 6 : 3,
-                    minLines: 1,
-                    decoration: InputDecoration(
-                      hintText: switch (aiProvider.currentMode) {
-                        AiMode.chat => 'Ask AI... (/ for commands)',
-                        AiMode.agent => 'Describe a goal... (/ for commands)',
-                        AiMode.plan => 'What to plan? (/ for commands)',
-                      },
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      isDense: true,
-                    ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: aiProvider.isStreaming
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
-                onPressed: aiProvider.isStreaming ? null : _sendMessage,
-              ),
-            ],
+          AiComposerRow(
+            controller: _inputController,
+            focusNode: _inputFocusNode,
+            enabled: !aiProvider.isStreaming,
+            hintText: switch (aiProvider.currentMode) {
+              AiMode.chat => 'Ask AI... (/ for commands)',
+              AiMode.agent => 'Describe a goal... (/ for commands)',
+              AiMode.plan => 'What to plan? (/ for commands)',
+            },
+            minLines: 1,
+            maxLines: widget.fullScreen ? 6 : 3,
+            layerLink: _inputLayerLink,
+            onCommandTap: () => AiQuickActions.showSheet(
+              context: context,
+              aiProvider: aiProvider,
+              controller: _inputController,
+            ),
+            onSubmit: _sendMessage,
+            trailing: IconButton(
+              icon: aiProvider.isStreaming
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send),
+              onPressed: aiProvider.isStreaming ? null : _sendMessage,
+            ),
+            accentColor: theme.colorScheme.tertiary,
+            iconSize: 16,
+            fontSize: 14,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
           ),
         ],
       ),

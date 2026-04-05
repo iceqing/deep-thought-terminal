@@ -300,8 +300,8 @@ class AiConfig {
     'xiaomi': AiPreset(
       name: '小米 MiMo',
       baseUrl: 'https://api.xiaomi.com/v1',
-      defaultModel: 'MiMo-7B-RL',
-      commonModels: ['MiMo-7B-RL', 'MiMo-14B', 'MiMo-72B'],
+      defaultModel: 'mimo-v2-pro',
+      commonModels: ['mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2-flash'],
     ),
     'minimax': AiPreset(
       name: 'MiniMax',

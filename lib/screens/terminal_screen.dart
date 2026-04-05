@@ -800,6 +800,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       fullScreen: isMobile,
       onClose: () => aiProvider.closePanel(),
       onRunCommand: (cmd) => _runAiCommand(terminalProvider, cmd),
+      controller: _aiInlineBarController,
       currentCwd: _currentCwd,
       currentShell: settings.defaultShellPath,
       toolExecutor: (name, input) =>
@@ -1754,16 +1755,49 @@ class _TerminalScreenState extends State<TerminalScreen> {
   }
 
   /// 创建 Agent 工具执行器
-  /// bash 命令通过 Process.run 同步执行（不在终端会话中）
+  /// bash 命令通过终端会话执行（SSH模式下发送到远程）
   /// 文件操作使用 defaultToolExecutor
-  String _createToolExecutor(
+  Future<String> _createToolExecutor(
     TerminalProvider terminalProvider,
     SettingsProvider settings,
     String name,
     Map<String, dynamic> input,
-  ) {
+  ) async {
     if (name == 'bash') {
       final command = input['command'] as String? ?? '';
+      final session = terminalProvider.currentSession;
+
+      // SSH 会话：发送命令到远程服务器执行
+      if (session != null && session.isSshSession) {
+        final completer = Completer<String>();
+        String? capturedOutput;
+
+        session.startOutputCapture((output) {
+          capturedOutput = output;
+        });
+
+        session.write(command.endsWith('\n') ? command : '$command\n');
+
+        // 等待输出（最多10秒）后停止捕获
+        Future.delayed(const Duration(seconds: 10), () {
+          session.stopOutputCapture();
+          if (!completer.isCompleted) {
+            final result = (capturedOutput ?? '').trim();
+            completer.complete(result.isEmpty ? '(no output)' : result);
+          }
+        });
+
+        return completer.future.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            session.stopOutputCapture();
+            final result = (capturedOutput ?? '').trim();
+            return result.isEmpty ? '(no output)' : result;
+          },
+        );
+      }
+
+      // 本地会话：使用 Process.runSync 执行
       try {
         final shellPath = settings.defaultShellPath;
         final workDir = (_currentCwd?.trim().isNotEmpty ?? false)

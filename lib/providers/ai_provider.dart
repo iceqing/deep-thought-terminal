@@ -249,7 +249,7 @@ class AiProvider extends ChangeNotifier {
     String? lastCommand,
     String? shellType,
     String? lastCommandOutput,
-    required String Function(String name, Map<String, dynamic> input)
+    required Future<String> Function(String name, Map<String, dynamic> input)
         toolExecutor,
   }) async {
     if (!isConfigured) {
@@ -539,7 +539,7 @@ class AiProvider extends ChangeNotifier {
     String goal, {
     String? cwd,
     String? shellType,
-    required String Function(String name, Map<String, dynamic> input)
+    required Future<String> Function(String name, Map<String, dynamic> input)
         toolExecutor,
   }) async {
     if (!isConfigured) {
@@ -609,8 +609,8 @@ class AiProvider extends ChangeNotifier {
 
           // 追加用户消息（工具结果）
           final output = result.stopReason == 'tool_use'
-              ? AiService.executeTool(call.name, call.input, toolExecutor)
-              : AiService.executeTool(
+              ? await AiService.executeTool(call.name, call.input, toolExecutor)
+              : await AiService.executeTool(
                   call.name, call.input, defaultToolExecutor);
 
           // 在聊天中显示工具调用和结果

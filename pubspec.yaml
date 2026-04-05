@@ -40,6 +40,7 @@ flutter:
     - assets/bootstrap-aarch64.zip
     - assets/bootstrap-x86_64.zip
     - assets/icon/
+    - assets/icon/providers/
   fonts:
     # Nerd Font MONO variants - all glyphs forced to single-width
     - family: JetBrainsMonoNerdFontMono
