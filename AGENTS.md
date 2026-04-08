@@ -57,6 +57,10 @@ flutter test
 
 When building or compiling (Docker builds, bootstrap, NDK), always verify proxy/network configuration, dependency names (e.g., bzip2 vs libbz2), and build cache state BEFORE attempting the build. List assumptions and ask for confirmation if unsure.
 
+### Bootstrap
+
+The Android bootstrap archives (`assets/bootstrap-*.zip`) are built from a separate repo: `/home/ice/common/github/termux-packages`. The key script is `scripts/build-bootstraps.sh`, which defines a `BOOTSTRAP_WHITELIST` controlling which packages (and their files) are included in the final zip. Dependencies are resolved by the build system, but only whitelisted packages are extracted into the archive. When adding new packages to the bootstrap or fixing missing libraries, modify the whitelist in `build-bootstraps.sh` and rebuild — do NOT manually inject binaries into the zip.
+
 ## Project Structure
 
 ```

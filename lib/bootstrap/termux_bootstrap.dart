@@ -257,34 +257,59 @@ class TermuxBootstrap {
       final executableFiles = <String>[];
 
       BootstrapProfiler.start('写入文件 ($totalFiles 个)');
+
+      // 第一遍：收集所有需要创建的目录和文件信息
+      final dirs = <String>{};
+      final fileEntries = <({String targetPath, List<int> content, String name})>[];
+
       for (final file in archive.files) {
         final filename = file.name;
 
-        // 处理SYMLINKS.txt
         if (filename == 'SYMLINKS.txt') {
           final content = String.fromCharCodes(file.content as List<int>);
           _parseSymlinks(content, symlinks);
           continue;
         }
 
-        // 计算目标路径
         final targetPath = path.join(TermuxConstants.prefixDir, filename);
 
         if (file.isFile) {
-          final outFile = File(targetPath);
-          await outFile.create(recursive: true);
-          await outFile.writeAsBytes(file.content as List<int>);
-
-          // 记录需要设置可执行权限的文件
+          // 收集父目录
+          dirs.add(path.dirname(targetPath));
+          fileEntries.add((
+            targetPath: targetPath,
+            content: file.content as List<int>,
+            name: filename,
+          ));
           if (_shouldBeExecutable(filename)) {
             executableFiles.add(targetPath);
           }
         } else {
-          await Directory(targetPath).create(recursive: true);
+          dirs.add(targetPath);
         }
+      }
 
-        extractedFiles++;
-        if (extractedFiles % 100 == 0) {
+      // 批量创建所有目录
+      BootstrapProfiler.start('创建目录结构');
+      await Future.wait(
+        dirs.map((d) => Directory(d).create(recursive: true)),
+      );
+      BootstrapProfiler.end('创建目录结构');
+
+      // 并发写入文件（每批 50 个）
+      const batchSize = 50;
+      for (var i = 0; i < fileEntries.length; i += batchSize) {
+        final end = (i + batchSize < fileEntries.length)
+            ? i + batchSize
+            : fileEntries.length;
+        final batch = fileEntries.sublist(i, end);
+
+        await Future.wait(
+          batch.map((e) => File(e.targetPath).writeAsBytes(e.content)),
+        );
+
+        extractedFiles += batch.length;
+        if (extractedFiles % 100 < batchSize) {
           final progress = 0.2 + (extractedFiles / totalFiles) * 0.7;
           onProgress?.call(
             BootstrapStatus.extracting,
@@ -414,84 +439,37 @@ class TermuxBootstrap {
   static Future<void> _configureEnvironment() async {
     BootstrapProfiler.start('配置环境 (总计)');
 
-    // 创建环境变量文件
-    BootstrapProfiler.start('  writeEnvironmentFile');
-    await TermuxEnvironment.writeEnvironmentFile();
-    BootstrapProfiler.end('  writeEnvironmentFile');
+    // 第一组：无依赖的并发执行
+    BootstrapProfiler.start('  并发配置 (第一组)');
+    await Future.wait([
+      TermuxEnvironment.writeEnvironmentFile(),
+      Process.run('chmod', ['1777', TermuxConstants.tmpDir]).catchError(
+          (e) { debugPrint('Failed to set tmp permissions: $e'); return ProcessResult(0, 0, '', ''); }),
+      _ensureCriticalLibraries(),
+      _configureApt(),
+      _registerAndroidIds(),
+      createSetupStorageScript(),
+      _createChshScript(),
+      _createTermuxReloadSettingsScript(),
+      _createBashrc(),
+      _createPkgScript(),
+      _createFixShebangScript(),
+    ]);
+    BootstrapProfiler.end('  并发配置 (第一组)');
 
-    // 设置tmp目录权限
-    BootstrapProfiler.start('  chmod tmp');
-    try {
-      await Process.run('chmod', ['1777', TermuxConstants.tmpDir]);
-    } catch (e) {
-      debugPrint('Failed to set tmp permissions: $e');
-    }
-    BootstrapProfiler.end('  chmod tmp');
-
-    // 确保关键库文件有正确的链接
-    BootstrapProfiler.start('  _ensureCriticalLibraries');
-    await _ensureCriticalLibraries();
-    BootstrapProfiler.end('  _ensureCriticalLibraries');
-
-    // 配置APT包管理器
-    BootstrapProfiler.start('  _configureApt');
-    await _configureApt();
-    BootstrapProfiler.end('  _configureApt');
-
-    // 注册 Android UID/GID 到 /etc/passwd 和 /etc/group
-    BootstrapProfiler.start('  _registerAndroidIds');
-    await _registerAndroidIds();
-    BootstrapProfiler.end('  _registerAndroidIds');
-
-    // 创建工具脚本
-    BootstrapProfiler.start('  createSetupStorageScript');
-    await createSetupStorageScript();
-    BootstrapProfiler.end('  createSetupStorageScript');
-
-    // 创建 chsh 替代脚本
-    BootstrapProfiler.start('  _createChshScript');
-    await _createChshScript();
-    BootstrapProfiler.end('  _createChshScript');
-
-    // 创建 termux-reload-settings 替代脚本
-    BootstrapProfiler.start('  _createTermuxReloadSettingsScript');
-    await _createTermuxReloadSettingsScript();
-    BootstrapProfiler.end('  _createTermuxReloadSettingsScript');
-
-    // 创建 bashrc 配置文件
-    BootstrapProfiler.start('  _createBashrc');
-    await _createBashrc();
-    BootstrapProfiler.end('  _createBashrc');
-
-    // 创建 pkg 脚本
-    BootstrapProfiler.start('  _createPkgScript');
-    await _createPkgScript();
-    BootstrapProfiler.end('  _createPkgScript');
-
-    // 创建 bash 包装脚本（必须在其他包装脚本之前）
+    // 第二组：bash 包装 → 依赖它的后续操作
     BootstrapProfiler.start('  _createBashWrapper');
     await _createBashWrapper();
     BootstrapProfiler.end('  _createBashWrapper');
 
-    // 创建关键二进制包装脚本（apt-key、gpg 等）
-    BootstrapProfiler.start('  _createBinaryWrappers');
-    await _createBinaryWrappers();
-    BootstrapProfiler.end('  _createBinaryWrappers');
-
-    // 确保 sh 符号链接存在（指向 bash-real，必须在 bash 包装之后）
-    BootstrapProfiler.start('  _ensureShSymlink');
-    await _ensureShSymlink();
-    BootstrapProfiler.end('  _ensureShSymlink');
-
-    // 创建 termux-fix-shebang 脚本
-    BootstrapProfiler.start('  _createFixShebangScript');
-    await _createFixShebangScript();
-    BootstrapProfiler.end('  _createFixShebangScript');
-
-    // 创建 APT method 包装脚本（解决 https 方法问题）
-    BootstrapProfiler.start('  _createAptMethodWrappers');
-    await _createAptMethodWrappers();
-    BootstrapProfiler.end('  _createAptMethodWrappers');
+    // 第三组：依赖 bash 包装完成的并发执行
+    BootstrapProfiler.start('  并发配置 (第二组)');
+    await Future.wait([
+      _createBinaryWrappers(),
+      _ensureShSymlink(),
+      _createAptMethodWrappers(),
+    ]);
+    BootstrapProfiler.end('  并发配置 (第二组)');
 
     BootstrapProfiler.end('配置环境 (总计)');
   }
@@ -1296,6 +1274,9 @@ exit 0
       'libcrypto.so',
       'libssh2.so',
       'libnghttp2.so',
+      'libnghttp3.so',
+      'libngtcp2.so',
+      'libngtcp2_crypto_ossl.so',
       'libgnutls.so',
       'libhogweed.so',
       'libnettle.so',
@@ -1532,9 +1513,9 @@ exec "$bashRealPath" --rcfile "$homeDir/.bashrc" "\$@"
       'apt-config',
     ];
 
-    for (final binaryName in binariesToWrap) {
-      await _createBinaryWrapper(binaryName);
-    }
+    await Future.wait(
+      binariesToWrap.map((name) => _createBinaryWrapper(name)),
+    );
   }
 
   /// 为单个二进制创建包装脚本
