@@ -122,6 +122,7 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     final int firstVisibleRow = (scrollOffset / charSize.height).floor();
 
     final int viewHeight = widget.terminal.viewHeight;
+    final double viewportWidth = widget.terminal.viewWidth * charSize.width;
 
     final CellOffset begin = selection.begin;
     final CellOffset end = selection.end;
@@ -138,24 +139,46 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     final startHandlePos = Offset(startX, startY + charSize.height);
     final endHandlePos = Offset(endX, endY + charSize.height);
 
+    // Determine if handles should flip based on edge proximity.
+    // Start handle normally has teardrop on left; flip when near left edge.
+    // End handle normally has teardrop on right; flip when near right edge.
+    // When flipped, the teardrop reverses direction so it stays visible.
+    const handleSize = 48.0;
+    const handleRadius = 24.0;
+    final startFlipped = startHandlePos.dx < handleRadius;
+    final endFlipped = endHandlePos.dx > viewportWidth - handleRadius;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         // Only show if visible in viewport (adding some buffer)
         if (startVisualRow >= -2 && startVisualRow <= viewHeight + 1)
           Positioned(
-            left: startHandlePos.dx - 24,
+            // When flipped, offset handle so the connection point stays at the text
+            left: startFlipped
+                ? startHandlePos.dx - (handleSize - handleRadius)
+                : startHandlePos.dx - handleRadius,
             top: startHandlePos.dy,
-            child:
-                _buildHandle(isStart: true, charSize: charSize, offset: begin),
+            child: _buildHandle(
+              isStart: true,
+              charSize: charSize,
+              offset: begin,
+              flipped: startFlipped,
+            ),
           ),
 
         if (endVisualRow >= -2 && endVisualRow <= viewHeight + 1)
           Positioned(
-            left: endHandlePos.dx - 24,
+            left: endFlipped
+                ? endHandlePos.dx - (handleSize - handleRadius)
+                : endHandlePos.dx - handleRadius,
             top: endHandlePos.dy,
-            child:
-                _buildHandle(isStart: false, charSize: charSize, offset: end),
+            child: _buildHandle(
+              isStart: false,
+              charSize: charSize,
+              offset: end,
+              flipped: endFlipped,
+            ),
           ),
       ],
     );
@@ -165,6 +188,7 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     required bool isStart,
     required Size charSize,
     required CellOffset offset,
+    bool flipped = false,
   }) {
     // Touch target size
     const double touchSize = 48.0;
@@ -192,7 +216,10 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
         child: CustomPaint(
           painter: _HandlePainter(
             color: widget.handleColor,
-            isStart: isStart,
+            // When flipped, reverse the teardrop direction:
+            // start handle normally points left, flipped points right
+            // end handle normally points right, flipped points left
+            isStart: flipped ? !isStart : isStart,
           ),
         ),
       ),
@@ -229,8 +256,8 @@ class _TerminalSelectionHandlesState extends State<TerminalSelectionHandles> {
     var newX = currentOffset.x + colChange;
     var newY = currentOffset.y + rowChange;
 
-    // Clamp
-    newX = math.max(0, math.min(newX, widget.terminal.viewWidth - 1));
+    // Clamp — allow column up to viewWidth (past last char) for end-of-line selection
+    newX = math.max(0, math.min(newX, widget.terminal.viewWidth));
     newY = math.max(0, math.min(newY, widget.terminal.buffer.height - 1));
 
     // Create new anchor using createAnchorFromOffset

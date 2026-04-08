@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' show max;
 
@@ -85,6 +86,12 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   CellOffset? _selectionBaseStart;
   CellOffset? _selectionBaseEnd;
 
+  // Auto-scroll when dragging selection to edges
+  Timer? _autoScrollTimer;
+  Offset? _lastDragPosition;
+  static const double _edgeScrollZone = 48.0; // pixels from edge to trigger scroll
+  static const double _edgeScrollSpeed = 3.0; // pixels per tick
+
   // Check if running on desktop platform (mouse-based interaction)
   static final bool _isDesktop =
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -129,6 +136,7 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
 
   @override
   void dispose() {
+    _stopAutoScroll();
     if (widget.focusNode == null) {
       _focusNode.dispose();
     }
@@ -139,6 +147,72 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
       _scrollController.dispose();
     }
     super.dispose();
+  }
+
+  /// Start auto-scrolling when drag position is near edges
+  void _updateAutoScroll(Offset localPosition) {
+    _lastDragPosition = localPosition;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final height = renderBox.size.height;
+    final y = localPosition.dy;
+
+    // Check if near top or bottom edge
+    final nearTop = y < _edgeScrollZone;
+    final nearBottom = y > height - _edgeScrollZone;
+
+    if (nearTop || nearBottom) {
+      if (_autoScrollTimer == null) {
+        _autoScrollTimer = Timer.periodic(
+          const Duration(milliseconds: 32),
+          (_) => _performAutoScroll(),
+        );
+      }
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void _performAutoScroll() {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || _lastDragPosition == null) {
+      _stopAutoScroll();
+      return;
+    }
+
+    final height = renderBox.size.height;
+    final y = _lastDragPosition!.dy;
+    final position = _scrollableKey.currentState?.position;
+    if (position == null) return;
+
+    double scrollDelta = 0;
+    if (y < _edgeScrollZone) {
+      // Scroll up - faster when closer to edge
+      final factor = 1.0 - (y / _edgeScrollZone).clamp(0.0, 1.0);
+      scrollDelta = -_edgeScrollSpeed * (1 + factor * 3);
+    } else if (y > height - _edgeScrollZone) {
+      // Scroll down
+      final factor = 1.0 - ((height - y) / _edgeScrollZone).clamp(0.0, 1.0);
+      scrollDelta = _edgeScrollSpeed * (1 + factor * 3);
+    }
+
+    if (scrollDelta != 0) {
+      final newOffset = (position.pixels + scrollDelta)
+          .clamp(position.minScrollExtent, position.maxScrollExtent);
+      position.jumpTo(newOffset);
+
+      // Also update selection to follow scroll
+      if (_lastDragPosition != null) {
+        final offset = _renderTerminal.getCellOffset(_lastDragPosition!);
+        _extendSelectionTo(offset);
+      }
+    }
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
   }
 
   @override
@@ -202,10 +276,12 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
               final offset =
                   _renderTerminal.getCellOffset(details.localPosition);
               _extendSelectionTo(offset);
+              _updateAutoScroll(details.localPosition);
             }
           : null,
       onPanEnd: _isDesktop
           ? (details) {
+              _stopAutoScroll();
               _resetSelectionBase();
             }
           : null,
@@ -236,10 +312,12 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
               final offset =
                   _renderTerminal.getCellOffset(details.localPosition);
               _extendSelectionTo(offset);
+              _updateAutoScroll(details.localPosition);
             }
           : null,
       onLongPressEnd: !_isDesktop
           ? (details) {
+              _stopAutoScroll();
               _resetSelectionBase();
             }
           : null,
@@ -918,8 +996,11 @@ class _ScaledRenderTerminal extends RenderBox
     final y = offset.dy - _padding.top + _scrollOffset;
     final row = y ~/ _painter.cellSize.height;
     final col = x ~/ _painter.cellSize.width;
+    // Don't over-clamp columns — allow the actual finger position to be used
+    // so that multi-line selection tracks the finger's column, not line end.
+    // The line's actual content length will naturally limit meaningful selection.
     return CellOffset(
-      col.clamp(0, _terminal.viewWidth - 1),
+      col.clamp(0, _terminal.viewWidth),
       row.clamp(0, _terminal.buffer.lines.length - 1),
     );
   }

@@ -96,6 +96,7 @@ class AppLocalizations {
   String get selected => _translate('selected');
   String get moreActions => _translate('moreActions');
   String get clearSelection => _translate('clearSelection');
+  String get viewAsText => _translate('viewAsText');
   String get manageSSH => _translate('manageSSH');
   String get copySSHPublicKey => _translate('copySSHPublicKey');
   String get noSSHKeyFound => _translate('noSSHKeyFound');
@@ -397,6 +398,7 @@ const Map<String, String> _enTranslations = {
   'selected': 'Selected',
   'moreActions': 'More actions',
   'clearSelection': 'Clear selection',
+  'viewAsText': 'View as text',
   'manageSSH': 'Manage SSH',
   'copySSHPublicKey': 'Copy SSH Public Key',
   'noSSHKeyFound': 'No SSH public key found. Run: ssh-keygen',
@@ -678,6 +680,7 @@ const Map<String, String> _zhCNTranslations = {
   'selected': '已选择',
   'moreActions': '更多操作',
   'clearSelection': '清除选择',
+  'viewAsText': '查看文本',
   'manageSSH': '管理 SSH',
   'copySSHPublicKey': '复制 SSH 公钥',
   'noSSHKeyFound': '未找到 SSH 公钥，请运行: ssh-keygen',
@@ -955,6 +958,7 @@ const Map<String, String> _zhTWTranslations = {
   'selected': '已選擇',
   'moreActions': '更多操作',
   'clearSelection': '清除選擇',
+  'viewAsText': '查看文字',
   'manageSSH': '管理 SSH',
   'copySSHPublicKey': '複製 SSH 公鑰',
   'noSSHKeyFound': '未找到 SSH 公鑰，請執行: ssh-keygen',

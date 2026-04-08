@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/terminal_session.dart';
+import '../services/session_persistence_service.dart';
 
 /// 终端会话状态管理
 /// 参考 termux-app: TermuxService.java, TermuxSessionsListViewController.java
@@ -138,10 +139,105 @@ class TerminalProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 初始化（创建第一个会话）
-  void init() {
-    if (_sessions.isEmpty) {
-      createSession();
+  /// 初始化：尝试恢复上次会话，若无则创建新会话
+  Future<void> init() async {
+    if (_sessions.isNotEmpty) return;
+
+    final restored = await _restoreSessions();
+    if (!restored) {
+      await createSession();
     }
+  }
+
+  /// Save all session state to disk for later restoration.
+  Future<void> saveSessions() async {
+    if (_sessions.isEmpty) {
+      await SessionPersistenceService.instance.clear();
+      return;
+    }
+
+    final persisted = <PersistedSession>[];
+    for (final session in _sessions) {
+      // Extract buffer text
+      final buffer = session.terminal.buffer;
+      final lines = <String>[];
+      for (int i = 0; i < buffer.lines.length; i++) {
+        lines.add(buffer.lines[i].getText().trimRight());
+      }
+      // Remove trailing empty lines
+      while (lines.isNotEmpty && lines.last.isEmpty) {
+        lines.removeLast();
+      }
+      final text = lines.join('\n');
+
+      // Query cwd if session is running
+      String? cwd;
+      if (session.isRunning) {
+        try {
+          cwd = await session.queryCurrentWorkingDirectory(
+            timeout: const Duration(milliseconds: 500),
+          );
+        } catch (_) {}
+      }
+
+      persisted.add(PersistedSession(
+        id: session.id,
+        title: session.title,
+        isSshSession: session.isSshSession,
+        bufferContent: text,
+        workingDirectory: cwd,
+      ));
+    }
+
+    await SessionPersistenceService.instance.save(PersistedState(
+      sessions: persisted,
+      activeIndex: _currentIndex,
+    ));
+  }
+
+  /// Restore sessions from persisted state. Returns true if any were restored.
+  Future<bool> _restoreSessions() async {
+    final state = await SessionPersistenceService.instance.load();
+    if (state == null || state.sessions.isEmpty) return false;
+
+    for (final ps in state.sessions) {
+      // Skip SSH sessions — can't reconnect automatically
+      if (ps.isSshSession) continue;
+
+      final session = TerminalSession.create(title: ps.title);
+
+      // Write saved buffer content so user sees previous output
+      if (ps.bufferContent.isNotEmpty) {
+        // Convert \n to \r\n for terminal display
+        final displayText = ps.bufferContent.replaceAll('\n', '\r\n');
+        session.terminal.write(displayText);
+        session.terminal.write('\r\n');
+      }
+
+      // Start shell in the saved working directory
+      await session.start();
+
+      // cd to saved working directory if available
+      if (ps.workingDirectory != null && ps.workingDirectory!.isNotEmpty) {
+        session.write('cd ${_shellQuote(ps.workingDirectory!)}\n');
+      }
+
+      _sessions.add(session);
+    }
+
+    if (_sessions.isEmpty) return false;
+
+    _currentIndex = state.activeIndex.clamp(0, _sessions.length - 1);
+    _updateActiveState();
+    notifyListeners();
+
+    // Clear persisted state after successful restore
+    await SessionPersistenceService.instance.clear();
+    return true;
+  }
+
+  /// Shell-quote a string for safe use in cd commands.
+  static String _shellQuote(String s) {
+    return "'${s.replaceAll("'", "'\\''")}'";
   }
 }

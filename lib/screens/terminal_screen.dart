@@ -26,6 +26,8 @@ import '../models/task.dart';
 import '../utils/gesture_utils.dart';
 import '../models/terminal_session.dart';
 import '../widgets/terminal_selection_handles.dart';
+import '../widgets/selection_toolbar.dart';
+import '../widgets/terminal_text_viewer.dart';
 import '../widgets/scaled_terminal_view.dart';
 import '../widgets/history_viewer.dart';
 import '../widgets/ai_panel.dart';
@@ -653,7 +655,8 @@ class _ActionSheetListAction extends StatelessWidget {
   }
 }
 
-class _TerminalScreenState extends State<TerminalScreen> {
+class _TerminalScreenState extends State<TerminalScreen>
+    with WidgetsBindingObserver {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final GlobalKey<ScaledTerminalViewState> _terminalViewKey =
       GlobalKey<ScaledTerminalViewState>();
@@ -679,6 +682,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // 监听焦点变化来显示/隐藏键盘
     _terminalFocusNode.addListener(() {
       if (mounted) setState(() {});
@@ -1006,6 +1010,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // 取消调试信息刷新计时器
     _debugRefreshTimer?.cancel();
     // 移除监听器
@@ -1014,6 +1019,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
     _aiInlineBarController.dispose();
     VolumeKeyService.instance.onVolumeKey = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // Save sessions when app goes to background or is about to be killed
+      context.read<TerminalProvider>().saveSessions();
+    }
   }
 
   @override
@@ -1060,9 +1074,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: settings.terminalTheme.background,
-      appBar: _hasSelection
-          ? _buildSelectionAppBar(context, terminalProvider, settings)
-          : _buildAppBar(context, terminalProvider, settings),
+      appBar: _buildAppBar(context, terminalProvider, settings),
       drawer: SessionDrawer(
         onSettingsTap: () => _openSettings(context),
         onNewSessionTap: () {
@@ -1194,61 +1206,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  PreferredSizeWidget _buildSelectionAppBar(
-    BuildContext context,
-    TerminalProvider terminalProvider,
-    SettingsProvider settings,
-  ) {
-    final l10n = AppLocalizations.of(context);
-    return AppBar(
-      backgroundColor: settings.terminalTheme.background,
-      foregroundColor: settings.terminalTheme.foreground,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: () => _clearSelection(terminalProvider),
-        tooltip: l10n.clearSelection,
-      ),
-      title: Text(l10n.selected),
-      centerTitle: false,
-      actions: [
-        // 唯一的核心操作：Copy
-        Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            child: FilledButton.icon(
-              onPressed: () => _copySelection(terminalProvider),
-              icon: const Icon(Icons.copy, size: 18),
-              label: Text(l10n.copy),
-              style: FilledButton.styleFrom(
-                backgroundColor:
-                    settings.terminalTheme.foreground.withValues(alpha: 0.15),
-                foregroundColor: settings.terminalTheme.foreground,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ),
-        ),
-        // Big Bang text explosion
-        IconButton(
-          icon: const Icon(Icons.auto_awesome),
-          onPressed: () =>
-              _showTextExplosion(context, terminalProvider, settings),
-          tooltip: 'Text Picker',
-        ),
-        IconButton(
-          icon: const Icon(Icons.more_horiz_rounded),
-          tooltip: l10n.moreActions,
-          onPressed: () =>
-              _showSelectionActionsSheet(context, terminalProvider),
-        ),
-        const SizedBox(width: 4),
-      ],
     );
   }
 
@@ -1859,13 +1816,6 @@ class _TerminalScreenState extends State<TerminalScreen> {
               ),
               const SizedBox(height: 16),
               _ActionSheetListAction(
-                icon: Icons.paste_rounded,
-                label: l10n.paste,
-                onTap: () => closeAndRun(
-                  () => _handleMenuAction(context, 'paste', terminalProvider),
-                ),
-              ),
-              _ActionSheetListAction(
                 icon: Icons.folder_open_rounded,
                 label: l10n.openCurrentDirectory,
                 onTap: () => closeAndRun(
@@ -1967,6 +1917,23 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 label: l10n.copyLastLines,
                 onTap: () => closeAndRun(
                   () => _copyLastLines(terminalProvider, 50),
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.article_outlined,
+                label: l10n.viewAsText,
+                onTap: () => closeAndRun(
+                  () {
+                    final settings = context.read<SettingsProvider>();
+                    _openTerminalTextViewer(terminalProvider, settings);
+                  },
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.delete_outline_rounded,
+                label: l10n.clearTerminal,
+                onTap: () => closeAndRun(
+                  () => _clearTerminal(terminalProvider),
                 ),
               ),
             ],
@@ -2080,7 +2047,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   },
                 ),
               ),
-              if (_hasSelection)
+              if (_hasSelection) ...[
                 TerminalSelectionHandles(
                   terminal: currentSession.terminal,
                   controller: currentSession.controller,
@@ -2093,6 +2060,29 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   cellSize: _terminalViewKey.currentState?.cellSize,
                   handleColor: settings.terminalTheme.blue,
                 ),
+                SelectionToolbar(
+                  terminal: currentSession.terminal,
+                  controller: currentSession.controller,
+                  scrollController: currentSession.scrollController,
+                  textStyle: TerminalStyle(
+                    fontFamily: _getTerminalFontFamily(settings),
+                    fontSize: settings.fontSize,
+                    height: 1.1,
+                  ),
+                  cellSize: _terminalViewKey.currentState?.cellSize,
+                  backgroundColor: settings.terminalTheme.background,
+                  foregroundColor: settings.terminalTheme.foreground,
+                  onCopy: () => _copySelection(terminalProvider),
+                  onPaste: () => _pasteClipboard(terminalProvider),
+                  onTextPicker: () =>
+                      _showTextExplosion(context, terminalProvider, settings),
+                  onMore: () =>
+                      _showSelectionActionsSheet(context, terminalProvider),
+                  onClose: () => _clearSelection(terminalProvider),
+                  onViewAsText: () =>
+                      _openTerminalTextViewer(terminalProvider, settings),
+                ),
+              ],
             ],
           ),
         ),
@@ -2380,6 +2370,44 @@ class _TerminalScreenState extends State<TerminalScreen> {
     if (result != null && result.isNotEmpty) {
       session.write(result);
     }
+  }
+
+  /// Open terminal output as a scrollable text viewer
+  void _openTerminalTextViewer(
+    TerminalProvider terminalProvider,
+    SettingsProvider settings,
+  ) {
+    final session = terminalProvider.currentSession;
+    if (session == null) return;
+
+    final buffer = session.terminal.buffer;
+    final lines = <String>[];
+    for (int i = 0; i < buffer.lines.length; i++) {
+      lines.add(buffer.lines[i].getText().trimRight());
+    }
+    // Remove trailing empty lines
+    while (lines.isNotEmpty && lines.last.isEmpty) {
+      lines.removeLast();
+    }
+    final text = lines.join('\n');
+    if (text.trim().isEmpty) return;
+
+    // Clear selection
+    session.controller.clearSelection();
+    setState(() => _hasSelection = false);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TerminalTextViewer(
+          text: text,
+          fontFamily: _getTerminalFontFamily(settings),
+          fontSize: settings.fontSize,
+          backgroundColor: settings.terminalTheme.background,
+          foregroundColor: settings.terminalTheme.foreground,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
   }
 
   void _pasteClipboard(TerminalProvider terminalProvider) async {
