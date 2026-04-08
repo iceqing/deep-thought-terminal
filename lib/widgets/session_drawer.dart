@@ -3,17 +3,20 @@ import 'package:provider/provider.dart';
 import '../providers/terminal_provider.dart';
 import '../models/terminal_session.dart';
 import '../screens/ssh_manager_screen.dart';
-import '../screens/file_manager_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/constants.dart';
 
 /// 会话列表抽屉 — Modern Mobile Design
 class SessionDrawer extends StatelessWidget {
   final VoidCallback? onSettingsTap;
+  final VoidCallback? onNewSessionTap;
+  final VoidCallback? onLinuxTap;
 
   const SessionDrawer({
     super.key,
     this.onSettingsTap,
+    this.onNewSessionTap,
+    this.onLinuxTap,
   });
 
   @override
@@ -27,47 +30,44 @@ class SessionDrawer extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // ── 顶部：品牌 + 新建按钮 ──
+            // ── 顶部：品牌 + 会话入口 ──
             Padding(
-              padding:
-                  const EdgeInsets.only(left: 20, right: 12, top: 16, bottom: 8),
-              child: Row(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.terminal,
-                      color: theme.colorScheme.onPrimary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      AppConstants.appName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.terminal,
+                          color: theme.colorScheme.onPrimary,
+                          size: 20,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          AppConstants.appName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  // 新建会话按钮
-                  FilledButton.tonalIcon(
-                    onPressed: () {
-                      terminalProvider.createSession();
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: Text(l10n.newSession),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      minimumSize: const Size(0, 36),
-                      textStyle: theme.textTheme.labelMedium,
-                    ),
+                  const SizedBox(height: 14),
+                  _PrimarySessionCard(
+                    title: l10n.newSession,
+                    onTap: () => _openNewSessionFlow(context, terminalProvider),
+                    onLongPress: () =>
+                        _createLocalSession(context, terminalProvider),
                   ),
                 ],
               ),
@@ -113,10 +113,8 @@ class SessionDrawer extends StatelessWidget {
             Expanded(
               child: sessions.isEmpty
                   ? _EmptyState(
-                      onCreateSession: () {
-                        terminalProvider.createSession();
-                        Navigator.pop(context);
-                      },
+                      onCreateSession: () =>
+                          _openNewSessionFlow(context, terminalProvider),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(
@@ -153,15 +151,6 @@ class SessionDrawer extends StatelessWidget {
                 height: 1,
                 color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
             _BottomToolbar(
-              onFileManager: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FileManagerScreen(),
-                  ),
-                );
-              },
               onSSHManager: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -171,11 +160,37 @@ class SessionDrawer extends StatelessWidget {
                   ),
                 );
               },
+              onLinux: () {
+                // 关闭抽屉后再打开 New Session sheet
+                Navigator.of(context).pop();
+                onLinuxTap?.call();
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _openNewSessionFlow(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) {
+    final action = onNewSessionTap;
+    Navigator.of(context).pop();
+    if (action != null) {
+      Future<void>.delayed(const Duration(milliseconds: 220), action);
+      return;
+    }
+    terminalProvider.createSession();
+  }
+
+  void _createLocalSession(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) {
+    terminalProvider.createSession();
+    Navigator.of(context).pop();
   }
 
   void _showCloseConfirmation(
@@ -296,6 +311,76 @@ class _EmptyState extends StatelessWidget {
               label: Text(l10n.newSession),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimarySessionCard extends StatelessWidget {
+  final String title;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _PrimarySessionCard({
+    required this.title,
+    required this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  Icons.add_rounded,
+                  color: theme.colorScheme.onPrimary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: theme.colorScheme.onSecondaryContainer
+                    .withValues(alpha: 0.75),
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -479,12 +564,12 @@ class _SessionCard extends StatelessWidget {
 // ─────────────────────────────────────────────────
 
 class _BottomToolbar extends StatelessWidget {
-  final VoidCallback onFileManager;
   final VoidCallback onSSHManager;
+  final VoidCallback onLinux;
 
   const _BottomToolbar({
-    required this.onFileManager,
     required this.onSSHManager,
+    required this.onLinux,
   });
 
   @override
@@ -492,19 +577,23 @@ class _BottomToolbar extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ToolbarItem(
-            icon: Icons.folder_open_rounded,
-            label: l10n.fileManager,
-            onTap: onFileManager,
+          Expanded(
+            child: _SecondaryToolCard(
+              icon: Icons.computer_rounded,
+              title: l10n.linux,
+              onTap: onLinux,
+            ),
           ),
-          _ToolbarItem(
-            icon: Icons.dns_rounded,
-            label: 'SSH',
-            onTap: onSSHManager,
+          const SizedBox(width: 10),
+          Expanded(
+            child: _SecondaryToolCard(
+              icon: Icons.dns_rounded,
+              title: l10n.ssh,
+              onTap: onSSHManager,
+            ),
           ),
         ],
       ),
@@ -512,14 +601,14 @@ class _BottomToolbar extends StatelessWidget {
   }
 }
 
-class _ToolbarItem extends StatelessWidget {
+class _SecondaryToolCard extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final String title;
   final VoidCallback onTap;
 
-  const _ToolbarItem({
+  const _SecondaryToolCard({
     required this.icon,
-    required this.label,
+    required this.title,
     required this.onTap,
   });
 
@@ -527,27 +616,48 @@ class _ToolbarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

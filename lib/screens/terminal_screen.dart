@@ -21,6 +21,7 @@ import '../utils/constants.dart';
 import '../widgets/extra_keys.dart';
 import '../widgets/session_drawer.dart';
 import '../widgets/task_drawer.dart';
+import '../models/extra_key_layout.dart';
 import '../models/task.dart';
 import '../utils/gesture_utils.dart';
 import '../models/terminal_session.dart';
@@ -35,6 +36,7 @@ import 'settings_screen.dart';
 import 'ssh_manager_screen.dart';
 import 'file_manager_screen.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/distro_badge.dart';
 import '../widgets/text_explosion.dart';
 
 /// 终端主屏幕
@@ -51,12 +53,16 @@ class _ProotDistroSection extends StatefulWidget {
   final Future<ProotDistroStatus> Function() onRefresh;
   final Future<void> Function(ProotDistroInfo distro) onOpenDistro;
   final Future<void> Function(String command) onInstallUbuntu;
+  final Future<void> Function(ProotDistroStatus status)? onChooseDistro;
+  final bool showHeader;
 
   const _ProotDistroSection({
     required this.distrosFuture,
     required this.onRefresh,
     required this.onOpenDistro,
     required this.onInstallUbuntu,
+    this.onChooseDistro,
+    this.showHeader = true,
   });
 
   @override
@@ -87,48 +93,48 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
       future: _future,
       builder: (context, snapshot) {
         final children = <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Text(
-                  l10n.linuxDistros,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.linuxDistrosDesc,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+          if (widget.showHeader)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    l10n.linuxDistros,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w700,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                IconButton(
-                  onPressed: _refresh,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  tooltip: l10n.refresh,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      l10n.linuxDistrosDesc,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _refresh,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    tooltip: l10n.refresh,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
             ),
-          ),
         ];
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           children.add(
-            ListTile(
-              leading: const SizedBox(
+            _DistroInfoCard(
+              icon: const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              title: Text(l10n.loading),
+              title: l10n.loading,
             ),
           );
           return Column(children: children);
@@ -136,13 +142,13 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
 
         if (snapshot.hasError) {
           children.add(
-            ListTile(
-              leading: Icon(
+            _DistroInfoCard(
+              icon: Icon(
                 Icons.warning_amber_rounded,
                 color: theme.colorScheme.error,
               ),
-              title: Text(l10n.warning),
-              subtitle: Text(snapshot.error.toString()),
+              title: l10n.warning,
+              subtitle: snapshot.error.toString(),
             ),
           );
           return Column(children: children);
@@ -158,13 +164,13 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
             !status.commandAvailable &&
             !status.hasInstalledDistros) {
           children.add(
-            ListTile(
-              leading: Icon(
+            _DistroInfoCard(
+              icon: Icon(
                 Icons.warning_amber_rounded,
                 color: theme.colorScheme.error,
               ),
-              title: Text(l10n.warning),
-              subtitle: Text(status.error!),
+              title: l10n.warning,
+              subtitle: status.error!,
             ),
           );
         }
@@ -176,9 +182,14 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
               title: l10n.prootDistroNotInstalled,
               subtitle: l10n.prootDistroNotInstalledDesc,
               buttonLabel: l10n.installUbuntu,
+              secondaryButtonLabel:
+                  widget.onChooseDistro != null ? l10n.chooseDistro : null,
               onPressed: () => widget.onInstallUbuntu(
-                'pkg install proot-distro && proot-distro install ubuntu',
+                'pkg install -y proot-distro && proot-distro install ubuntu',
               ),
+              onSecondaryPressed: widget.onChooseDistro == null
+                  ? null
+                  : () => widget.onChooseDistro!(status),
             ),
           );
           return Column(children: children);
@@ -191,8 +202,13 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
               title: l10n.noLinuxDistrosInstalled,
               subtitle: l10n.noLinuxDistrosInstalledDesc,
               buttonLabel: l10n.installUbuntu,
+              secondaryButtonLabel:
+                  widget.onChooseDistro != null ? l10n.chooseDistro : null,
               onPressed: () =>
                   widget.onInstallUbuntu('proot-distro install ubuntu'),
+              onSecondaryPressed: widget.onChooseDistro == null
+                  ? null
+                  : () => widget.onChooseDistro!(status),
             ),
           );
           return Column(children: children);
@@ -200,22 +216,11 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
 
         children.addAll(
           status.installedDistros.map(
-            (distro) => ListTile(
-              leading: CircleAvatar(
-                backgroundColor: theme.colorScheme.tertiaryContainer,
-                foregroundColor: theme.colorScheme.onTertiaryContainer,
-                child: Icon(
-                  distro.alias.toLowerCase() == 'ubuntu'
-                      ? Icons.favorite_border
-                      : Icons.computer_rounded,
-                  size: 18,
-                ),
-              ),
-              title: Text(distro.displayName),
-              subtitle: Text(
-                '${l10n.loginToDistro}: proot-distro login ${distro.alias}',
-              ),
-              trailing: const Icon(Icons.chevron_right),
+            (distro) => _DistroLaunchTile(
+              distro: distro,
+              subtitle:
+                  '${l10n.loginToDistro}: proot-distro login ${distro.alias}',
+              highlighted: distro.alias.toLowerCase() == 'ubuntu',
               onTap: () => widget.onOpenDistro(distro),
             ),
           ),
@@ -234,6 +239,18 @@ class _ProotDistroSectionState extends State<_ProotDistroSection> {
           );
         }
 
+        if (widget.onChooseDistro != null) {
+          children.add(
+            _DistroActionCard(
+              icon: Icons.library_add_rounded,
+              title: l10n.chooseDistro,
+              subtitle: l10n.chooseDistroDesc,
+              buttonLabel: l10n.chooseDistro,
+              onPressed: () => widget.onChooseDistro!(status),
+            ),
+          );
+        }
+
         return Column(children: children);
       },
     );
@@ -245,7 +262,9 @@ class _DistroActionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String buttonLabel;
+  final String? secondaryButtonLabel;
   final VoidCallback onPressed;
+  final VoidCallback? onSecondaryPressed;
 
   const _DistroActionCard({
     required this.icon,
@@ -253,6 +272,8 @@ class _DistroActionCard extends StatelessWidget {
     required this.subtitle,
     required this.buttonLabel,
     required this.onPressed,
+    this.secondaryButtonLabel,
+    this.onSecondaryPressed,
   });
 
   @override
@@ -260,47 +281,372 @@ class _DistroActionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Container(
-        width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(
-            alpha: 0.55,
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.surfaceContainerHigh,
+              theme.colorScheme.surfaceContainerLow,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+          ),
         ),
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: theme.colorScheme.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: onPressed,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: Text(buttonLabel),
+                  ),
+                  if (secondaryButtonLabel != null &&
+                      onSecondaryPressed != null)
+                    OutlinedButton.icon(
+                      onPressed: onSecondaryPressed,
+                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      label: Text(secondaryButtonLabel!),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DistroInfoCard extends StatelessWidget {
+  final Widget icon;
+  final String title;
+  final String? subtitle;
+
+  const _DistroInfoCard({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
+          ),
+        ),
+        child: ListTile(
+          leading: icon,
+          title: Text(title),
+          subtitle: subtitle != null ? Text(subtitle!) : null,
+        ),
+      ),
+    );
+  }
+}
+
+class _DistroLaunchTile extends StatelessWidget {
+  final ProotDistroInfo distro;
+  final String subtitle;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  const _DistroLaunchTile({
+    required this.distro,
+    required this.subtitle,
+    this.highlighted = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Material(
+        color: highlighted
+            ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.48)
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            leading: DistroBadge(
+              alias: distro.alias,
+              displayName: distro.displayName,
+              size: 40,
+              fontSize: 13,
+            ),
+            title: Text(
+              distro.displayName,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(subtitle),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (highlighted)
+                  Icon(
+                    Icons.stars_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                if (highlighted) const SizedBox(width: 8),
+                const Icon(Icons.chevron_right),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodySmall?.copyWith(
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSheetPanel extends StatelessWidget {
+  final Widget child;
+
+  const _ActionSheetPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSheetHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _ActionSheetHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 42,
+            height: 4,
+            margin: const EdgeInsets.only(top: 4, bottom: 18),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+        Text(
+          title,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
+class _ActionSheetQuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionSheetQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          child: Column(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: theme.colorScheme.primary),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSheetListAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  const _ActionSheetListAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color =
+        destructive ? theme.colorScheme.error : theme.colorScheme.onSurface;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: destructive
+                      ? theme.colorScheme.errorContainer.withValues(alpha: 0.8)
+                      : theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: destructive
+                      ? theme.colorScheme.onErrorContainer
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: onPressed,
-              icon: const Icon(Icons.play_arrow_rounded, size: 18),
-              label: Text(buttonLabel),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -689,6 +1035,27 @@ class _TerminalScreenState extends State<TerminalScreen> {
     VolumeKeyService.instance.setEnabled(volumeKeysEnabled);
 
     final aiProvider = context.watch<AiProvider>();
+    final extraKeysWidget = settings.showExtraKeys && !Platform.isLinux
+        ? ExtraKeysView(
+            onTextKeyTap: (key) =>
+                _sendTextKeyWithVolumeModifiers(terminalProvider, key),
+            onTerminalKeyTap: (key) => _sendTerminalKey(terminalProvider, key),
+            vibrationEnabled: settings.vibrationEnabled,
+            layoutConfig: settings.extraKeysLayout,
+            ctrlPressed: _isCtrlActive(settings),
+            altPressed: _isAltActive(settings),
+            onCtrlToggle: () => _toggleCtrlModifier(settings),
+            onAltToggle: () => _toggleAltModifier(settings),
+            customCommands: taskProvider.tasks
+                .map((t) => QuickCommand(
+                      label: t.name,
+                      command:
+                          t.script.endsWith('\n') ? t.script : '${t.script}\n',
+                      icon: Icons.play_arrow,
+                    ))
+                .toList(),
+          )
+        : null;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -698,6 +1065,18 @@ class _TerminalScreenState extends State<TerminalScreen> {
           : _buildAppBar(context, terminalProvider, settings),
       drawer: SessionDrawer(
         onSettingsTap: () => _openSettings(context),
+        onNewSessionTap: () {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _showNewSessionSheet(context, terminalProvider);
+          });
+        },
+        onLinuxTap: () {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _showLinuxLauncherSheet(context, terminalProvider);
+          });
+        },
       ),
       endDrawer: TaskDrawer(
         onTaskExecute: (task) => _executeTask(terminalProvider, task),
@@ -707,6 +1086,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
           children: [
             Column(
               children: [
+                if (extraKeysWidget != null &&
+                    settings.extraKeysLayout.position == ExtraKeysPosition.top)
+                  extraKeysWidget,
                 // 终端视图
                 Expanded(
                   child: Stack(
@@ -749,28 +1131,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     onSubmit: () => _handleAiInlineSubmit(terminalProvider),
                     onTapOpenPanel: () => aiProvider.openPanel(),
                   ),
-                // 额外按键（Linux桌面版默认隐藏，因为有物理键盘）
-                if (settings.showExtraKeys && !Platform.isLinux)
-                  ExtraKeysView(
-                    onTextKeyTap: (key) =>
-                        _sendTextKeyWithVolumeModifiers(terminalProvider, key),
-                    onTerminalKeyTap: (key) =>
-                        _sendTerminalKey(terminalProvider, key),
-                    vibrationEnabled: settings.vibrationEnabled,
-                    ctrlPressed: _isCtrlActive(settings),
-                    altPressed: _isAltActive(settings),
-                    onCtrlToggle: () => _toggleCtrlModifier(settings),
-                    onAltToggle: () => _toggleAltModifier(settings),
-                    customCommands: taskProvider.tasks
-                        .map((t) => QuickCommand(
-                              label: t.name,
-                              command: t.script.endsWith('\n')
-                                  ? t.script
-                                  : '${t.script}\n',
-                              icon: Icons.play_arrow,
-                            ))
-                        .toList(),
-                  ),
+                if (extraKeysWidget != null &&
+                    settings.extraKeysLayout.position != ExtraKeysPosition.top)
+                  extraKeysWidget,
               ],
             ),
             if (aiProvider.isPanelOpen)
@@ -878,55 +1241,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
               _showTextExplosion(context, terminalProvider, settings),
           tooltip: 'Text Picker',
         ),
-        // 其他所有操作收纳进菜单，保持界面极简
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
+        IconButton(
+          icon: const Icon(Icons.more_horiz_rounded),
           tooltip: l10n.moreActions,
-          itemBuilder: (context) {
-            final l10n = AppLocalizations.of(context);
-            return [
-              PopupMenuItem(
-                value: 'select_all',
-                child: Row(
-                  children: [
-                    const Icon(Icons.select_all),
-                    const SizedBox(width: 8),
-                    Text(l10n.selectAll),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'copy_all',
-                child: Row(
-                  children: [
-                    const Icon(Icons.copy_all),
-                    const SizedBox(width: 8),
-                    Text(l10n.copyAllOutput),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'copy_last_50',
-                child: Row(
-                  children: [
-                    const Icon(Icons.history),
-                    const SizedBox(width: 8),
-                    Text(l10n.copyLastLines),
-                  ],
-                ),
-              ),
-            ];
-          },
-          onSelected: (value) {
-            if (value == 'select_all') {
-              _selectAll(terminalProvider);
-            } else if (value == 'copy_all') {
-              _copyAllContent(terminalProvider);
-            } else if (value == 'copy_last_50') {
-              _copyLastLines(terminalProvider, 50);
-            }
-          },
+          onPressed: () =>
+              _showSelectionActionsSheet(context, terminalProvider),
         ),
         const SizedBox(width: 4),
       ],
@@ -934,7 +1253,9 @@ class _TerminalScreenState extends State<TerminalScreen> {
   }
 
   void _showNewSessionSheet(
-      BuildContext context, TerminalProvider terminalProvider) {
+      BuildContext context, TerminalProvider terminalProvider,
+      {bool showSsh = true}) {
+    final rootContext = context;
     final distrosFuture =
         Platform.isAndroid ? ProotDistroService.instance.getStatus() : null;
 
@@ -947,6 +1268,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
       builder: (context) {
         final sshProvider = context.watch<SSHProvider>();
         final l10n = AppLocalizations.of(context);
+        final showSshSection = showSsh;
         return DraggableScrollableSheet(
           initialChildSize: 0.5,
           minChildSize: 0.3,
@@ -1024,8 +1346,19 @@ class _TerminalScreenState extends State<TerminalScreen> {
                               command: command,
                             );
                           },
+                          onChooseDistro: (status) async {
+                            _showDistroInstallPicker(
+                              rootContext,
+                              terminalProvider,
+                              installedAliases: status.installedDistros
+                                  .map((distro) => distro.alias.toLowerCase())
+                                  .toSet(),
+                              commandAvailable: status.commandAvailable,
+                              closeParent: () => Navigator.pop(context),
+                            );
+                          },
                         ),
-                      if (sshProvider.hosts.isNotEmpty) ...[
+                      if (showSshSection && sshProvider.hosts.isNotEmpty) ...[
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Text(
@@ -1092,6 +1425,145 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
+  void _showLinuxLauncherSheet(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) {
+    final rootContext = context;
+    final distrosFuture =
+        Platform.isAndroid ? ProotDistroService.instance.getStatus() : null;
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.68,
+          minChildSize: 0.38,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (context, scrollController) {
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 4, bottom: 18),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.88,
+                          ),
+                          theme.colorScheme.tertiaryContainer.withValues(
+                            alpha: 0.74,
+                          ),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface.withValues(
+                              alpha: 0.72,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.computer_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.linuxDistros,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.linuxDistrosDesc,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (distrosFuture != null)
+                    _ProotDistroSection(
+                      showHeader: false,
+                      distrosFuture: distrosFuture,
+                      onRefresh: () => ProotDistroService.instance.getStatus(),
+                      onOpenDistro: (distro) async {
+                        Navigator.pop(context);
+                        await _openDistroSession(terminalProvider, distro);
+                      },
+                      onInstallUbuntu: (command) async {
+                        Navigator.pop(context);
+                        await _openCommandSession(
+                          terminalProvider,
+                          title: l10n.installUbuntu,
+                          command: command,
+                        );
+                      },
+                      onChooseDistro: (status) async {
+                        _showDistroInstallPicker(
+                          rootContext,
+                          terminalProvider,
+                          installedAliases: status.installedDistros
+                              .map((distro) => distro.alias.toLowerCase())
+                              .toSet(),
+                          commandAvailable: status.commandAvailable,
+                          closeParent: () => Navigator.pop(context),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openDistroSession(
     TerminalProvider terminalProvider,
     ProotDistroInfo distro,
@@ -1100,6 +1572,147 @@ class _TerminalScreenState extends State<TerminalScreen> {
       terminalProvider,
       title: distro.displayName,
       command: 'proot-distro login ${distro.alias}',
+    );
+  }
+
+  void _showDistroInstallPicker(
+    BuildContext context,
+    TerminalProvider terminalProvider, {
+    required Set<String> installedAliases,
+    required bool commandAvailable,
+    VoidCallback? closeParent,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final future = ProotDistroService.instance.listAvailableDistros();
+
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (pickerContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.72,
+          minChildSize: 0.38,
+          maxChildSize: 0.94,
+          expand: false,
+          builder: (context, scrollController) {
+            return _ActionSheetPanel(
+              child: FutureBuilder<List<AvailableDistro>>(
+                future: future,
+                builder: (context, snapshot) {
+                  final distros = snapshot.data
+                          ?.where(
+                            (distro) => !installedAliases.contains(
+                              distro.alias.toLowerCase(),
+                            ),
+                          )
+                          .toList() ??
+                      const <AvailableDistro>[];
+
+                  Future<void> installDistro(AvailableDistro distro) async {
+                    Navigator.pop(pickerContext);
+                    closeParent?.call();
+                    await Future<void>.delayed(
+                        const Duration(milliseconds: 220));
+                    if (!mounted) return;
+                    await _openCommandSession(
+                      terminalProvider,
+                      title: '${l10n.install} ${distro.displayName}',
+                      command: commandAvailable
+                          ? 'proot-distro install ${distro.alias}'
+                          : 'pkg install -y proot-distro && proot-distro install ${distro.alias}',
+                    );
+                  }
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ActionSheetHeader(
+                        title: l10n.chooseDistro,
+                        subtitle: l10n.chooseDistroDesc,
+                      ),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Expanded(
+                          child: Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (distros.isEmpty)
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              l10n.noLinuxDistrosInstalledDesc,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ListView.separated(
+                            controller: scrollController,
+                            itemCount: distros.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final distro = distros[index];
+                              return Material(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(20),
+                                clipBehavior: Clip.antiAlias,
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 6,
+                                  ),
+                                  leading: DistroBadge(
+                                    alias: distro.alias,
+                                    displayName: distro.displayName,
+                                    size: 42,
+                                    fontSize: 13,
+                                  ),
+                                  title: Text(
+                                    distro.displayName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    distro.description.isNotEmpty
+                                        ? distro.description
+                                        : 'proot-distro install ${distro.alias}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: FilledButton.tonal(
+                                    onPressed: () => installDistro(distro),
+                                    child: Text(l10n.install),
+                                  ),
+                                  onTap: () => installDistro(distro),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1168,107 +1781,198 @@ class _TerminalScreenState extends State<TerminalScreen> {
           tooltip:
               _isKeyboardVisible(context) ? 'Hide keyboard' : 'Show keyboard',
         ),
-        // 其他所有操作收纳进菜单，防止误触
-        PopupMenuButton<String>(
-          itemBuilder: (context) {
-            final l10n = AppLocalizations.of(context);
-            return [
-              PopupMenuItem(
-                value: 'new_session',
-                child: Row(
-                  children: [
-                    const Icon(Icons.add),
-                    const SizedBox(width: 8),
-                    Text(l10n.newSession),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'tasks',
-                child: Row(
-                  children: [
-                    const Icon(Icons.play_circle_outline),
-                    const SizedBox(width: 8),
-                    Text(l10n.tasks),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'history',
-                child: Row(
-                  children: [
-                    const Icon(Icons.history),
-                    const SizedBox(width: 8),
-                    Text(l10n.history),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'open_current_folder',
-                child: Row(
-                  children: [
-                    const Icon(Icons.folder_open),
-                    const SizedBox(width: 8),
-                    Text(l10n.openCurrentDirectory),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'paste',
-                child: Row(
-                  children: [
-                    const Icon(Icons.paste),
-                    const SizedBox(width: 8),
-                    Text(l10n.paste),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'clear',
-                child: Row(
-                  children: [
-                    const Icon(Icons.clear_all),
-                    const SizedBox(width: 8),
-                    Text(l10n.clearTerminal),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'copy_ssh_key',
-                child: Row(
-                  children: [
-                    const Icon(Icons.key),
-                    const SizedBox(width: 8),
-                    Text(l10n.copySSHPublicKey),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'settings',
-                child: Row(
-                  children: [
-                    const Icon(Icons.settings),
-                    const SizedBox(width: 8),
-                    Text(l10n.settings),
-                  ],
-                ),
-              ),
-            ];
-          },
-          onSelected: (value) {
-            if (value == 'new_session') {
-              _showNewSessionSheet(context, terminalProvider);
-            } else if (value == 'tasks') {
-              _scaffoldKey.currentState?.openEndDrawer();
-            } else {
-              _handleMenuAction(context, value, terminalProvider);
-            }
-          },
+        IconButton(
+          icon: const Icon(Icons.more_horiz_rounded),
+          tooltip: l10n.moreActions,
+          onPressed: () => _showMainActionsSheet(context, terminalProvider),
         ),
       ],
+    );
+  }
+
+  void _showMainActionsSheet(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final sessionName = terminalProvider.currentSession?.displayName;
+
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        void closeAndRun(VoidCallback action) {
+          Navigator.pop(sheetContext);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            action();
+          });
+        }
+
+        return _ActionSheetPanel(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ActionSheetHeader(
+                title: l10n.moreActions,
+                subtitle: sessionName ?? l10n.terminal,
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionSheetQuickAction(
+                      icon: Icons.add_rounded,
+                      label: l10n.newSession,
+                      onTap: () => closeAndRun(
+                        () => _showNewSessionSheet(context, terminalProvider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionSheetQuickAction(
+                      icon: Icons.play_circle_outline_rounded,
+                      label: l10n.tasks,
+                      onTap: () => closeAndRun(
+                        () => _scaffoldKey.currentState?.openEndDrawer(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionSheetQuickAction(
+                      icon: Icons.history_rounded,
+                      label: l10n.history,
+                      onTap: () => closeAndRun(
+                        () => _handleMenuAction(
+                          context,
+                          'history',
+                          terminalProvider,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _ActionSheetListAction(
+                icon: Icons.paste_rounded,
+                label: l10n.paste,
+                onTap: () => closeAndRun(
+                  () => _handleMenuAction(context, 'paste', terminalProvider),
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.folder_open_rounded,
+                label: l10n.openCurrentDirectory,
+                onTap: () => closeAndRun(
+                  () => _handleMenuAction(
+                    context,
+                    'open_current_folder',
+                    terminalProvider,
+                  ),
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.key_outlined,
+                label: l10n.copySSHPublicKey,
+                onTap: () => closeAndRun(
+                  () => _handleMenuAction(
+                    context,
+                    'copy_ssh_key',
+                    terminalProvider,
+                  ),
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.clear_all_rounded,
+                label: l10n.clearTerminal,
+                destructive: true,
+                onTap: () => closeAndRun(
+                  () => _handleMenuAction(context, 'clear', terminalProvider),
+                ),
+              ),
+              _ActionSheetListAction(
+                icon: Icons.settings_outlined,
+                label: l10n.settings,
+                onTap: () => closeAndRun(
+                  () =>
+                      _handleMenuAction(context, 'settings', terminalProvider),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSelectionActionsSheet(
+    BuildContext context,
+    TerminalProvider terminalProvider,
+  ) {
+    final l10n = AppLocalizations.of(context);
+
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        void closeAndRun(VoidCallback action) {
+          Navigator.pop(sheetContext);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            action();
+          });
+        }
+
+        return _ActionSheetPanel(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ActionSheetHeader(
+                title: l10n.moreActions,
+                subtitle: l10n.selected,
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionSheetQuickAction(
+                      icon: Icons.select_all_rounded,
+                      label: l10n.selectAll,
+                      onTap: () => closeAndRun(
+                        () => _selectAll(terminalProvider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionSheetQuickAction(
+                      icon: Icons.copy_all_rounded,
+                      label: l10n.copyAllOutput,
+                      onTap: () => closeAndRun(
+                        () => _copyAllContent(terminalProvider),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _ActionSheetListAction(
+                icon: Icons.history_rounded,
+                label: l10n.copyLastLines,
+                onTap: () => closeAndRun(
+                  () => _copyLastLines(terminalProvider, 50),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1386,6 +2090,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
                     fontSize: settings.fontSize,
                     height: 1.1,
                   ),
+                  cellSize: _terminalViewKey.currentState?.cellSize,
                   handleColor: settings.terminalTheme.blue,
                 ),
             ],
@@ -1767,8 +2472,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
       final command = input['command'] as String? ?? '';
       final session = terminalProvider.currentSession;
 
-      // SSH 会话：发送命令到远程服务器执行
-      if (session != null && session.isSshSession) {
+      // 通过当前终端会话执行命令（支持 proot-distro、SSH 等任何环境）
+      if (session != null) {
         final completer = Completer<String>();
         String? capturedOutput;
 
@@ -1778,8 +2483,8 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
         session.write(command.endsWith('\n') ? command : '$command\n');
 
-        // 等待输出（最多10秒）后停止捕获
-        Future.delayed(const Duration(seconds: 10), () {
+        // 等待输出（最多30秒）后停止捕获
+        Future.delayed(const Duration(seconds: 30), () {
           session.stopOutputCapture();
           if (!completer.isCompleted) {
             final result = (capturedOutput ?? '').trim();
@@ -1788,7 +2493,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         });
 
         return completer.future.timeout(
-          const Duration(seconds: 10),
+          const Duration(seconds: 30),
           onTimeout: () {
             session.stopOutputCapture();
             final result = (capturedOutput ?? '').trim();
@@ -1797,7 +2502,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         );
       }
 
-      // 本地会话：使用 Process.runSync 执行
+      // 没有活跃会话时，回退到 Process.runSync
       try {
         final shellPath = settings.defaultShellPath;
         final workDir = (_currentCwd?.trim().isNotEmpty ?? false)

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 import '../l10n/app_localizations.dart';
+import '../models/extra_key_layout.dart';
 
 /// 额外按键组件
 /// 参考 termux-app: ExtraKeysView.java, ExtraKeyButton.java
@@ -32,100 +33,246 @@ class ExtraKey {
 /// 预定义的额外按键
 class ExtraKeys {
   // 功能键
-  static const esc = ExtraKey(label: 'ESC', terminalKey: TerminalKey.escape);
-  static const tab = ExtraKey(label: 'TAB', terminalKey: TerminalKey.tab);
-  static const ctrl = ExtraKey(label: 'CTRL', isModifier: true);
-  static const alt = ExtraKey(label: 'ALT', isModifier: true);
+  static const esc =
+      ExtraKey(label: ExtraKeyIds.esc, terminalKey: TerminalKey.escape);
+  static const tab =
+      ExtraKey(label: ExtraKeyIds.tab, terminalKey: TerminalKey.tab);
+  static const ctrl = ExtraKey(label: ExtraKeyIds.ctrl, isModifier: true);
+  static const alt = ExtraKey(label: ExtraKeyIds.alt, isModifier: true);
+  static const menu = ExtraKey(
+    label: ExtraKeyIds.menu,
+    displayLabel: '⋯',
+    icon: Icons.apps,
+  );
 
   // 导航键
   static const home = ExtraKey(
-      label: 'HOME', displayLabel: 'HOME', terminalKey: TerminalKey.home);
-  static const end =
-      ExtraKey(label: 'END', displayLabel: 'END', terminalKey: TerminalKey.end);
+      label: ExtraKeyIds.home,
+      displayLabel: 'HOME',
+      terminalKey: TerminalKey.home);
+  static const end = ExtraKey(
+      label: ExtraKeyIds.end,
+      displayLabel: 'END',
+      terminalKey: TerminalKey.end);
   static const pgup = ExtraKey(
-      label: 'PGUP', displayLabel: 'PGUP', terminalKey: TerminalKey.pageUp);
+      label: ExtraKeyIds.pgup,
+      displayLabel: 'PGUP',
+      terminalKey: TerminalKey.pageUp);
   static const pgdn = ExtraKey(
-      label: 'PGDN', displayLabel: 'PGDN', terminalKey: TerminalKey.pageDown);
+      label: ExtraKeyIds.pgdn,
+      displayLabel: 'PGDN',
+      terminalKey: TerminalKey.pageDown);
   static const insert = ExtraKey(
-      label: 'INS', displayLabel: 'INS', terminalKey: TerminalKey.insert);
+      label: ExtraKeyIds.insert,
+      displayLabel: 'INS',
+      terminalKey: TerminalKey.insert);
 
   // 方向键
   static const up = ExtraKey(
-      label: 'UP',
+      label: ExtraKeyIds.up,
       terminalKey: TerminalKey.arrowUp,
       icon: Icons.keyboard_arrow_up);
   static const down = ExtraKey(
-      label: 'DOWN',
+      label: ExtraKeyIds.down,
       terminalKey: TerminalKey.arrowDown,
       icon: Icons.keyboard_arrow_down);
   static const left = ExtraKey(
-      label: 'LEFT',
+      label: ExtraKeyIds.left,
       terminalKey: TerminalKey.arrowLeft,
       icon: Icons.keyboard_arrow_left);
   static const right = ExtraKey(
-      label: 'RIGHT',
+      label: ExtraKeyIds.right,
       terminalKey: TerminalKey.arrowRight,
       icon: Icons.keyboard_arrow_right);
 
   // 编辑键
   static const enter = ExtraKey(
-      label: 'ENTER', displayLabel: '↲', terminalKey: TerminalKey.enter);
+      label: ExtraKeyIds.enter,
+      displayLabel: '↲',
+      terminalKey: TerminalKey.enter);
   static const backspace = ExtraKey(
-      label: 'DEL', displayLabel: '⌫', terminalKey: TerminalKey.backspace);
+      label: ExtraKeyIds.backspace,
+      displayLabel: '⌫',
+      terminalKey: TerminalKey.backspace);
   static const deleteKey = ExtraKey(
-      label: 'FORWARD_DEL',
+      label: ExtraKeyIds.deleteKey,
       displayLabel: 'DEL',
       terminalKey: TerminalKey.delete);
 
   // 常用符号
-  static const minus = ExtraKey(label: '-', text: '-');
-  static const slash = ExtraKey(label: '/', text: '/');
-  static const pipe = ExtraKey(label: '|', text: '|');
-  static const backslash = ExtraKey(label: '\\', text: '\\');
-  static const underscore = ExtraKey(label: '_', text: '_');
-  static const tilde = ExtraKey(label: '~', text: '~');
-  static const at = ExtraKey(label: '@', text: '@');
-  static const hash = ExtraKey(label: '#', text: '#');
-  static const dollar = ExtraKey(label: '\$', text: '\$');
-  static const percent = ExtraKey(label: '%', text: '%');
-  static const caret = ExtraKey(label: '^', text: '^');
-  static const ampersand = ExtraKey(label: '&', text: '&');
-  static const asterisk = ExtraKey(label: '*', text: '*');
-  static const equals = ExtraKey(label: '=', text: '=');
-  static const plus = ExtraKey(label: '+', text: '+');
-  static const colon = ExtraKey(label: ':', text: ':');
-  static const semicolon = ExtraKey(label: ';', text: ';');
-  static const quote = ExtraKey(label: "'", text: "'");
-  static const doubleQuote = ExtraKey(label: '"', text: '"');
-  static const backtick = ExtraKey(label: '`', text: '`');
-  static const exclamation = ExtraKey(label: '!', text: '!');
-  static const question = ExtraKey(label: '?', text: '?');
-  static const lessThan = ExtraKey(label: '<', text: '<');
-  static const greaterThan = ExtraKey(label: '>', text: '>');
-  static const append = ExtraKey(label: '>>', text: '>>');
-  static const and = ExtraKey(label: '&&', text: '&&');
+  static const minus = ExtraKey(label: ExtraKeyIds.minus, text: '-');
+  static const slash = ExtraKey(label: ExtraKeyIds.slash, text: '/');
+  static const pipe = ExtraKey(label: ExtraKeyIds.pipe, text: '|');
+  static const backslash = ExtraKey(label: ExtraKeyIds.backslash, text: '\\');
+  static const underscore = ExtraKey(label: ExtraKeyIds.underscore, text: '_');
+  static const tilde = ExtraKey(label: ExtraKeyIds.tilde, text: '~');
+  static const at = ExtraKey(label: ExtraKeyIds.at, text: '@');
+  static const hash = ExtraKey(label: ExtraKeyIds.hash, text: '#');
+  static const dollar = ExtraKey(label: ExtraKeyIds.dollar, text: '\$');
+  static const percent = ExtraKey(label: ExtraKeyIds.percent, text: '%');
+  static const caret = ExtraKey(label: ExtraKeyIds.caret, text: '^');
+  static const ampersand = ExtraKey(label: ExtraKeyIds.ampersand, text: '&');
+  static const asterisk = ExtraKey(label: ExtraKeyIds.asterisk, text: '*');
+  static const equals = ExtraKey(label: ExtraKeyIds.equals, text: '=');
+  static const plus = ExtraKey(label: ExtraKeyIds.plus, text: '+');
+  static const colon = ExtraKey(label: ExtraKeyIds.colon, text: ':');
+  static const semicolon = ExtraKey(label: ExtraKeyIds.semicolon, text: ';');
+  static const quote = ExtraKey(label: ExtraKeyIds.quote, text: "'");
+  static const doubleQuote =
+      ExtraKey(label: ExtraKeyIds.doubleQuote, text: '"');
+  static const backtick = ExtraKey(label: ExtraKeyIds.backtick, text: '`');
+  static const exclamation =
+      ExtraKey(label: ExtraKeyIds.exclamation, text: '!');
+  static const question = ExtraKey(label: ExtraKeyIds.question, text: '?');
+  static const lessThan = ExtraKey(label: ExtraKeyIds.lessThan, text: '<');
+  static const greaterThan =
+      ExtraKey(label: ExtraKeyIds.greaterThan, text: '>');
+  static const append = ExtraKey(label: ExtraKeyIds.append, text: '>>');
+  static const and = ExtraKey(label: ExtraKeyIds.and, text: '&&');
 
   // 括号
-  static const leftParen = ExtraKey(label: '(', text: '(');
-  static const rightParen = ExtraKey(label: ')', text: ')');
-  static const leftBracket = ExtraKey(label: '[', text: '[');
-  static const rightBracket = ExtraKey(label: ']', text: ']');
-  static const leftBrace = ExtraKey(label: '{', text: '{');
-  static const rightBrace = ExtraKey(label: '}', text: '}');
+  static const leftParen = ExtraKey(label: ExtraKeyIds.leftParen, text: '(');
+  static const rightParen = ExtraKey(label: ExtraKeyIds.rightParen, text: ')');
+  static const leftBracket =
+      ExtraKey(label: ExtraKeyIds.leftBracket, text: '[');
+  static const rightBracket =
+      ExtraKey(label: ExtraKeyIds.rightBracket, text: ']');
+  static const leftBrace = ExtraKey(label: ExtraKeyIds.leftBrace, text: '{');
+  static const rightBrace = ExtraKey(label: ExtraKeyIds.rightBrace, text: '}');
 
   // 功能键 F1-F12
-  static const f1 = ExtraKey(label: 'F1', terminalKey: TerminalKey.f1);
-  static const f2 = ExtraKey(label: 'F2', terminalKey: TerminalKey.f2);
-  static const f3 = ExtraKey(label: 'F3', terminalKey: TerminalKey.f3);
-  static const f4 = ExtraKey(label: 'F4', terminalKey: TerminalKey.f4);
-  static const f5 = ExtraKey(label: 'F5', terminalKey: TerminalKey.f5);
-  static const f6 = ExtraKey(label: 'F6', terminalKey: TerminalKey.f6);
-  static const f7 = ExtraKey(label: 'F7', terminalKey: TerminalKey.f7);
-  static const f8 = ExtraKey(label: 'F8', terminalKey: TerminalKey.f8);
-  static const f9 = ExtraKey(label: 'F9', terminalKey: TerminalKey.f9);
-  static const f10 = ExtraKey(label: 'F10', terminalKey: TerminalKey.f10);
-  static const f11 = ExtraKey(label: 'F11', terminalKey: TerminalKey.f11);
-  static const f12 = ExtraKey(label: 'F12', terminalKey: TerminalKey.f12);
+  static const f1 =
+      ExtraKey(label: ExtraKeyIds.f1, terminalKey: TerminalKey.f1);
+  static const f2 =
+      ExtraKey(label: ExtraKeyIds.f2, terminalKey: TerminalKey.f2);
+  static const f3 =
+      ExtraKey(label: ExtraKeyIds.f3, terminalKey: TerminalKey.f3);
+  static const f4 =
+      ExtraKey(label: ExtraKeyIds.f4, terminalKey: TerminalKey.f4);
+  static const f5 =
+      ExtraKey(label: ExtraKeyIds.f5, terminalKey: TerminalKey.f5);
+  static const f6 =
+      ExtraKey(label: ExtraKeyIds.f6, terminalKey: TerminalKey.f6);
+  static const f7 =
+      ExtraKey(label: ExtraKeyIds.f7, terminalKey: TerminalKey.f7);
+  static const f8 =
+      ExtraKey(label: ExtraKeyIds.f8, terminalKey: TerminalKey.f8);
+  static const f9 =
+      ExtraKey(label: ExtraKeyIds.f9, terminalKey: TerminalKey.f9);
+  static const f10 =
+      ExtraKey(label: ExtraKeyIds.f10, terminalKey: TerminalKey.f10);
+  static const f11 =
+      ExtraKey(label: ExtraKeyIds.f11, terminalKey: TerminalKey.f11);
+  static const f12 =
+      ExtraKey(label: ExtraKeyIds.f12, terminalKey: TerminalKey.f12);
+
+  static const all = [
+    esc,
+    tab,
+    ctrl,
+    alt,
+    home,
+    end,
+    pgup,
+    pgdn,
+    insert,
+    up,
+    down,
+    left,
+    right,
+    enter,
+    backspace,
+    deleteKey,
+    minus,
+    slash,
+    pipe,
+    backslash,
+    underscore,
+    tilde,
+    at,
+    hash,
+    dollar,
+    percent,
+    caret,
+    ampersand,
+    asterisk,
+    equals,
+    plus,
+    colon,
+    semicolon,
+    quote,
+    doubleQuote,
+    backtick,
+    exclamation,
+    question,
+    lessThan,
+    greaterThan,
+    append,
+    and,
+    leftParen,
+    rightParen,
+    leftBracket,
+    rightBracket,
+    leftBrace,
+    rightBrace,
+    f1,
+    f2,
+    f3,
+    f4,
+    f5,
+    f6,
+    f7,
+    f8,
+    f9,
+    f10,
+    f11,
+    f12,
+    menu,
+  ];
+
+  static final Map<String, ExtraKey> byId = {
+    for (final key in all) key.label: key,
+  };
+
+  static ExtraKey? fromId(String keyId) => byId[keyId];
+
+  static String visualLabel(String keyId) {
+    return fromId(keyId)?.display ?? keyId;
+  }
+
+  static String localizedLabel(BuildContext context, String keyId) {
+    final l10n = AppLocalizations.of(context);
+    switch (keyId) {
+      case ExtraKeyIds.esc:
+        return l10n.keyEsc;
+      case ExtraKeyIds.tab:
+        return l10n.keyTab;
+      case ExtraKeyIds.ctrl:
+        return l10n.keyCtrl;
+      case ExtraKeyIds.alt:
+        return l10n.keyAlt;
+      case ExtraKeyIds.home:
+        return l10n.keyHome;
+      case ExtraKeyIds.end:
+        return l10n.keyEnd;
+      case ExtraKeyIds.pgup:
+        return l10n.keyPgUp;
+      case ExtraKeyIds.pgdn:
+        return l10n.keyPgDn;
+      case ExtraKeyIds.insert:
+        return l10n.keyIns;
+      case ExtraKeyIds.deleteKey:
+        return l10n.keyDel;
+      case ExtraKeyIds.enter:
+        return l10n.keyEnter;
+      case ExtraKeyIds.backspace:
+        return l10n.keyBackspace;
+      case ExtraKeyIds.menu:
+        return l10n.extraKeysMenu;
+      default:
+        return fromId(keyId)?.display ?? keyId;
+    }
+  }
 }
 
 /// 快捷命令定义
@@ -203,6 +350,7 @@ class ExtraKeysView extends StatefulWidget {
   final VoidCallback? onCtrlToggle;
   final VoidCallback? onAltToggle;
   final bool vibrationEnabled;
+  final ExtraKeysLayoutConfig? layoutConfig;
   // 外部控制的修饰键状态（用于音量键同步）
   final bool ctrlPressed;
   final bool altPressed;
@@ -215,6 +363,7 @@ class ExtraKeysView extends StatefulWidget {
     this.onCtrlToggle,
     this.onAltToggle,
     this.vibrationEnabled = true,
+    this.layoutConfig,
     this.ctrlPressed = false,
     this.altPressed = false,
     this.customCommands,
@@ -240,52 +389,20 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   bool get _ctrlPressed => widget.ctrlPressed || _localCtrlPressed;
   bool get _altPressed => widget.altPressed || _localAltPressed;
 
-  String _getLocalizedKeyLabel(BuildContext context, ExtraKey key) {
-    final l10n = AppLocalizations.of(context);
-    switch (key.label) {
-      case 'ESC':
-        return l10n.keyEsc;
-      case 'TAB':
-        return l10n.keyTab;
-      case 'CTRL':
-        return l10n.keyCtrl;
-      case 'ALT':
-        return l10n.keyAlt;
-      case 'HOME':
-        return l10n.keyHome;
-      case 'END':
-        return l10n.keyEnd;
-      case 'PGUP':
-        return l10n.keyPgUp;
-      case 'PGDN':
-        return l10n.keyPgDn;
-      case 'INS':
-        return l10n.keyIns;
-      case 'FORWARD_DEL':
-        return l10n.keyDel;
-      case 'ENTER':
-        return l10n.keyEnter;
-      case 'DEL':
-        return l10n.keyBackspace;
-      default:
-        return key.displayLabel ?? key.label;
-    }
-  }
-
   void _handleKeyTap(ExtraKey key) {
     if (widget.vibrationEnabled) {
       HapticFeedback.lightImpact();
     }
 
     if (key.isModifier) {
-      if (key.label == 'CTRL') {
+      if (key.label == ExtraKeyIds.ctrl) {
         // 如果有外部控制，通过回调通知
         if (widget.onCtrlToggle != null) {
           widget.onCtrlToggle!();
         } else {
           setState(() => _localCtrlPressed = !_localCtrlPressed);
         }
-      } else if (key.label == 'ALT') {
+      } else if (key.label == ExtraKeyIds.alt) {
         if (widget.onAltToggle != null) {
           widget.onAltToggle!();
         } else {
@@ -366,6 +483,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isWideLayout = _isWideLayout(context);
+    final layout = widget.layoutConfig ?? ExtraKeysLayoutConfig.defaults();
 
     return Container(
       color: theme.colorScheme.surfaceContainerHighest,
@@ -373,10 +491,9 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         mainAxisSize: MainAxisSize.min,
         children: [
           // 展开面板
-          if (_expanded || isWideLayout)
-            _buildExpandedPanel(theme, isWideLayout),
+          if (_expanded) _buildExpandedPanel(theme, isWideLayout),
           // 主键盘行
-          _buildMainRow(theme, isWideLayout),
+          _buildMainRow(theme, isWideLayout, layout),
         ],
       ),
     );
@@ -388,7 +505,14 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   /// 主键盘行 - 两行布局，方向键在右侧
-  Widget _buildMainRow(ThemeData theme, bool isWideLayout) {
+  Widget _buildMainRow(
+    ThemeData theme,
+    bool isWideLayout,
+    ExtraKeysLayoutConfig layout,
+  ) {
+    final topRow = layout.rows[0];
+    final bottomRow = layout.rows[1];
+
     return SizedBox(
       height: isWideLayout ? 84 : 76,
       child: Row(
@@ -402,61 +526,17 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                 Expanded(
                   child: Row(
                     children: [
-                      _buildKey(ExtraKeys.esc, theme),
-                      _buildKey(ExtraKeys.ctrl, theme),
-                      _buildKey(ExtraKeys.alt, theme),
-                      _buildKey(ExtraKeys.minus, theme),
+                      for (final keyId in topRow.take(4))
+                        _buildConfiguredKey(keyId, theme),
                     ],
                   ),
                 ),
-                // 第二行: TAB, /, Tasks, 展开
+                // 第二行: TAB, /, Enter, 展开
                 Expanded(
                   child: Row(
                     children: [
-                      _buildKey(ExtraKeys.tab, theme),
-                      _buildKey(ExtraKeys.slash, theme),
-                      // 快捷指令入口
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: Material(
-                            color: _expanded && _expandedTab == 2
-                                ? theme.colorScheme.tertiaryContainer
-                                : theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(4),
-                            child: InkWell(
-                              onTap: () {
-                                if (widget.vibrationEnabled) {
-                                  HapticFeedback.lightImpact();
-                                }
-                                setState(() {
-                                  if (isWideLayout) {
-                                    _expandedTab = 2;
-                                  } else if (_expanded && _expandedTab == 2) {
-                                    _expanded = false; // 如果已经在任务面板，则关闭
-                                  } else {
-                                    _expanded = true;
-                                    _expandedTab = 2; // 切换到命令 Tab (index 2)
-                                  }
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(4),
-                              child: Center(
-                                child: Icon(
-                                  Icons.flash_on,
-                                  size: 18,
-                                  color: _expanded && _expandedTab == 2
-                                      ? theme.colorScheme.onTertiaryContainer
-                                      : theme.colorScheme.primary, // 使用主色突出
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      isWideLayout
-                          ? _buildKey(ExtraKeys.enter, theme)
-                          : _buildExpandButton(theme),
+                      for (final keyId in bottomRow.take(4))
+                        _buildConfiguredKey(keyId, theme),
                     ],
                   ),
                 ),
@@ -466,7 +546,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
           // 右侧方向键区 (占 3/7 宽度)
           Expanded(
             flex: 3,
-            child: _buildArrowKeysCluster(theme),
+            child: _buildArrowKeysCluster(theme, topRow, bottomRow),
           ),
         ],
       ),
@@ -474,16 +554,19 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   /// 方向键十字布局 + Home/End (自适应宽度)
-  Widget _buildArrowKeysCluster(ThemeData theme) {
+  Widget _buildArrowKeysCluster(
+    ThemeData theme,
+    List<String> topRow,
+    List<String> bottomRow,
+  ) {
     return Column(
       children: [
         // 上方行：Home, Up, End
         Expanded(
           child: Row(
             children: [
-              _buildArrowKey(ExtraKeys.home, theme),
-              _buildArrowKey(ExtraKeys.up, theme),
-              _buildArrowKey(ExtraKeys.end, theme),
+              for (final keyId in topRow.skip(4))
+                _buildCompactKey(keyId, theme),
             ],
           ),
         ),
@@ -491,9 +574,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
         Expanded(
           child: Row(
             children: [
-              _buildArrowKey(ExtraKeys.left, theme),
-              _buildArrowKey(ExtraKeys.down, theme),
-              _buildArrowKey(ExtraKeys.right, theme),
+              for (final keyId in bottomRow.skip(4))
+                _buildCompactKey(keyId, theme),
             ],
           ),
         ),
@@ -502,41 +584,112 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   /// 方向键按钮 (自适应宽度，支持长按重复)
-  Widget _buildArrowKey(ExtraKey key, ThemeData theme) {
+  Widget _buildCompactKey(String keyId, ThemeData theme) {
+    if (keyId == ExtraKeyIds.menu) {
+      return _buildExpandButton(theme);
+    }
+
+    final key = ExtraKeys.fromId(keyId);
+    if (key == null) {
+      return _buildMissingKey(theme, keyId);
+    }
+
+    final content = Center(
+      child: key.icon != null
+          ? Icon(
+              key.icon,
+              size: 18,
+              color: theme.colorScheme.onSurface,
+            )
+          : FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                ExtraKeys.localizedLabel(context, keyId),
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+    );
+
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(2),
-        child: GestureDetector(
-          onTapDown: (_) => _startRepeat(key),
-          onTapUp: (_) => _stopRepeat(),
-          onTapCancel: () => _stopRepeat(),
-          child: Material(
+        child: Material(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(4),
+          child: _isRepeatableKey(key)
+              ? GestureDetector(
+                  onTapDown: (_) => _startRepeat(key),
+                  onTapUp: (_) => _stopRepeat(),
+                  onTapCancel: _stopRepeat,
+                  child: content,
+                )
+              : InkWell(
+                  onTap: () => _handleKeyTap(key),
+                  borderRadius: BorderRadius.circular(4),
+                  child: content,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfiguredKey(String keyId, ThemeData theme) {
+    if (keyId == ExtraKeyIds.menu) {
+      return _buildExpandButton(theme);
+    }
+
+    final key = ExtraKeys.fromId(keyId);
+    if (key == null) {
+      return _buildMissingKey(theme, keyId);
+    }
+
+    return _buildKey(key, theme);
+  }
+
+  Widget _buildMissingKey(ThemeData theme, String keyId) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(4),
-            child: Center(
-              child: key.icon != null
-                  ? Icon(
-                      key.icon,
-                      size: 18,
-                      color: theme.colorScheme.onSurface,
-                    )
-                  : FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _getLocalizedKeyLabel(context, key),
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
+          ),
+          child: Center(
+            child: Text(
+              keyId,
+              style: TextStyle(
+                fontSize: 10,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  bool _isRepeatableKey(ExtraKey key) {
+    switch (key.label) {
+      case ExtraKeyIds.up:
+      case ExtraKeyIds.down:
+      case ExtraKeyIds.left:
+      case ExtraKeyIds.right:
+      case ExtraKeyIds.home:
+      case ExtraKeyIds.end:
+      case ExtraKeyIds.pgup:
+      case ExtraKeyIds.pgdn:
+      case ExtraKeyIds.backspace:
+      case ExtraKeyIds.deleteKey:
+        return true;
+      default:
+        return false;
+    }
   }
 
   /// 展开按钮
@@ -958,8 +1111,8 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
   }
 
   Widget _buildKey(ExtraKey key, ThemeData theme, {double fontSize = 12}) {
-    final isPressed = (key.label == 'CTRL' && _ctrlPressed) ||
-        (key.label == 'ALT' && _altPressed);
+    final isPressed = (key.label == ExtraKeyIds.ctrl && _ctrlPressed) ||
+        (key.label == ExtraKeyIds.alt && _altPressed);
 
     return Expanded(
       child: Padding(
@@ -983,7 +1136,7 @@ class _ExtraKeysViewState extends State<ExtraKeysView>
                   : FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        _getLocalizedKeyLabel(context, key),
+                        ExtraKeys.localizedLabel(context, key.label),
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: fontSize,

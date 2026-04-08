@@ -81,11 +81,13 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   late TermuxTerminalController _controller;
   late ScrollController _scrollController;
 
-  // Selection pivot point for drag selection
-  CellOffset? _selectionPivot;
+  // Base selection range used to extend drag selection consistently.
+  CellOffset? _selectionBaseStart;
+  CellOffset? _selectionBaseEnd;
 
   // Check if running on desktop platform (mouse-based interaction)
-  static final bool _isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  static final bool _isDesktop =
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   final _viewportKey = GlobalKey();
   final _scrollableKey = GlobalKey<ScrollableState>();
@@ -179,66 +181,66 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
         final offset = _renderTerminal.getCellOffset(details.localPosition);
         final wordRange = widget.terminal.buffer.getWordBoundary(offset);
         if (wordRange != null) {
-          final startAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.begin);
-          final endAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.end);
-          _controller.setSelection(startAnchor, endAnchor);
+          _setSelectionFromOffsets(wordRange.begin, wordRange.end);
         }
       },
       // 桌面平台：使用 pan 手势实现鼠标拖动选择（立即响应）
       onPanStart: _isDesktop
           ? (details) {
-              final offset = _renderTerminal.getCellOffset(details.localPosition);
-              _selectionPivot = offset;
-              final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
-              _controller.setSelection(anchor, anchor);
+              final offset =
+                  _renderTerminal.getCellOffset(details.localPosition);
+              _selectionBaseStart = offset;
+              _selectionBaseEnd = offset;
+              _setSelectionFromOffsets(offset, offset);
             }
           : null,
       onPanUpdate: _isDesktop
           ? (details) {
-              if (_selectionPivot == null) return;
-              final offset = _renderTerminal.getCellOffset(details.localPosition);
-              final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
-              final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
-              _controller.setSelection(startAnchor, endAnchor);
+              if (_selectionBaseStart == null || _selectionBaseEnd == null) {
+                return;
+              }
+              final offset =
+                  _renderTerminal.getCellOffset(details.localPosition);
+              _extendSelectionTo(offset);
             }
           : null,
       onPanEnd: _isDesktop
           ? (details) {
-              _selectionPivot = null;
+              _resetSelectionBase();
             }
           : null,
       // 移动平台：使用 longPress 手势（需要长按才触发选择）
       onLongPressStart: !_isDesktop
           ? (details) {
-              final offset = _renderTerminal.getCellOffset(details.localPosition);
-              _selectionPivot = offset;
+              final offset =
+                  _renderTerminal.getCellOffset(details.localPosition);
 
               // Try to select word to give immediate visual feedback
               final wordRange = widget.terminal.buffer.getWordBoundary(offset);
               if (wordRange != null) {
-                final startAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.begin);
-                final endAnchor = widget.terminal.buffer.createAnchorFromOffset(wordRange.end);
-                _controller.setSelection(startAnchor, endAnchor);
+                _selectionBaseStart = wordRange.begin;
+                _selectionBaseEnd = wordRange.end;
+                _setSelectionFromOffsets(wordRange.begin, wordRange.end);
               } else {
-                final anchor = widget.terminal.buffer.createAnchorFromOffset(offset);
-                _controller.setSelection(anchor, anchor);
+                _selectionBaseStart = offset;
+                _selectionBaseEnd = offset;
+                _setSelectionFromOffsets(offset, offset);
               }
             }
           : null,
       onLongPressMoveUpdate: !_isDesktop
           ? (details) {
-              if (_selectionPivot == null) return;
-              final offset = _renderTerminal.getCellOffset(details.localPosition);
-
-              final startAnchor = widget.terminal.buffer.createAnchorFromOffset(_selectionPivot!);
-              final endAnchor = widget.terminal.buffer.createAnchorFromOffset(offset);
-
-              _controller.setSelection(startAnchor, endAnchor);
+              if (_selectionBaseStart == null || _selectionBaseEnd == null) {
+                return;
+              }
+              final offset =
+                  _renderTerminal.getCellOffset(details.localPosition);
+              _extendSelectionTo(offset);
             }
           : null,
       onLongPressEnd: !_isDesktop
           ? (details) {
-              _selectionPivot = null;
+              _resetSelectionBase();
             }
           : null,
       onTapUp: widget.onTapUp != null
@@ -298,7 +300,8 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
     );
 
     child = Container(
-      color: widget.theme.background.withOpacity(widget.backgroundOpacity),
+      color:
+          widget.theme.background.withValues(alpha: widget.backgroundOpacity),
       padding: widget.padding,
       child: child,
     );
@@ -399,6 +402,42 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   double get lineHeight => _renderTerminal.lineHeight;
 
   Size get cellSize => _renderTerminal.cellSize;
+
+  int _compareOffsets(CellOffset a, CellOffset b) {
+    if (a.y != b.y) return a.y.compareTo(b.y);
+    return a.x.compareTo(b.x);
+  }
+
+  void _setSelectionFromOffsets(CellOffset a, CellOffset b) {
+    final begin = _compareOffsets(a, b) <= 0 ? a : b;
+    final end = _compareOffsets(a, b) <= 0 ? b : a;
+    final beginAnchor = widget.terminal.buffer.createAnchorFromOffset(begin);
+    final endAnchor = widget.terminal.buffer.createAnchorFromOffset(end);
+    _controller.setSelection(beginAnchor, endAnchor);
+  }
+
+  void _extendSelectionTo(CellOffset offset) {
+    final baseStart = _selectionBaseStart;
+    final baseEnd = _selectionBaseEnd;
+    if (baseStart == null || baseEnd == null) return;
+
+    if (_compareOffsets(offset, baseStart) < 0) {
+      _setSelectionFromOffsets(offset, baseEnd);
+      return;
+    }
+
+    if (_compareOffsets(offset, baseEnd) > 0) {
+      _setSelectionFromOffsets(baseStart, offset);
+      return;
+    }
+
+    _setSelectionFromOffsets(baseStart, baseEnd);
+  }
+
+  void _resetSelectionBase() {
+    _selectionBaseStart = null;
+    _selectionBaseEnd = null;
+  }
 }
 
 /// 终端文本输入处理组件 - 实现 TextInputClient 以连接软键盘
@@ -596,8 +635,7 @@ class _TerminalTextInputState extends State<_TerminalTextInput>
 
   @override
   void performAction(TextInputAction action) {
-    if (action == TextInputAction.newline ||
-        action == TextInputAction.done) {
+    if (action == TextInputAction.newline || action == TextInputAction.done) {
       widget.onInsert('\r');
     }
   }
@@ -1103,4 +1141,3 @@ TerminalKey? _charToTerminalKey(String char) {
       return null;
   }
 }
-

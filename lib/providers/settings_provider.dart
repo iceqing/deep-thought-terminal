@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
 import '../models/mirror.dart';
+import '../models/extra_key_layout.dart';
 import 'package:xterm/xterm.dart';
 
 /// 设置状态管理
@@ -45,6 +46,7 @@ class SettingsProvider extends ChangeNotifier {
   // 显示设置
   bool _keepScreenOn = DefaultSettings.keepScreenOn;
   bool _showExtraKeys = DefaultSettings.showExtraKeys;
+  ExtraKeysLayoutConfig _extraKeysLayout = ExtraKeysLayoutConfig.defaults();
   int _terminalMargin = DefaultSettings.terminalMargin;
 
   // 输入设置
@@ -100,6 +102,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get cursorBlink => _cursorBlink;
   bool get keepScreenOn => _keepScreenOn;
   bool get showExtraKeys => _showExtraKeys;
+  ExtraKeysLayoutConfig get extraKeysLayout => _extraKeysLayout;
   int get terminalMargin => _terminalMargin;
   bool get vibrationEnabled => _vibrationEnabled;
   bool get bellEnabled => _bellEnabled;
@@ -191,6 +194,9 @@ class SettingsProvider extends ChangeNotifier {
         _prefs.getBool('keepScreenOn') ?? DefaultSettings.keepScreenOn;
     _showExtraKeys =
         _prefs.getBool('showExtraKeys') ?? DefaultSettings.showExtraKeys;
+    _extraKeysLayout = ExtraKeysLayoutConfig.fromPreferenceString(
+      _prefs.getString('extraKeysLayout'),
+    );
     _terminalMargin =
         _prefs.getInt('terminalMargin') ?? DefaultSettings.terminalMargin;
     _vibrationEnabled =
@@ -266,6 +272,24 @@ class SettingsProvider extends ChangeNotifier {
     _showExtraKeys = value;
     await _prefs.setBool('showExtraKeys', value);
     notifyListeners();
+  }
+
+  Future<void> setExtraKeysLayout(ExtraKeysLayoutConfig value) async {
+    _extraKeysLayout = value;
+    await _prefs.setString('extraKeysLayout', value.toPreferenceString());
+    notifyListeners();
+  }
+
+  Future<void> setExtraKeysPosition(String value) async {
+    await setExtraKeysLayout(_extraKeysLayout.updatePosition(value));
+  }
+
+  Future<void> setExtraKeysKey(int row, int column, String keyId) async {
+    await setExtraKeysLayout(_extraKeysLayout.updateKeyAt(row, column, keyId));
+  }
+
+  Future<void> resetExtraKeysLayout() async {
+    await setExtraKeysLayout(ExtraKeysLayoutConfig.defaults());
   }
 
   Future<void> setTerminalMargin(int value) async {
@@ -533,6 +557,7 @@ class SettingsProvider extends ChangeNotifier {
     await setCursorBlink(DefaultSettings.cursorBlink);
     await setKeepScreenOn(DefaultSettings.keepScreenOn);
     await setShowExtraKeys(DefaultSettings.showExtraKeys);
+    await resetExtraKeysLayout();
     await setTerminalMargin(DefaultSettings.terminalMargin);
     await setVibrationEnabled(DefaultSettings.vibrationEnabled);
     await setBellEnabled(DefaultSettings.bellEnabled);

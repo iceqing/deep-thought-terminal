@@ -101,6 +101,11 @@ class AppLocalizations {
   String get noSSHKeyFound => _translate('noSSHKeyFound');
   String get generate => _translate('generate');
   String get rename => _translate('rename');
+  String get install => _translate('install');
+  String get uninstall => _translate('uninstall');
+  String get installed => _translate('installed');
+  String get available => _translate('available');
+  String get linux => _translate('linux');
   String get linuxDistros => _translate('linuxDistros');
   String get linuxDistrosDesc => _translate('linuxDistrosDesc');
   String get prootDistroNotInstalled => _translate('prootDistroNotInstalled');
@@ -109,6 +114,10 @@ class AppLocalizations {
   String get noLinuxDistrosInstalled => _translate('noLinuxDistrosInstalled');
   String get noLinuxDistrosInstalledDesc =>
       _translate('noLinuxDistrosInstalledDesc');
+  String get chooseDistro => _translate('chooseDistro');
+  String get chooseDistroDesc => _translate('chooseDistroDesc');
+  String get installProotDistro => _translate('installProotDistro');
+  String get manageLinuxEnvironments => _translate('manageLinuxEnvironments');
   String get installUbuntu => _translate('installUbuntu');
   String get installUbuntuDesc => _translate('installUbuntuDesc');
   String get loginToDistro => _translate('loginToDistro');
@@ -148,6 +157,13 @@ class AppLocalizations {
   String get appTheme => _translate('appTheme');
   String get showExtraKeys => _translate('showExtraKeys');
   String get showExtraKeysDesc => _translate('showExtraKeysDesc');
+  String get extraKeysLayout => _translate('extraKeysLayout');
+  String get extraKeysLayoutDesc => _translate('extraKeysLayoutDesc');
+  String get extraKeysPosition => _translate('extraKeysPosition');
+  String get extraKeysPositionTop => _translate('extraKeysPositionTop');
+  String get extraKeysPositionBottom => _translate('extraKeysPositionBottom');
+  String get extraKeysTapToChange => _translate('extraKeysTapToChange');
+  String get extraKeysMenuLocked => _translate('extraKeysMenuLocked');
   String get cursorBlinkDesc => _translate('cursorBlinkDesc');
   String get keepScreenOnDesc => _translate('keepScreenOnDesc');
   String get vibrationDesc => _translate('vibrationDesc');
@@ -291,6 +307,7 @@ class AppLocalizations {
   String get keyIns => _translate('keyIns');
   String get keyDel => _translate('keyDel');
   String get keyEnter => _translate('keyEnter');
+  String get extraKeysMenu => _translate('extraKeysMenu');
 
   // ===== 文件管理器 =====
   String get fileManager => _translate('fileManager');
@@ -314,6 +331,7 @@ class AppLocalizations {
   String get openInSystem => _translate('openInSystem');
   String get goBackHistory => _translate('goBackHistory');
   String get keyBackspace => _translate('keyBackspace');
+  String get categoryCommon => _translate('categoryCommon');
   String get categorySymbols => _translate('categorySymbols');
   String get categoryFKeys => _translate('categoryFKeys');
   String get categoryCommands => _translate('categoryCommands');
@@ -384,6 +402,11 @@ const Map<String, String> _enTranslations = {
   'noSSHKeyFound': 'No SSH public key found. Run: ssh-keygen',
   'generate': 'Generate',
   'rename': 'Rename',
+  'install': 'Install',
+  'uninstall': 'Uninstall',
+  'installed': 'Installed',
+  'available': 'Available',
+  'linux': 'Linux',
   'linuxDistros': 'Linux Distros',
   'linuxDistrosDesc': 'Detect installed proot-distro environments',
   'prootDistroNotInstalled': 'proot-distro is not installed',
@@ -391,6 +414,10 @@ const Map<String, String> _enTranslations = {
   'noLinuxDistrosInstalled': 'No Linux distros installed',
   'noLinuxDistrosInstalledDesc':
       'Install Ubuntu to get started with proot-distro',
+  'chooseDistro': 'Choose Distro',
+  'chooseDistroDesc': 'Pick Debian, Arch Linux, Alpine and more to install.',
+  'installProotDistro': 'Install proot-distro',
+  'manageLinuxEnvironments': 'Manage Linux environments',
   'installUbuntu': 'Install Ubuntu',
   'installUbuntuDesc': 'Run: proot-distro install ubuntu',
   'loginToDistro': 'Open in proot-distro',
@@ -430,6 +457,15 @@ const Map<String, String> _enTranslations = {
   'appTheme': 'App Theme',
   'showExtraKeys': 'Show Extra Keys',
   'showExtraKeysDesc': 'Show additional keyboard row',
+  'extraKeysLayout': 'Extra Keys Layout',
+  'extraKeysLayoutDesc':
+      'Choose whether the keyboard appears above or below the terminal.',
+  'extraKeysPosition': 'Keyboard Position',
+  'extraKeysPositionTop': 'Top of terminal',
+  'extraKeysPositionBottom': 'Bottom of terminal',
+  'extraKeysTapToChange': 'Tap any editable key to replace it.',
+  'extraKeysMenuLocked':
+      'The menu key is fixed so symbols and function tabs are always reachable.',
   'cursorBlinkDesc': 'Animate cursor blinking',
   'keepScreenOnDesc': 'Prevent screen from turning off',
   'vibrationDesc': 'Haptic feedback on key press',
@@ -570,7 +606,9 @@ const Map<String, String> _enTranslations = {
   'keyIns': 'INS',
   'keyDel': 'DEL',
   'keyEnter': 'ENTER',
+  'extraKeysMenu': 'More',
   'keyBackspace': 'DEL',
+  'categoryCommon': 'Common',
   'categorySymbols': 'Symbols',
   'categoryFKeys': 'F-Keys',
   'categoryCommands': 'Cmds',
@@ -645,12 +683,21 @@ const Map<String, String> _zhCNTranslations = {
   'noSSHKeyFound': '未找到 SSH 公钥，请运行: ssh-keygen',
   'generate': '生成',
   'rename': '重命名',
+  'install': '安装',
+  'uninstall': '卸载',
+  'installed': '已安装',
+  'available': '可安装',
+  'linux': 'Linux',
   'linuxDistros': 'Linux 发行版',
   'linuxDistrosDesc': '检测已安装的 proot-distro 环境',
   'prootDistroNotInstalled': '未安装 proot-distro',
   'prootDistroNotInstalledDesc': '一键安装 proot-distro 和 Ubuntu',
   'noLinuxDistrosInstalled': '还没有安装 Linux 发行版',
   'noLinuxDistrosInstalledDesc': '可以先安装 Ubuntu 开始使用 proot-distro',
+  'chooseDistro': '选择发行版',
+  'chooseDistroDesc': '可选择 Debian、Arch Linux、Alpine 等系统进行安装。',
+  'installProotDistro': '安装 proot-distro',
+  'manageLinuxEnvironments': '管理 Linux 环境',
   'installUbuntu': '安装 Ubuntu',
   'installUbuntuDesc': '执行：proot-distro install ubuntu',
   'loginToDistro': '进入该系统',
@@ -690,6 +737,13 @@ const Map<String, String> _zhCNTranslations = {
   'appTheme': '应用主题',
   'showExtraKeys': '显示扩展按键',
   'showExtraKeysDesc': '显示额外的键盘行',
+  'extraKeysLayout': '扩展按键布局',
+  'extraKeysLayoutDesc': '可选择键盘显示在终端上方或下方。',
+  'extraKeysPosition': '键盘位置',
+  'extraKeysPositionTop': '终端上方',
+  'extraKeysPositionBottom': '终端下方',
+  'extraKeysTapToChange': '点击任意可编辑按键即可替换。',
+  'extraKeysMenuLocked': '菜单键固定保留，避免更多符号和功能键入口被配没。',
   'cursorBlinkDesc': '光标闪烁动画',
   'keepScreenOnDesc': '防止屏幕自动关闭',
   'vibrationDesc': '按键触感反馈',
@@ -829,7 +883,9 @@ const Map<String, String> _zhCNTranslations = {
   'keyIns': '插入',
   'keyDel': '删除',
   'keyEnter': '回车',
+  'extraKeysMenu': '更多',
   'keyBackspace': '退格',
+  'categoryCommon': '常用',
   'categorySymbols': '符号',
   'categoryFKeys': 'F键',
   'categoryCommands': '命令',
@@ -904,12 +960,21 @@ const Map<String, String> _zhTWTranslations = {
   'noSSHKeyFound': '未找到 SSH 公鑰，請執行: ssh-keygen',
   'generate': '產生',
   'rename': '重新命名',
+  'install': '安裝',
+  'uninstall': '移除',
+  'installed': '已安裝',
+  'available': '可安裝',
+  'linux': 'Linux',
   'linuxDistros': 'Linux 發行版',
   'linuxDistrosDesc': '偵測已安裝的 proot-distro 環境',
   'prootDistroNotInstalled': '尚未安裝 proot-distro',
   'prootDistroNotInstalledDesc': '一鍵安裝 proot-distro 與 Ubuntu',
   'noLinuxDistrosInstalled': '尚未安裝 Linux 發行版',
   'noLinuxDistrosInstalledDesc': '可以先安裝 Ubuntu 開始使用 proot-distro',
+  'chooseDistro': '選擇發行版',
+  'chooseDistroDesc': '可選擇 Debian、Arch Linux、Alpine 等系統進行安裝。',
+  'installProotDistro': '安裝 proot-distro',
+  'manageLinuxEnvironments': '管理 Linux 環境',
   'installUbuntu': '安裝 Ubuntu',
   'installUbuntuDesc': '執行：proot-distro install ubuntu',
   'loginToDistro': '進入該系統',
@@ -949,6 +1014,13 @@ const Map<String, String> _zhTWTranslations = {
   'appTheme': '應用程式主題',
   'showExtraKeys': '顯示擴展按鍵',
   'showExtraKeysDesc': '顯示額外的鍵盤列',
+  'extraKeysLayout': '擴展按鍵佈局',
+  'extraKeysLayoutDesc': '可選擇鍵盤顯示在終端上方或下方。',
+  'extraKeysPosition': '鍵盤位置',
+  'extraKeysPositionTop': '終端上方',
+  'extraKeysPositionBottom': '終端下方',
+  'extraKeysTapToChange': '點擊任意可編輯按鍵即可替換。',
+  'extraKeysMenuLocked': '選單鍵固定保留，避免更多符號和功能鍵入口被移除。',
   'cursorBlinkDesc': '游標閃爍動畫',
   'keepScreenOnDesc': '防止螢幕自動關閉',
   'vibrationDesc': '按鍵觸感回饋',
@@ -1088,7 +1160,9 @@ const Map<String, String> _zhTWTranslations = {
   'keyIns': '插入',
   'keyDel': '刪除',
   'keyEnter': 'Enter',
+  'extraKeysMenu': '更多',
   'keyBackspace': '退格',
+  'categoryCommon': '常用',
   'categorySymbols': '符號',
   'categoryFKeys': 'F鍵',
   'categoryCommands': '命令',

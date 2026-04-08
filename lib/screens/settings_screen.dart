@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,14 +10,18 @@ import '../providers/settings_provider.dart';
 import '../utils/constants.dart';
 import '../themes/terminal_themes.dart';
 import '../models/mirror.dart';
+import '../models/extra_key_layout.dart';
 import '../utils/wcwidth_debug.dart';
 import '../services/history_service.dart';
 import '../services/api_service.dart';
 import '../widgets/history_viewer.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ai_provider.dart';
+import '../services/proot_distro_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/distro_badge.dart';
 import 'ai_settings_screen.dart';
+import 'extra_keys_settings_screen.dart';
 
 // ═══════════════════════════════════════════════════
 // 主设置页面
@@ -83,6 +88,16 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const AiSettingsScreen()),
+                ),
+              ),
+              _NavTile(
+                icon: Icons.computer,
+                title: l10n.linuxDistros,
+                subtitle: _buildDistroSummary(context),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const _ProotDistroSettingsPage()),
                 ),
               ),
             ],
@@ -154,6 +169,14 @@ class SettingsScreen extends StatelessWidget {
     if (!ai.isConfigured) return 'Not configured';
     return '${ai.config.model} - ${ai.config.baseUrl}';
   }
+
+  String _buildDistroSummary(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (!_platformCheck) return '';
+    return l10n.manageLinuxEnvironments;
+  }
+
+  static bool get _platformCheck => Platform.isAndroid;
 }
 
 // ═══════════════════════════════════════════════════
@@ -361,6 +384,7 @@ class _TerminalSettingsPage extends StatelessWidget {
           _SectionHeader(title: l10n.display),
           const _KeepScreenOnSetting(),
           const _ShowExtraKeysSetting(),
+          const _ExtraKeysLayoutSetting(),
           const _TerminalMarginSetting(),
           _SectionHeader(title: l10n.input),
           const _VibrationSetting(),
@@ -904,6 +928,29 @@ class _ShowExtraKeysSetting extends StatelessWidget {
       subtitle: Text(l10n.showExtraKeysDesc),
       value: settings.showExtraKeys,
       onChanged: (value) => settings.setShowExtraKeys(value),
+    );
+  }
+}
+
+class _ExtraKeysLayoutSetting extends StatelessWidget {
+  const _ExtraKeysLayoutSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context);
+    final position = settings.extraKeysLayout.position == ExtraKeysPosition.top
+        ? l10n.extraKeysPositionTop
+        : l10n.extraKeysPositionBottom;
+
+    return ListTile(
+      leading: const Icon(Icons.view_week_outlined),
+      title: Text(l10n.extraKeysLayout),
+      subtitle: Text(position),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ExtraKeysSettingsScreen()),
+      ),
     );
   }
 }
@@ -1562,6 +1609,391 @@ class _ShellSettingState extends State<_ShellSetting> {
     } catch (e) {
       debugPrint('Error writing ~/.shell: $e');
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Proot-Distro Sub-page
+// ═══════════════════════════════════════════════════
+
+class _ProotDistroSettingsPage extends StatefulWidget {
+  const _ProotDistroSettingsPage();
+
+  @override
+  State<_ProotDistroSettingsPage> createState() =>
+      _ProotDistroSettingsPageState();
+}
+
+class _ProotDistroSettingsPageState extends State<_ProotDistroSettingsPage> {
+  final _service = ProotDistroService.instance;
+  bool _isLoading = true;
+  bool _commandAvailable = false;
+  List<ProotDistroInfo> _installed = [];
+  List<AvailableDistro> _available = [];
+  final Set<String> _installing = {};
+  final _installLogs = <String, String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.linuxDistros)),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : !_commandAvailable
+              ? _buildInstallProotDistro(theme, l10n)
+              : _buildDistroList(theme, l10n),
+    );
+  }
+
+  Widget _buildInstallProotDistro(ThemeData theme, AppLocalizations l10n) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                Icons.download_rounded,
+                size: 52,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.prootDistroNotInstalled,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.prootDistroNotInstalledDesc,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _installProotDistro,
+                icon: const Icon(Icons.download),
+                label: Text(l10n.installProotDistro),
+              ),
+            ],
+          ),
+        ),
+        if (_installLogs.containsKey('proot')) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxHeight: 140),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SingleChildScrollView(
+              child: Text(
+                _installLogs['proot'] ?? '',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+        if (_available.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text(
+            l10n.available.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._available.map(
+            (distro) => _DistroAvailableTile(
+              distro: distro,
+              isInstalling: _installing.contains(distro.alias),
+              installLog: _installLogs[distro.alias],
+              onInstall: () => _installDistro(distro),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDistroList(ThemeData theme, AppLocalizations l10n) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        if (_installed.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text(
+              l10n.installed.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          ..._installed.map((distro) => _DistroInstalledTile(
+                distro: distro,
+                onUninstall: () => _uninstallDistro(distro),
+              )),
+        ],
+        if (_available.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              l10n.available.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          ..._available.where((d) => !_installedAliases.contains(d.alias)).map(
+                (distro) => _DistroAvailableTile(
+                  distro: distro,
+                  isInstalling: _installing.contains(distro.alias),
+                  installLog: _installLogs[distro.alias],
+                  onInstall: () => _installDistro(distro),
+                ),
+              ),
+        ],
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Future<void> _loadStatus() async {
+    final status = await _service.getStatus();
+    final available = await _service.listAvailableDistros();
+    if (mounted) {
+      setState(() {
+        _commandAvailable = status.commandAvailable;
+        _installed = status.installedDistros;
+        _available = available;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Set<String> get _installedAliases => _installed.map((d) => d.alias).toSet();
+
+  Future<void> _installProotDistro() async {
+    setState(() {
+      _installLogs['proot'] = 'Installing proot-distro...\n';
+    });
+    try {
+      await _service.installProotDistro(
+        onOutput: (output) {
+          if (mounted) {
+            setState(() {
+              _installLogs['proot'] = (_installLogs['proot'] ?? '') + output;
+            });
+          }
+        },
+      );
+      await _loadStatus();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _installLogs['proot'] = '${_installLogs['proot'] ?? ''}Error: $e\n';
+        });
+      }
+    }
+  }
+
+  Future<void> _installDistro(AvailableDistro distro) async {
+    setState(() => _installing.add(distro.alias));
+    _installLogs[distro.alias] = 'Installing ${distro.displayName}...\n';
+    try {
+      await _service.installDistro(
+        distro.alias,
+        onOutput: (output) {
+          if (mounted) {
+            setState(() {
+              _installLogs[distro.alias] =
+                  (_installLogs[distro.alias] ?? '') + output;
+            });
+          }
+        },
+      );
+      if (mounted) {
+        setState(() => _installing.remove(distro.alias));
+        await _loadStatus();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _installing.remove(distro.alias);
+          _installLogs[distro.alias] =
+              '${_installLogs[distro.alias] ?? ''}Error: $e\n';
+        });
+      }
+    }
+  }
+
+  Future<void> _uninstallDistro(ProotDistroInfo distro) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${l10n.uninstall} ${distro.displayName}?'),
+        content: const Text(
+          'This will delete all files in the distribution. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.uninstall),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _service.uninstallDistro(distro.alias);
+      if (!mounted) return;
+      await _loadStatus();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${l10n.uninstall} ${distro.displayName}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+}
+
+class _DistroInstalledTile extends StatelessWidget {
+  final ProotDistroInfo distro;
+  final VoidCallback onUninstall;
+
+  const _DistroInstalledTile({required this.distro, required this.onUninstall});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return ListTile(
+      leading: DistroBadge(
+        alias: distro.alias,
+        displayName: distro.displayName,
+        size: 40,
+        fontSize: 13,
+      ),
+      title: Text(distro.displayName),
+      subtitle: Text(distro.alias),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline),
+        onPressed: onUninstall,
+        tooltip: l10n.uninstall,
+      ),
+    );
+  }
+}
+
+class _DistroAvailableTile extends StatelessWidget {
+  final AvailableDistro distro;
+  final bool isInstalling;
+  final String? installLog;
+  final VoidCallback onInstall;
+
+  const _DistroAvailableTile({
+    required this.distro,
+    required this.isInstalling,
+    this.installLog,
+    required this.onInstall,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: Column(
+        children: [
+          ListTile(
+            leading: DistroBadge(
+              alias: distro.alias,
+              displayName: distro.displayName,
+              size: 40,
+              fontSize: 13,
+            ),
+            title: Text(distro.displayName),
+            subtitle: distro.description.isNotEmpty
+                ? Text(distro.description,
+                    maxLines: 1, overflow: TextOverflow.ellipsis)
+                : null,
+            trailing: isInstalling
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : OutlinedButton(
+                    onPressed: onInstall,
+                    child: Text(l10n.install),
+                  ),
+          ),
+          if (installLog != null && installLog!.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(56, 0, 8, 8),
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(maxHeight: 100),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  installLog!,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
