@@ -592,20 +592,17 @@ class _ActionSheetListAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool destructive;
 
   const _ActionSheetListAction({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.destructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        destructive ? theme.colorScheme.error : theme.colorScheme.onSurface;
+    final color = theme.colorScheme.onSurface;
 
     return Material(
       color: Colors.transparent,
@@ -620,17 +617,13 @@ class _ActionSheetListAction extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: destructive
-                      ? theme.colorScheme.errorContainer.withValues(alpha: 0.8)
-                      : theme.colorScheme.surfaceContainerHighest,
+                  color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
                   size: 20,
-                  color: destructive
-                      ? theme.colorScheme.onErrorContainer
-                      : theme.colorScheme.onSurfaceVariant,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1835,14 +1828,6 @@ class _TerminalScreenState extends State<TerminalScreen>
                     'copy_ssh_key',
                     terminalProvider,
                   ),
-                ),
-              ),
-              _ActionSheetListAction(
-                icon: Icons.clear_all_rounded,
-                label: l10n.clearTerminal,
-                destructive: true,
-                onTap: () => closeAndRun(
-                  () => _handleMenuAction(context, 'clear', terminalProvider),
                 ),
               ),
               _ActionSheetListAction(

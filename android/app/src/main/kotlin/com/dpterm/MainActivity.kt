@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.view.KeyEvent
 import android.system.Os
+import android.system.OsConstants
 import android.webkit.MimeTypeMap
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -189,12 +190,10 @@ class MainActivity : FlutterActivity() {
         val created = mutableListOf<String>()
 
         try {
-            // 创建 ~/storage 目录
+            // 创建 ~/storage 目录（幂等：已存在的 symlink 不动，只补缺少的）
+            // NEVER delete existing content — ~/storage contains symlinks to real
+            // user data; any recursive delete would destroy the actual files.
             val storageDir = File(homePath, "storage")
-            if (storageDir.exists()) {
-                // 清理现有目录
-                storageDir.deleteRecursively()
-            }
             storageDir.mkdirs()
 
             // 获取外部存储根目录
@@ -275,6 +274,22 @@ class MainActivity : FlutterActivity() {
         created: MutableList<String>
     ) {
         try {
+            val linkFile = File(link)
+            // Check if symlink already exists and points to the correct target
+            try {
+                val stat = Os.lstat(link)
+                if (OsConstants.S_ISLNK(stat.st_mode)) {
+                    val existingTarget = Os.readlink(link)
+                    if (existingTarget == target) {
+                        // Already correct, skip
+                        return
+                    }
+                    // Points to wrong target, remove and recreate
+                    linkFile.delete()
+                }
+            } catch (_: Exception) {
+                // lstat failed = link doesn't exist, proceed to create
+            }
             Os.symlink(target, link)
             created.add("$link -> $target")
         } catch (e: Exception) {
