@@ -70,6 +70,7 @@ class TerminalSession {
   int? lastShellColumns;
   int? lastShellRows;
   String? _lastKnownWorkingDirectory;
+
   /// Last known working directory, updated via OSC 7777 cwd reports.
   String? get lastKnownCwd => _lastKnownWorkingDirectory;
   Completer<String?>? _cwdRequestCompleter;
@@ -110,7 +111,11 @@ class TerminalSession {
   }
 
   /// 启动Shell进程
-  Future<void> start({int? columns, int? rows}) async {
+  Future<void> start({
+    int? columns,
+    int? rows,
+    String? workingDirectory,
+  }) async {
     if (_isRunning) return;
 
     // 使用终端当前的实际尺寸，如果没有则使用默认值
@@ -119,7 +124,9 @@ class TerminalSession {
 
     try {
       // 创建并启动Shell会话
-      _shellSession = await ShellSessionFactory.createInteractiveSession();
+      _shellSession = await ShellSessionFactory.createInteractiveSession(
+        workingDirectory: workingDirectory,
+      );
 
       // 设置终端输出回调 - 将xterm的输出发送到Shell进程
       // 如果设置了inputTransformer，先转换输入（用于Ctrl/Alt修饰键）

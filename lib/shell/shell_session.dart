@@ -230,7 +230,10 @@ class ShellSessionFactory {
         // 获取用户配置的 shell
         final configuredShell =
             await getConfiguredShell(preferredShell: shellPath);
-        final cmd = _buildShellLaunchCommand(configuredShell);
+        final cmd = _buildShellLaunchCommand(
+          configuredShell,
+          workingDirectory: workDir,
+        );
         debugPrint('Using configured shell: $configuredShell');
         debugPrint('Shell command length: ${cmd.length}');
 
@@ -271,7 +274,10 @@ class ShellSessionFactory {
 
   /// 构建启动 shell 的命令
   /// 支持 bash, zsh, fish 等不同 shell
-  static String _buildShellLaunchCommand(String shellPath) {
+  static String _buildShellLaunchCommand(
+    String shellPath, {
+    String? workingDirectory,
+  }) {
     final libPath = TermuxConstants.libDir;
     final homePath = TermuxConstants.homeDir;
     final prefixPath = TermuxConstants.prefixDir;
@@ -280,6 +286,11 @@ class ShellSessionFactory {
     final etcPath = TermuxConstants.etcDir;
     final aptConfigPath = '$etcPath/apt/apt.conf';
     final caCertPath = '$etcPath/tls/cert.pem';
+
+    final initialDirectory =
+        (workingDirectory == null || workingDirectory.isEmpty)
+            ? homePath
+            : workingDirectory;
 
     // 获取 shell 名称
     final shellName = shellPath.split('/').last;
@@ -304,6 +315,7 @@ class ShellSessionFactory {
         r"export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=1;31:sg=1;31:tw=1;34:ow=1;34:*.tar=1;31:*.gz=1;31:*.zip=1;31:*.jpg=1;35:*.png=1;35:*.mp3=1;36:*.mp4=1;36'; "
         r"export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'; "
         'export LESS="-R"; '
+        'cd ${_shellQuote(initialDirectory)} 2>/dev/null || '
         'cd "\$HOME" 2>/dev/null || cd /sdcard; '
         // 确保所有 Android GID 都注册到 /etc/group，避免 proot-distro 等工具报
         // "id: cannot find name for group ID xxx" 的错误
@@ -364,6 +376,10 @@ class ShellSessionFactory {
                 'if [ -f "\$HOME/.bashrc" ]; then exec "$shellPath" --rcfile "\$HOME/.bashrc"; '
                 'else exec "$shellPath" --norc; fi';
     }
+  }
+
+  static String _shellQuote(String value) {
+    return "'${value.replaceAll("'", "'\"'\"'")}'";
   }
 
   /// 获取桌面平台的默认shell

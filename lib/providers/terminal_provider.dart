@@ -216,13 +216,14 @@ class TerminalProvider extends ChangeNotifier {
         session.terminal.write('\r\n');
       }
 
-      // Start shell in the saved working directory
-      await session.start();
+      final restoredWorkingDirectory =
+          (ps.workingDirectory?.trim().isNotEmpty ?? false)
+              ? ps.workingDirectory!.trim()
+              : null;
 
-      // cd to saved working directory if available
-      if (ps.workingDirectory != null && ps.workingDirectory!.isNotEmpty) {
-        session.write('cd ${_shellQuote(ps.workingDirectory!)}\n');
-      }
+      // Start shell directly in the saved working directory so we don't
+      // inject a visible `cd ...` command into the terminal buffer.
+      await session.start(workingDirectory: restoredWorkingDirectory);
 
       _sessions.add(session);
     }
@@ -236,10 +237,5 @@ class TerminalProvider extends ChangeNotifier {
     // Clear persisted state after successful restore
     await SessionPersistenceService.instance.clear();
     return true;
-  }
-
-  /// Shell-quote a string for safe use in cd commands.
-  static String _shellQuote(String s) {
-    return "'${s.replaceAll("'", "'\\''")}'";
   }
 }
