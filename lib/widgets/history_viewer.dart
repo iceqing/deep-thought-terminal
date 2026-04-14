@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../screens/login_screen.dart';
 import '../services/api_service.dart';
 import '../services/history_service.dart';
 
@@ -37,6 +38,7 @@ class _HistoryViewerState extends State<HistoryViewer> {
   List<HistoryEntry> _entries = [];
   List<HistoryEntry> _filteredEntries = [];
   bool _loading = true;
+  bool _unauthorized = false;
   String? _error;
 
   @override
@@ -57,6 +59,7 @@ class _HistoryViewerState extends State<HistoryViewer> {
     setState(() {
       _loading = true;
       _error = null;
+      _unauthorized = false;
     });
     try {
       final authProvider = context.read<AuthProvider>();
@@ -121,8 +124,52 @@ class _HistoryViewerState extends State<HistoryViewer> {
           _loading = false;
         });
       }
+    } on UnauthorizedException {
+      debugPrint('[HistoryDiag] HistoryViewer: 401 unauthorized');
+      if (mounted) {
+        // Token 过期，清除登录状态
+        context.read<AuthProvider>().logout();
+        setState(() {
+          _loading = false;
+          _unauthorized = true;
+        });
+      }
     } catch (e) {
       debugPrint('[HistoryDiag] HistoryViewer load error: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  /// 直接加载本地历史（跳过 API）
+  Future<void> _loadLocalHistory() async {
+    setState(() {
+      _loading = true;
+      _unauthorized = false;
+      _error = null;
+    });
+    try {
+      final entries = await _historyService.getAllHistory();
+      entries.sort((a, b) {
+        final ta = a.timestamp?.millisecondsSinceEpoch;
+        final tb = b.timestamp?.millisecondsSinceEpoch;
+        if (ta != null && tb != null) return tb.compareTo(ta);
+        if (tb != null) return 1;
+        if (ta != null) return -1;
+        return b.index.compareTo(a.index);
+      });
+      if (mounted) {
+        setState(() {
+          _entries = entries;
+          _filteredEntries = entries;
+          _loading = false;
+        });
+      }
+    } catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
@@ -445,6 +492,49 @@ class _HistoryViewerState extends State<HistoryViewer> {
             CircularProgressIndicator(),
             SizedBox(height: 16),
             Text('Loading history...'),
+          ],
+        ),
+      );
+    }
+
+    if (_unauthorized) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_outline, size: 48, color: Colors.orange[300]),
+            const SizedBox(height: 16),
+            Text('Session expired',
+                style: TextStyle(
+                    color: Colors.orange[300],
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Please login again to view cloud history',
+                style: TextStyle(color: Colors.grey[500])),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const LoginScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('Login'),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () {
+                // 以游客模式加载本地历史
+                _loadLocalHistory();
+              },
+              icon: const Icon(Icons.history),
+              label: const Text('View local history'),
+            ),
           ],
         ),
       );

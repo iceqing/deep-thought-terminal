@@ -4,6 +4,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// API 返回 401 时抛出，表示 token 过期或无效
+class UnauthorizedException implements Exception {
+  final String message;
+  UnauthorizedException([this.message = 'Unauthorized']);
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   static const String _defaultBaseDomain = 'https://deep.iceq.cc';
   static const String _apiBaseUrlEnvKey = 'API_BASE_URL';
@@ -63,6 +71,13 @@ class ApiService {
     );
   }
 
+  /// 检查响应是否为 401，是则抛出 UnauthorizedException
+  static void _check401(http.Response response) {
+    if (response.statusCode == 401) {
+      throw UnauthorizedException();
+    }
+  }
+
   // ==================== SSH Hosts API ====================
 
   static Future<List<Map<String, dynamic>>> getSSHHosts() async {
@@ -74,12 +89,15 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 30));
 
+      _check401(response);
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.cast<Map<String, dynamic>>();
       } else {
         throw Exception('Failed to load SSH hosts: ${response.statusCode}');
       }
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       debugPrint('Error getting SSH hosts: $e');
       return [];
@@ -164,6 +182,7 @@ class ApiService {
 
       debugPrint(
           '[HistoryDiag] API getHistory status=${response.statusCode}, bodyLength=${response.body.length}');
+      _check401(response);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> items = data['items'] ?? [];
@@ -172,6 +191,8 @@ class ApiService {
       } else {
         throw Exception('Failed to load history: ${response.statusCode}');
       }
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       debugPrint('[HistoryDiag] Error getting history: $e');
       return [];
@@ -197,7 +218,10 @@ class ApiService {
 
       debugPrint(
           '[HistoryDiag] API addHistory status=${response.statusCode}, body=${response.body}');
+      _check401(response);
       return response.statusCode == 200;
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       debugPrint('[HistoryDiag] Error adding history: $e');
       return false;
@@ -430,11 +454,14 @@ class ApiService {
       debugPrint(
           '[TaskDiag] syncTasks status=${response.statusCode}, bodyLength=${response.body.length}');
       debugPrint('[TaskDiag] syncTasks responseBody=${response.body}');
+      _check401(response);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
         throw Exception('Failed to sync tasks: ${response.statusCode}');
       }
+    } on UnauthorizedException {
+      rethrow;
     } catch (e) {
       debugPrint('Error syncing tasks: $e');
       return null;
