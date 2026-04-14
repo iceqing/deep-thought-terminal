@@ -70,6 +70,8 @@ class TerminalSession {
   int? lastShellColumns;
   int? lastShellRows;
   String? _lastKnownWorkingDirectory;
+  /// Last known working directory, updated via OSC 7777 cwd reports.
+  String? get lastKnownCwd => _lastKnownWorkingDirectory;
   Completer<String?>? _cwdRequestCompleter;
 
   TerminalSession({

@@ -149,6 +149,11 @@ class TerminalProvider extends ChangeNotifier {
     }
   }
 
+  // Pattern to strip cwd probe echoes from saved buffer content
+  static final _cwdProbePattern = RegExp(
+    r'''^\s*printf "\\033\]7777;cwd:%s\\007" "\$PWD"\s*$''',
+  );
+
   /// Save all session state to disk for later restoration.
   Future<void> saveSessions() async {
     if (_sessions.isEmpty) {
@@ -162,7 +167,10 @@ class TerminalProvider extends ChangeNotifier {
       final buffer = session.terminal.buffer;
       final lines = <String>[];
       for (int i = 0; i < buffer.lines.length; i++) {
-        lines.add(buffer.lines[i].getText().trimRight());
+        final line = buffer.lines[i].getText().trimRight();
+        // Strip cwd probe echoes — these are internal and shouldn't be restored
+        if (_cwdProbePattern.hasMatch(line)) continue;
+        lines.add(line);
       }
       // Remove trailing empty lines
       while (lines.isNotEmpty && lines.last.isEmpty) {
@@ -170,15 +178,9 @@ class TerminalProvider extends ChangeNotifier {
       }
       final text = lines.join('\n');
 
-      // Query cwd if session is running
-      String? cwd;
-      if (session.isRunning) {
-        try {
-          cwd = await session.queryCurrentWorkingDirectory(
-            timeout: const Duration(milliseconds: 500),
-          );
-        } catch (_) {}
-      }
+      // Use last known cwd directly — don't send a probe command that would
+      // pollute the terminal buffer right before saving it.
+      final cwd = session.lastKnownCwd;
 
       persisted.add(PersistedSession(
         id: session.id,
