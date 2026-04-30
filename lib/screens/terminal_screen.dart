@@ -31,7 +31,6 @@ import '../widgets/terminal_text_viewer.dart';
 import '../widgets/scaled_terminal_view.dart';
 import '../widgets/history_viewer.dart';
 import '../widgets/ai_panel.dart';
-import '../widgets/ai_inline_bar.dart';
 import '../widgets/ai_command_suggestion.dart';
 import '../utils/command_rule.dart';
 import 'settings_screen.dart';
@@ -667,7 +666,7 @@ class _TerminalScreenState extends State<TerminalScreen>
   Timer? _debugRefreshTimer;
 
   // AI 相关
-  final TextEditingController _aiInlineBarController = TextEditingController();
+  final TextEditingController _aiPanelInputController = TextEditingController();
   String? _pendingAiCommand;
   String? _pendingAiExplanation;
   String? _currentCwd;
@@ -1009,7 +1008,7 @@ class _TerminalScreenState extends State<TerminalScreen>
     // 移除监听器
     context.read<TerminalProvider>().removeListener(_onTerminalProviderChanged);
     _terminalFocusNode.dispose();
-    _aiInlineBarController.dispose();
+    _aiPanelInputController.dispose();
     VolumeKeyService.instance.onVolumeKey = null;
     super.dispose();
   }
@@ -1126,16 +1125,6 @@ class _TerminalScreenState extends State<TerminalScreen>
                       });
                     },
                   ),
-                // AI 快捷输入栏
-                if (aiProvider.isEnabled &&
-                    aiProvider.config.showInlineBar &&
-                    !aiProvider.isPanelOpen)
-                  AiInlineBar(
-                    controller: _aiInlineBarController,
-                    enabled: !aiProvider.isStreaming,
-                    onSubmit: () => _handleAiInlineSubmit(terminalProvider),
-                    onTapOpenPanel: () => aiProvider.openPanel(),
-                  ),
                 if (extraKeysWidget != null &&
                     settings.extraKeysLayout.position != ExtraKeysPosition.top)
                   extraKeysWidget,
@@ -1168,7 +1157,7 @@ class _TerminalScreenState extends State<TerminalScreen>
       fullScreen: isMobile,
       onClose: () => aiProvider.closePanel(),
       onRunCommand: (cmd) => _runAiCommand(terminalProvider, cmd),
-      controller: _aiInlineBarController,
+      controller: _aiPanelInputController,
       currentCwd: _currentCwd,
       currentShell: settings.defaultShellPath,
       toolExecutor: (name, input) =>
@@ -2728,50 +2717,6 @@ class _TerminalScreenState extends State<TerminalScreen>
         terminalProvider.currentSession?.write('\r\n\x1b[31m[AI Blocked] '
             'This command is blocked by your rule settings.\x1b[0m\r\n');
         break;
-    }
-  }
-
-  Future<void> _handleAiInlineSubmit(TerminalProvider terminalProvider) async {
-    final query = _aiInlineBarController.text.trim();
-    if (query.isEmpty) return;
-
-    final aiProvider = context.read<AiProvider>();
-    final settings = context.read<SettingsProvider>();
-
-    if (!aiProvider.isEnabled) {
-      _showTerminalMessage(
-          terminalProvider, '[AI] AI is disabled. Enable it in Settings.');
-      return;
-    }
-
-    if (!aiProvider.isConfigured) {
-      _showTerminalMessage(
-          terminalProvider, '[AI] Not configured. Set API key in Settings.');
-      return;
-    }
-
-    _aiInlineBarController.clear();
-
-    // 获取上下文
-    _currentCwd ??=
-        await terminalProvider.currentSession?.queryCurrentWorkingDirectory();
-    final cwd = _currentCwd;
-    final shellType = settings.defaultShellPath;
-
-    // 生成命令
-    final command = await aiProvider.generateCommand(
-      query,
-      cwd: cwd,
-      shellType: shellType,
-    );
-
-    if (!mounted) return;
-
-    if (command != null && command.isNotEmpty) {
-      _handleAiCommandResult(command, terminalProvider);
-    } else {
-      final error = aiProvider.lastError ?? 'Failed to generate command';
-      _showTerminalMessage(terminalProvider, '[AI Error] $error');
     }
   }
 

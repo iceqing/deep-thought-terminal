@@ -100,7 +100,6 @@ class AiConfig {
   final int maxTokens;
   final bool enabled;
   final bool autoErrorDiagnosis;
-  final bool showInlineBar;
   final String systemPrompt;
   final List<String> commandRules;
 
@@ -110,7 +109,6 @@ class AiConfig {
     this.maxTokens = 2048,
     this.enabled = false,
     this.autoErrorDiagnosis = false,
-    this.showInlineBar = true,
     this.systemPrompt = defaultSystemPrompt,
     this.commandRules = const [],
   });
@@ -149,7 +147,6 @@ class AiConfig {
     int? maxTokens,
     bool? enabled,
     bool? autoErrorDiagnosis,
-    bool? showInlineBar,
     String? systemPrompt,
     List<String>? commandRules,
   }) {
@@ -159,7 +156,6 @@ class AiConfig {
       maxTokens: maxTokens ?? this.maxTokens,
       enabled: enabled ?? this.enabled,
       autoErrorDiagnosis: autoErrorDiagnosis ?? this.autoErrorDiagnosis,
-      showInlineBar: showInlineBar ?? this.showInlineBar,
       systemPrompt: systemPrompt ?? this.systemPrompt,
       commandRules: commandRules ?? this.commandRules,
     );
@@ -171,7 +167,6 @@ class AiConfig {
         'maxTokens': maxTokens,
         'enabled': enabled,
         'autoErrorDiagnosis': autoErrorDiagnosis,
-        'showInlineBar': showInlineBar,
         'systemPrompt': systemPrompt,
         'commandRules': commandRules,
       };
@@ -216,7 +211,6 @@ class AiConfig {
       maxTokens: json['maxTokens'] as int? ?? 2048,
       enabled: json['enabled'] as bool? ?? false,
       autoErrorDiagnosis: json['autoErrorDiagnosis'] as bool? ?? false,
-      showInlineBar: json['showInlineBar'] as bool? ?? true,
       systemPrompt: json['systemPrompt'] as String? ?? defaultSystemPrompt,
       commandRules:
           (json['commandRules'] as List<dynamic>?)?.cast<String>() ?? const [],

@@ -617,16 +617,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           aiProvider.config.copyWith(autoErrorDiagnosis: v))
                       : null,
                 ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.input),
-                  title: const Text('Show Inline Bar'),
-                  subtitle: const Text('Quick AI input bar below terminal'),
-                  value: aiProvider.config.showInlineBar,
-                  onChanged: aiProvider.isEnabled
-                      ? (v) => aiProvider.updateConfig(
-                          aiProvider.config.copyWith(showInlineBar: v))
-                      : null,
-                ),
               ],
             ),
           ),
