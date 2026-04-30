@@ -89,7 +89,8 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   // Auto-scroll when dragging selection to edges
   Timer? _autoScrollTimer;
   Offset? _lastDragPosition;
-  static const double _edgeScrollZone = 48.0; // pixels from edge to trigger scroll
+  static const double _edgeScrollZone =
+      48.0; // pixels from edge to trigger scroll
   static const double _edgeScrollSpeed = 3.0; // pixels per tick
 
   // Check if running on desktop platform (mouse-based interaction)
@@ -837,6 +838,9 @@ class _ScaledRenderTerminal extends RenderBox
   set terminal(TermuxTerminal terminal) {
     if (_terminal == terminal) return;
     if (attached) _terminal.removeListener(_onTerminalChange);
+    _resizeDebounceTimer?.cancel();
+    _pendingResizeSize = null;
+    _hasAppliedResize = false;
     _terminal = terminal;
     if (attached) _terminal.addListener(_onTerminalChange);
     _resizeTerminalIfNeeded();
@@ -917,13 +921,16 @@ class _ScaledRenderTerminal extends RenderBox
   }
 
   _TerminalSize? _viewportSize;
+  _TerminalSize? _pendingResizeSize;
+  Timer? _resizeDebounceTimer;
+  bool _hasAppliedResize = false;
 
   final ScaledTerminalPainter _painter;
 
   var _stickToBottom = true;
 
   void _onScroll() {
-    _stickToBottom = _scrollOffset >= _maxScrollExtent;
+    _stickToBottom = _scrollOffset >= _maxScrollExtent - 1.0;
     markNeedsLayout();
   }
 
@@ -954,6 +961,9 @@ class _ScaledRenderTerminal extends RenderBox
   @override
   void detach() {
     super.detach();
+    _resizeDebounceTimer?.cancel();
+    _resizeDebounceTimer = null;
+    _pendingResizeSize = null;
     _offset.removeListener(_onScroll);
     _terminal.removeListener(_onTerminalChange);
     _controller.removeListener(_onControllerUpdate);
@@ -1031,13 +1041,38 @@ class _ScaledRenderTerminal extends RenderBox
 
   void _resizeTerminalIfNeeded() {
     if (_autoResize && _viewportSize != null) {
-      _terminal.resize(
-        _viewportSize!.width,
-        _viewportSize!.height,
-        _painter.cellSize.width.round(),
-        _painter.cellSize.height.round(),
-      );
+      final size = _viewportSize!;
+      if (!_hasAppliedResize) {
+        _applyTerminalResize(size);
+        _hasAppliedResize = true;
+        return;
+      }
+
+      _pendingResizeSize = size;
+      _resizeDebounceTimer?.cancel();
+      _resizeDebounceTimer =
+          Timer(const Duration(milliseconds: 120), _flushPendingResize);
     }
+  }
+
+  void _flushPendingResize() {
+    final size = _pendingResizeSize;
+    _pendingResizeSize = null;
+    _resizeDebounceTimer = null;
+    if (size == null) return;
+    _applyTerminalResize(size);
+    if (attached) {
+      markNeedsLayout();
+    }
+  }
+
+  void _applyTerminalResize(_TerminalSize size) {
+    _terminal.resize(
+      size.width,
+      size.height,
+      _painter.cellSize.width.round(),
+      _painter.cellSize.height.round(),
+    );
   }
 
   void _updateScrollOffset() {

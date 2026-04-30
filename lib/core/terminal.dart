@@ -1,4 +1,4 @@
-import 'dart:math' show max;
+import 'dart:math' show max, min;
 
 import 'package:xterm/src/base/observable.dart';
 // 使用本地修改的 Buffer 和 BufferLine
@@ -373,7 +373,16 @@ class TermuxTerminal with Observable implements TerminalState, EscapeHandler {
     }
 
     _altBuffer.resetVerticalMargins();
-    _mainBuffer.resetVerticalMargins();
+    // Don't reset main buffer margins — inline TUI apps (codex, ratatui)
+    // set their own DECSTBM scroll regions. Resetting here creates a race:
+    // the app's queued output arrives between the reset and the next
+    // DECSTBM after SIGWINCH, writing to wrong positions and losing content.
+    // The app will re-establish its margins after processing the resize.
+    // Just clamp to the new viewport bounds so they don't exceed it.
+    _mainBuffer.setVerticalMargins(
+      _mainBuffer.marginTop,
+      min(_mainBuffer.marginBottom, newHeight - 1),
+    );
   }
 
   @override
@@ -551,12 +560,14 @@ class TermuxTerminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void sendCursorPosition() {
-    onOutput?.call(_emitter.cursorPosition(_buffer.cursorX, _buffer.cursorY));
+    // CPR (CSI 6n) reports positions as 1-based row/column values.
+    onOutput?.call('\x1b[${_buffer.cursorY + 1};${_buffer.cursorX + 1}R');
   }
 
   @override
   void setMargins(int top, [int? bottom]) {
     _buffer.setVerticalMargins(top, bottom ?? viewHeight - 1);
+    _buffer.setCursor(0, 0);
   }
 
   @override

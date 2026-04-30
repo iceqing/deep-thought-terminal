@@ -240,7 +240,9 @@ class Buffer {
   void index() {
     if (isInVerticalMargin) {
       if (_cursorY == _marginBottom) {
-        if (marginTop == 0 && !isAltBuffer) {
+        final isFullHeightMargin =
+            marginTop == 0 && marginBottom == viewHeight - 1;
+        if (isFullHeightMargin && !isAltBuffer) {
           lines.insert(absoluteMarginBottom + 1, _newEmptyLine());
         } else {
           scrollUp(1);
@@ -452,12 +454,31 @@ class Buffer {
       }
     } else {
       // Shrink smaller
-      for (var i = 0; i < oldHeight - newHeight; i++) {
-        if (_cursorY > newHeight - 1) {
-          _cursorY--;
-        } else {
-          lines.pop();
+      final removedRows = oldHeight - newHeight;
+      if (isAltBuffer) {
+        for (var i = 0; i < removedRows; i++) {
+          if (_cursorY > newHeight - 1) {
+            _cursorY--;
+          } else {
+            lines.pop();
+          }
         }
+      } else {
+        var rowsToPreserve = removedRows;
+        final cursorLine = absoluteCursorY;
+
+        while (rowsToPreserve > 0 &&
+            lines.length > newHeight &&
+            lines.length - 1 > cursorLine &&
+            _isBlankLine(lines[lines.length - 1])) {
+          lines.pop();
+          rowsToPreserve--;
+        }
+
+        // Keep main-buffer content intact when the viewport shrinks, e.g. when
+        // the soft keyboard opens. The newly hidden top rows become scrollback
+        // once terminal.viewHeight is updated by Terminal.resize().
+        _cursorY = max(0, _cursorY - rowsToPreserve);
       }
     }
 
@@ -500,6 +521,10 @@ class Buffer {
   BufferLine _newEmptyLine([int? width]) {
     final line = BufferLine(width ?? viewWidth);
     return line;
+  }
+
+  bool _isBlankLine(BufferLine line) {
+    return line.getText().trimRight().isEmpty;
   }
 
   static final defaultWordSeparators = <int>{

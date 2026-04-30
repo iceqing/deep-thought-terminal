@@ -751,20 +751,12 @@ class _TerminalScreenState extends State<TerminalScreen>
   }
 
   void _requestKeyboard() {
-    void openKeyboard() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _terminalFocusNode.canRequestFocus = true;
       _terminalFocusNode.requestFocus();
       _terminalViewKey.currentState?.requestKeyboard();
-    }
-
-    if (_terminalFocusNode.hasFocus) {
-      _terminalViewKey.currentState?.closeKeyboard();
-      _terminalFocusNode.unfocus();
-      WidgetsBinding.instance.addPostFrameCallback((_) => openKeyboard());
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) => openKeyboard());
-    }
+    });
   }
 
   bool _isKeyboardVisible(BuildContext context) {
