@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math' show max;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -86,6 +87,11 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
   CellOffset? _selectionBaseStart;
   CellOffset? _selectionBaseEnd;
 
+  // 是否处于"TUI 应用模式"：alt buffer 或者应用启用了鼠标报告。
+  // 这两个信号意味着前台程序（vim / htop / less / man 等）自己管理屏幕，
+  // 滚动事件应转发给它而不是滚 viewport（alt buffer 没有 scrollback）。
+  bool _isTuiMode = false;
+
   // Auto-scroll when dragging selection to edges
   Timer? _autoScrollTimer;
   Offset? _lastDragPosition;
@@ -109,7 +115,22 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
     _focusNode = widget.focusNode ?? FocusNode();
     _controller = widget.controller ?? TermuxTerminalController();
     _scrollController = widget.scrollController ?? ScrollController();
+    _isTuiMode = _computeTuiMode();
+    widget.terminal.addListener(_onTerminalUpdated);
     super.initState();
+  }
+
+  bool _computeTuiMode() {
+    if (widget.terminal.isUsingAltBuffer) return true;
+    if (widget.terminal.mouseMode != MouseMode.none) return true;
+    return false;
+  }
+
+  void _onTerminalUpdated() {
+    final tui = _computeTuiMode();
+    if (tui != _isTuiMode && mounted) {
+      setState(() => _isTuiMode = tui);
+    }
   }
 
   @override
@@ -132,12 +153,18 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
       }
       _scrollController = widget.scrollController ?? ScrollController();
     }
+    if (oldWidget.terminal != widget.terminal) {
+      oldWidget.terminal.removeListener(_onTerminalUpdated);
+      widget.terminal.addListener(_onTerminalUpdated);
+      _isTuiMode = _computeTuiMode();
+    }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   void dispose() {
     _stopAutoScroll();
+    widget.terminal.removeListener(_onTerminalUpdated);
     if (widget.focusNode == null) {
       _focusNode.dispose();
     }
@@ -222,7 +249,7 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
       key: _scrollableKey,
       controller: _scrollController,
       viewportBuilder: (context, offset) {
-        return _ScaledTerminalViewport(
+        final viewport = _ScaledTerminalViewport(
           key: _viewportKey,
           terminal: widget.terminal,
           controller: _controller,
@@ -238,6 +265,27 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
           cursorType: widget.cursorType,
           alwaysShowCursor: widget.alwaysShowCursor,
         );
+        // alt buffer 模式（codex/vim/htop 等全屏 TUI）下：
+        // - 鼠标滚轮：通过 Listener 拦截 PointerSignal，转发为 wheel/方向键；
+        // - 触屏纵向滑动：通过 GestureDetector 拦截 vertical drag，按行高累积后转发。
+        // 这两层都位于 Scrollable 的 viewport 内（hit-test 上更深），
+        // 因此在 alt buffer 下能优先于外层 Scrollable 消费事件，避免无意义的空滚动。
+        Widget wrapped = Listener(
+          onPointerSignal: _handleViewportPointerSignal,
+          child: viewport,
+        );
+        if (_isTuiMode) {
+          wrapped = GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            // 仅在 alt buffer 下拦截纵向拖动；非 alt buffer 时该分支不会进入，
+            // 让外层 Scrollable 正常处理 scrollback。
+            onVerticalDragStart: _onAltDragStart,
+            onVerticalDragUpdate: _onAltDragUpdate,
+            onVerticalDragEnd: _onAltDragEnd,
+            child: wrapped,
+          );
+        }
+        return wrapped;
       },
     );
 
@@ -465,6 +513,70 @@ class ScaledTerminalViewState extends State<ScaledTerminalView> {
     else if (cursorBottom > currentScroll + viewportHeight) {
       position.jumpTo(cursorBottom - viewportHeight);
     }
+  }
+
+  // alt buffer 累积滚动增量（屏蔽亚行级 trackpad/精细滚动事件抖动）。
+  double _altScrollAccumulator = 0.0;
+
+  // alt buffer 下触屏拖动累积量；direction：手指下滑(正 dy) 表示想看更早内容(向上滚)。
+  double _altDragAccumulator = 0.0;
+
+  void _onAltDragStart(DragStartDetails d) {
+    _altDragAccumulator = 0.0;
+  }
+
+  void _onAltDragUpdate(DragUpdateDetails d) {
+    final lineHeight = _renderTerminal.lineHeight;
+    if (lineHeight <= 0) return;
+    _altDragAccumulator += d.delta.dy;
+    final lines = _altDragAccumulator ~/ lineHeight;
+    if (lines == 0) return;
+    _altDragAccumulator -= lines * lineHeight;
+    // 手指向下滑（dy > 0）→ 想看更早的输出 → 向上滚。
+    final up = lines > 0;
+    _emitAltScrollLines(up, lines.abs(), d.localPosition);
+  }
+
+  void _onAltDragEnd(DragEndDetails d) {
+    _altDragAccumulator = 0.0;
+  }
+
+  void _emitAltScrollLines(bool up, int count, Offset localPosition) {
+    final cellOffset = _renderTerminal.getCellOffset(localPosition);
+    for (var i = 0; i < count; i++) {
+      final handled = widget.terminal.mouseInput(
+        up ? TerminalMouseButton.wheelUp : TerminalMouseButton.wheelDown,
+        TerminalMouseButtonState.down,
+        cellOffset,
+      );
+      // 应用没启用鼠标报告时，按 xterm alternateScroll(?1007) 的常见做法
+      // fallback 发方向键 —— vim/less/man/htop 等都会用 ↑/↓ 滚动。
+      if (!handled && widget.simulateScroll) {
+        widget.terminal.keyInput(
+          up ? TerminalKey.arrowUp : TerminalKey.arrowDown,
+        );
+      }
+    }
+  }
+
+  void _handleViewportPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!_isTuiMode) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+      _dispatchAltBufferScroll(e as PointerScrollEvent);
+    });
+  }
+
+  void _dispatchAltBufferScroll(PointerScrollEvent event) {
+    final lineHeight = _renderTerminal.lineHeight;
+    if (lineHeight <= 0) return;
+    _altScrollAccumulator += event.scrollDelta.dy;
+    final lines = _altScrollAccumulator ~/ lineHeight;
+    if (lines == 0) return;
+    _altScrollAccumulator -= lines * lineHeight;
+    // 滚轮 dy 正 = 向下滚（看更新内容），dy 负 = 向上滚（看更早内容）。
+    final up = lines < 0;
+    _emitAltScrollLines(up, lines.abs(), event.localPosition);
   }
 
   void requestKeyboard() {
