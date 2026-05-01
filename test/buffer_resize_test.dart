@@ -70,4 +70,24 @@ void main() {
       equals('bottom-row'),
     );
   });
+
+  test('resize with trailing empty line shows correct content', () {
+    final terminal = TermuxTerminal(maxLines: 1000)..resize(80, 24);
+
+    // Write 30 lines with \r\n
+    for (var i = 0; i < 30; i++) {
+      terminal.write('line-$i\r\n');
+    }
+
+    // Shrink viewport
+    terminal.resize(80, 14);
+
+    // The first visible line should be line-16 (not line-17)
+    expect(terminal.buffer.lines[terminal.buffer.scrollBack].getText().trim(),
+        equals('line-16'));
+    // The last content line should be line-28 (line-29 was consumed by cursor positioning)
+    // The trailing empty line was popped, so line-28 is at height-2
+    expect(terminal.buffer.lines[terminal.buffer.height - 2].getText().trim(),
+        equals('line-28'));
+  });
 }

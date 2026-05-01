@@ -374,7 +374,6 @@ class Buffer {
     if (height <= viewHeight) {
       return;
     }
-
     lines.trimStart(scrollBack);
   }
 
@@ -464,6 +463,15 @@ class Buffer {
           }
         }
       } else {
+        // Special case: if the cursor is on the last line and it's blank,
+        // pop it first. This prevents a phantom trailing empty line from
+        // inflating the scrollback calculation after resize.
+        if (lines.length > 0 &&
+            lines.length - 1 == absoluteCursorY &&
+            _isBlankLine(lines[lines.length - 1])) {
+          lines.pop();
+        }
+
         var rowsToPreserve = removedRows;
         final cursorLine = absoluteCursorY;
 
